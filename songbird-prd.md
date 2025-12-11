@@ -237,26 +237,51 @@ The Notecarrier-F must be configured for ATTN-based power control:
 
 ### 4.1 Development Environment
 
-#### 4.1.1 Toolchain Options
+#### 4.1.1 PlatformIO Configuration
 
-**Option A: PlatformIO (Recommended)**
 ```ini
 ; platformio.ini
-[env:cygnet]
+[platformio]
+src_dir = src
+
+[env:blues_cygnet]
 platform = ststm32
-board = cygnet
+board = blues_cygnet
 framework = arduino
-lib_deps = 
+
+; Library dependencies
+lib_deps =
     blues/Blues Wireless Notecard@^1.6.0
     adafruit/Adafruit BME280 Library@^2.2.2
     adafruit/Adafruit Unified Sensor@^1.1.9
-upload_protocol = stlink
-monitor_speed = 115200
-```
+    stm32duino/STM32duino FreeRTOS@^10.3.2
 
-**Option B: Arduino IDE**
-- Board: Blues Cygnet (requires Blues board package)
-- Upload Method: STM32CubeProgrammer (SWD) with STLINK-V3MINI
+; Upload and debug configuration
+upload_protocol = stlink
+debug_tool = stlink
+monitor_speed = 115200
+
+; Build flags
+build_flags =
+    -D PRODUCT_UID=\"com.blues.songbird\"
+    -D FIRMWARE_VERSION=\"1.0.0\"
+    -D HAL_TIM_MODULE_ENABLED
+    -D HAL_PWR_MODULE_ENABLED
+    ; Include paths for modular structure
+    -I src/audio
+    -I src/notecard
+    -I src/sensors
+    -I src/rtos
+    -I src/core
+    -I src/commands
+
+[env:cygnet_debug]
+extends = env:blues_cygnet
+build_type = debug
+build_flags =
+    ${env:blues_cygnet.build_flags}
+    -D DEBUG_MODE=1
+```
 
 #### 4.1.2 Library Dependencies
 
@@ -265,26 +290,118 @@ monitor_speed = 115200
 | Blues Wireless Notecard | ^1.6.0 | Notecard communication |
 | Adafruit BME280 Library | ^2.2.2 | Environmental sensor |
 | Adafruit Unified Sensor | ^1.1.9 | Sensor abstraction (BME280 dependency) |
+| STM32duino FreeRTOS | ^10.3.2 | Real-time operating system for multitasking |
 
 ### 4.2 Firmware Architecture
 
+The firmware uses FreeRTOS for multitasking, with a modular directory structure organized by subsystem.
+
 ```
 songbird-firmware/
-├── songbird-firmware.ino        # Main sketch entry point
-├── SongbirdNotecard.h           # Notecard abstraction header
-├── SongbirdNotecard.cpp         # Notecard implementation
-├── SongbirdSensors.h            # BME280 sensor header
-├── SongbirdSensors.cpp          # BME280 sensor implementation
-├── SongbirdAudio.h              # Buzzer/audio header
-├── SongbirdAudio.cpp            # Buzzer/audio implementation
-├── SongbirdMelodies.h           # Melody and tone definitions
-├── SongbirdCommands.h           # Command handler header
-├── SongbirdCommands.cpp         # Command handler implementation
-├── SongbirdConfig.h             # Configuration constants
+├── src/
+│   ├── main.cpp                 # Entry point, FreeRTOS scheduler start
+│   ├── audio/                   # Audio subsystem
+│   │   ├── SongbirdAudio.h      # Buzzer/audio interface
+│   │   ├── SongbirdAudio.cpp    # PWM tone generation
+│   │   └── SongbirdMelodies.h   # Melody definitions
+│   ├── notecard/                # Notecard communication
+│   │   ├── SongbirdNotecard.h   # Notecard abstraction
+│   │   └── SongbirdNotecard.cpp # note-c wrapper
+│   ├── sensors/                 # Environmental sensors
+│   │   ├── SongbirdSensors.h    # BME280 interface
+│   │   └── SongbirdSensors.cpp  # Sensor reads and alerts
+│   ├── rtos/                    # FreeRTOS integration
+│   │   ├── SongbirdTasks.h      # Task declarations
+│   │   ├── SongbirdTasks.cpp    # Task implementations
+│   │   ├── SongbirdSync.h       # Sync primitives (mutexes, queues)
+│   │   └── SongbirdSync.cpp     # Sync implementations
+│   ├── core/                    # Shared configuration and state
+│   │   ├── SongbirdConfig.h     # Config structs and defaults
+│   │   ├── SongbirdState.h      # Global state interface
+│   │   └── SongbirdState.cpp    # State management
+│   └── commands/                # Command handling
+│       ├── SongbirdCommands.h   # Command interface
+│       ├── SongbirdCommands.cpp # Command execution
+│       ├── SongbirdEnv.h        # Environment variable parsing
+│       └── SongbirdEnv.cpp      # Env var implementation
 └── platformio.ini               # PlatformIO project config
 ```
 
-### 4.3 Operating Modes
+### 4.3 FreeRTOS Task Architecture
+
+The firmware runs 6 FreeRTOS tasks with queue-based inter-task communication:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           FreeRTOS TASK ARCHITECTURE                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
+│  │   EnvTask    │    │  SensorTask  │    │ CommandTask  │                  │
+│  │ (Priority 1) │    │ (Priority 2) │    │ (Priority 3) │                  │
+│  │              │    │              │    │              │                  │
+│  │ • Poll env   │    │ • Read BME280│    │ • Poll       │                  │
+│  │   variables  │    │ • Check      │    │   command.qi │                  │
+│  │ • Parse      │    │   thresholds │    │ • Execute    │                  │
+│  │   config     │    │ • Queue notes│    │   commands   │                  │
+│  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘                  │
+│         │                   │                   │                          │
+│         │ configQueue       │ audioQueue        │ audioQueue               │
+│         ▼                   │ noteQueue         │ noteQueue                │
+│  ┌──────────────┐           │                   │                          │
+│  │   MainTask   │◄──────────┴───────────────────┘                          │
+│  │ (Priority 2) │                                                          │
+│  │              │                                                          │
+│  │ • Orchestrate│    ┌──────────────┐    ┌──────────────┐                  │
+│  │   startup    │    │  AudioTask   │    │ NotecardTask │                  │
+│  │ • Distribute │    │ (Priority 3) │    │ (Priority 4) │                  │
+│  │   config     │    │              │    │              │                  │
+│  │ • Coordinate │    │ • Play tones │    │ • Send notes │                  │
+│  │   sleep      │    │ • Melodies   │    │ • GPS mgmt   │                  │
+│  └──────────────┘    │ • Locate mode│    │ • Sync ops   │                  │
+│                      └──────────────┘    └──────────────┘                  │
+│                             ▲                   ▲                          │
+│                             │ audioQueue        │ noteQueue                │
+│                             └───────────────────┴──────────────────────────│
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  SYNCHRONIZATION PRIMITIVES:                                               │
+│  • g_i2cMutex     - Protects shared I2C bus (Notecard + BME280)           │
+│  • g_configMutex  - Protects shared configuration                          │
+│  • g_audioQueue   - Audio events → AudioTask                               │
+│  • g_noteQueue    - Outbound notes → NotecardTask                          │
+│  • g_configQueue  - Config updates → MainTask                              │
+│  • g_sleepEvent   - Coordinates deep sleep across all tasks                │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Task Descriptions
+
+| Task | Priority | Stack | Responsibilities |
+|------|----------|-------|------------------|
+| **MainTask** | 2 (Normal) | 512 words | System orchestration, config distribution, sleep coordination |
+| **SensorTask** | 2 (Normal) | 512 words | BME280 reads, alert threshold checks, queue track/alert notes |
+| **AudioTask** | 3 (Above Normal) | 256 words | Process audio queue, play melodies/tones, locate mode |
+| **CommandTask** | 3 (Above Normal) | 512 words | Poll command.qi, execute commands, queue acknowledgments |
+| **NotecardTask** | 4 (High) | 1024 words | Send notes to Notecard, GPS management, sync operations |
+| **EnvTask** | 1 (Below Normal) | 512 words | Poll environment variables, parse config, send updates |
+
+#### Inter-Task Communication
+
+| Queue | Sender(s) | Receiver | Item Type |
+|-------|-----------|----------|-----------|
+| `g_audioQueue` | SensorTask, CommandTask | AudioTask | `AudioQueueItem` |
+| `g_noteQueue` | SensorTask, CommandTask | NotecardTask | `NoteQueueItem` |
+| `g_configQueue` | EnvTask | MainTask | `SongbirdConfig` |
+
+#### Resource Protection
+
+| Mutex | Protected Resource | Used By |
+|-------|-------------------|---------|
+| `g_i2cMutex` | Shared I2C bus | NotecardTask, SensorTask |
+| `g_configMutex` | Shared configuration | All tasks (read), MainTask (write) |
+
+### 4.4 Operating Modes
 
 The device supports four operating modes, configurable via the `mode` environment variable:
 
@@ -295,17 +412,17 @@ The device supports four operating modes, configurable via the `mode` environmen
 | **storage** | 60 minutes | 60 minutes | Low | Motion + timer wake | Asset at rest, periodic check-in |
 | **sleep** | Disabled | On motion only | Wake-on-motion | Motion wake only | Long-term storage, maximum battery |
 
-### 4.4 Environment Variables
+### 4.5 Environment Variables
 
 All operational parameters are configurable via Notehub environment variables. Changes take effect on next device sync.
 
-#### 4.4.1 Operating Mode
+#### 4.5.1 Operating Mode
 
 | Variable | Type | Default | Valid Values | Description |
 |----------|------|---------|--------------|-------------|
 | `mode` | string | `demo` | demo, transit, storage, sleep | Operating mode preset |
 
-#### 4.4.2 Timing Configuration
+#### 4.5.2 Timing Configuration
 
 | Variable | Type | Default | Range | Description |
 |----------|------|---------|-------|-------------|
@@ -313,7 +430,7 @@ All operational parameters are configurable via Notehub environment variables. C
 | `sync_interval_min` | int | 15 | 1-1440 | Notehub sync interval (minutes) |
 | `heartbeat_hours` | int | 24 | 1-168 | Maximum time between syncs (hours) |
 
-#### 4.4.3 Alert Thresholds
+#### 4.5.3 Alert Thresholds
 
 | Variable | Type | Default | Range | Description |
 |----------|------|---------|-------|-------------|
@@ -324,14 +441,14 @@ All operational parameters are configurable via Notehub environment variables. C
 | `pressure_alert_delta` | float | 10.0 | 1-100 | Pressure change alert threshold (hPa) |
 | `voltage_alert_low` | float | 3.4 | 3.0-4.2 | Low battery voltage threshold (V) |
 
-#### 4.4.4 Motion Configuration
+#### 4.5.4 Motion Configuration
 
 | Variable | Type | Default | Valid Values | Description |
 |----------|------|---------|--------------|-------------|
 | `motion_sensitivity` | string | `medium` | low, medium, high | Accelerometer sensitivity |
 | `motion_wake_enabled` | bool | true | true, false | Enable motion-triggered wake |
 
-#### 4.4.5 Audio Configuration
+#### 4.5.5 Audio Configuration
 
 | Variable | Type | Default | Valid Values | Description |
 |----------|------|---------|--------------|-------------|
@@ -339,7 +456,7 @@ All operational parameters are configurable via Notehub environment variables. C
 | `audio_volume` | int | 80 | 0-100 | Volume level (PWM duty cycle) |
 | `audio_alerts_only` | bool | false | true, false | Only play alert sounds |
 
-#### 4.4.6 Command & Control Configuration
+#### 4.5.6 Command & Control Configuration
 
 | Variable | Type | Default | Valid Values | Description |
 |----------|------|---------|--------------|-------------|
@@ -347,16 +464,16 @@ All operational parameters are configurable via Notehub environment variables. C
 | `cmd_ack_enabled` | bool | true | true, false | Send acknowledgment after command execution |
 | `locate_duration_sec` | int | 30 | 5-300 | Duration of locate mode audio pattern |
 
-#### 4.4.7 Display/Debug
+#### 4.5.7 Display/Debug
 
 | Variable | Type | Default | Valid Values | Description |
 |----------|------|---------|--------------|-------------|
 | `led_enabled` | bool | true | true, false | Enable status LED |
 | `debug_mode` | bool | false | true, false | Enable verbose serial output |
 
-### 4.5 Notefiles and Templates
+### 4.6 Notefiles and Templates
 
-#### 4.5.1 `track.qo` — Primary Tracking Data
+#### 4.6.1 `track.qo` — Primary Tracking Data
 
 Templated, compact format for bandwidth optimization.
 
@@ -401,7 +518,7 @@ NoteRequest(req);
 }
 ```
 
-#### 4.5.2 `alert.qo` — Alert Events
+#### 4.6.2 `alert.qo` — Alert Events
 
 Templated format for alert notifications.
 
@@ -430,7 +547,7 @@ NoteRequest(req);
 - `low_battery` — Battery voltage below threshold
 - `motion` — Motion detected (when in sleep mode)
 
-#### 4.5.3 `command.qi` — Inbound Commands
+#### 4.6.3 `command.qi` — Inbound Commands
 
 Inbound queue file for cloud-to-device commands. Notes are sent from the dashboard/cloud and retrieved by the device.
 
@@ -470,7 +587,7 @@ Inbound queue file for cloud-to-device commands. Notes are sent from the dashboa
 {"body": {"cmd": "test_audio", "params": {"frequency": 1000, "duration_ms": 500}}}
 ```
 
-#### 4.5.4 `command_ack.qo` — Command Acknowledgment
+#### 4.6.4 `command_ack.qo` — Command Acknowledgment
 
 Outbound queue file for command acknowledgments. Sent after successful command execution.
 
@@ -490,7 +607,7 @@ Outbound queue file for command acknowledgments. Sent after successful command e
 - `error` — Command failed (see `message` field)
 - `ignored` — Command ignored (audio disabled, etc.)
 
-#### 4.5.5 `health.qo` — Device Health (Optional Custom)
+#### 4.6.5 `health.qo` — Device Health (Optional Custom)
 
 In addition to the built-in `_health.qo`, a custom health note for firmware-specific data.
 
