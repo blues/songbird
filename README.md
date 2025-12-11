@@ -222,5 +222,6 @@ See [songbird-dashboard/README.md](songbird-dashboard/README.md) for details.
 
 ## License
 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
 Copyright (c) 2025 Blues Inc.
-SPDX-License-Identifier: Apache-2.0
