@@ -1,0 +1,99 @@
+# =============================================================================
+# Songbird Project .gitignore
+# =============================================================================
+
+# =============================================================================
+# General
+# =============================================================================
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.log
+*.tmp
+*.temp
+
+# =============================================================================
+# Firmware (PlatformIO)
+# =============================================================================
+songbird-firmware/.pio/
+songbird-firmware/.pioenvs/
+songbird-firmware/.piolibdeps/
+songbird-firmware/.clang_complete
+songbird-firmware/.gcc-flags.json
+songbird-firmware/cmake-build-*/
+
+# =============================================================================
+# Infrastructure (Node.js / CDK)
+# =============================================================================
+songbird-infrastructure/node_modules/
+songbird-infrastructure/cdk.out/
+songbird-infrastructure/.cdk.staging/
+songbird-infrastructure/*.js
+songbird-infrastructure/*.d.ts
+songbird-infrastructure/*.js.map
+!songbird-infrastructure/jest.config.js
+!songbird-infrastructure/tailwind.config.js
+!songbird-infrastructure/postcss.config.js
+
+# Lambda build artifacts
+songbird-infrastructure/lambda/**/*.js
+songbird-infrastructure/lambda/**/*.d.ts
+songbird-infrastructure/lambda/**/*.js.map
+
+# =============================================================================
+# Dashboard (Node.js / Vite)
+# =============================================================================
+songbird-dashboard/node_modules/
+songbird-dashboard/dist/
+songbird-dashboard/.cache/
+songbird-dashboard/*.local
+
+# Runtime config (contains secrets)
+songbird-dashboard/public/config.json
+
+# =============================================================================
+# Environment and Secrets
+# =============================================================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# =============================================================================
+# AWS
+# =============================================================================
+.aws-sam/
+samconfig.toml
+cdk.context.json
+
+# =============================================================================
+# Testing
+# =============================================================================
+coverage/
+.nyc_output/
+*.lcov
+
+# =============================================================================
+# Build artifacts
+# =============================================================================
+build/
+out/
+*.o
+*.elf
+*.bin
+*.hex
+*.map
+
+# =============================================================================
+# Dependencies lock files (optional - uncomment if you want to ignore)
+# =============================================================================
+# package-lock.json
+# yarn.lock

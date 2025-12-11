@@ -1,0 +1,7 @@
+{
+  "apiUrl": "https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com",
+  "region": "us-east-1",
+  "userPoolId": "us-east-1_XXXXXXXXX",
+  "userPoolClientId": "XXXXXXXXXXXXXXXXXXXXXXXXXX",
+  "mapboxToken": "pk.YOUR_MAPBOX_TOKEN"
+}
