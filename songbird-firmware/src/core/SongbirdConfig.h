@@ -24,6 +24,23 @@
 #define FIRMWARE_VERSION "1.0.0"
 #endif
 
+// Firmware metadata for Outboard DFU (ODFU)
+#define FIRMWARE_ORG        "Blues Inc."
+#define FIRMWARE_PRODUCT    "Songbird"
+#define FIRMWARE_DESCRIPTION "Sales demo asset tracker"
+
+// Build information (set via build flags or defaults)
+#ifndef BUILD_NUMBER
+#define BUILD_NUMBER        "0"
+#endif
+
+#ifndef BUILD_TIMESTAMP
+#define BUILD_TIMESTAMP     __DATE__ " " __TIME__
+#endif
+
+// DFU target architecture for STM32L433 (Cygnet)
+#define DFU_TARGET          "stm32"
+
 // =============================================================================
 // Pin Definitions (Blues Cygnet - STM32L433)
 // =============================================================================

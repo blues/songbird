@@ -166,6 +166,102 @@ The debug build (`cygnet_debug` environment) enables:
 pio run -e cygnet_debug -t upload
 ```
 
+## Over-the-Air (OTA) Firmware Updates
+
+Songbird supports **Notecard Outboard Firmware Update (ODFU)** for over-the-air firmware updates. This allows you to update the firmware remotely via Notehub without any physical access to the device.
+
+### How ODFU Works
+
+1. The Notecard downloads the firmware binary from Notehub
+2. The Notecard resets the host MCU into its ROM bootloader
+3. The Notecard flashes the new firmware via UART
+4. The host MCU reboots with the new firmware
+
+This process is handled entirely by the Notecard - the host firmware does not participate in the update.
+
+### Hardware Requirements
+
+The Notecarrier-F provides the required wiring:
+- **NRST** - Notecard controls host reset
+- **BOOT0** - Notecard controls bootloader entry
+- **UART TX/RX** - Firmware transfer
+
+Ensure DIP switch 1 (ATTN→EN) is **ON** for proper operation.
+
+### Firmware Version Tracking
+
+The firmware automatically reports its version to Notehub on startup via `dfu.status`. This allows you to see the current firmware version in the Notehub console under **Devices → [Device] → Host Firmware**.
+
+Version information includes:
+- Semantic version (e.g., `1.0.0`)
+- Organization and product name
+- Build timestamp
+
+### Preparing Firmware for OTA Update
+
+1. **Build the firmware:**
+   ```bash
+   pio run
+   ```
+
+2. **Package the binary using Notecard CLI:**
+   ```bash
+   # Install Notecard CLI if needed
+   # https://dev.blues.io/tools-and-sdks/notecard-cli/
+
+   # Package the firmware binary
+   notecard -binpack stm32 0x8000000:.pio/build/blues_cygnet/firmware.bin
+   ```
+
+   This creates a `firmware.binpack` file with the proper metadata.
+
+3. **Upload to Notehub:**
+   - Go to your Notehub project
+   - Navigate to **Settings → Host Firmware**
+   - Click **Upload firmware** and select the `.binpack` file
+   - Add version notes (optional)
+
+### Deploying Firmware Updates
+
+1. **Via Notehub Console:**
+   - Navigate to **Devices → [Device] → Host Firmware**
+   - Select the firmware version to deploy
+   - Click **Apply DFU**
+
+2. **Via Fleet-wide Deployment:**
+   - Navigate to **Settings → Host Firmware**
+   - Select the firmware version
+   - Choose **Deploy to fleet** or select specific devices
+
+### Monitoring Updates
+
+- **Notehub Console**: Check the **Host Firmware** tab for status ("Downloading", "Applying", "Completed")
+- **Device Logs**: The device reports its firmware version after each boot
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Update stuck at "Downloading" | Check cellular/WiFi connectivity |
+| Update fails repeatedly | Verify binary was built for correct target (STM32L433) |
+| Device unresponsive after update | Check BOOT0/NRST wiring, try manual recovery via ST-Link |
+| Version not updating in Notehub | Ensure firmware calls `notecardReportFirmwareVersion()` |
+
+### Manual Recovery
+
+If OTA update fails and the device is unresponsive:
+
+1. Connect ST-Link programmer
+2. Flash firmware manually:
+   ```bash
+   pio run -t upload
+   ```
+
+### References
+
+- [Notecard Outboard Firmware Update Documentation](https://dev.blues.io/notehub/host-firmware-updates/notecard-outboard-firmware-update/)
+- [Notecard CLI binpack Command](https://dev.blues.io/tools-and-sdks/notecard-cli/)
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.

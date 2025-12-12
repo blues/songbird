@@ -103,6 +103,12 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
 - No firmware update required for configuration changes
 - Fleet-wide or per-device configuration options
 
+#### Over-the-Air Firmware Updates
+- Notecard Outboard DFU (ODFU) for remote firmware updates
+- No host participation required — Notecard handles download and flash
+- Firmware version tracking in Notehub
+- Fleet-wide or per-device deployment via Notehub console
+
 ### 2.3 System Architecture
 
 ```
@@ -623,9 +629,64 @@ In addition to the built-in `_health.qo`, a custom health note for firmware-spec
 }
 ```
 
-### 4.6 Audio System
+### 4.7 Over-the-Air Firmware Updates (ODFU)
 
-#### 4.6.1 Hardware Interface
+Songbird uses Notecard Outboard Firmware Update (ODFU) for remote firmware updates. This allows firmware to be updated via Notehub without physical access to the device.
+
+#### 4.7.1 How ODFU Works
+
+1. New firmware binary is uploaded to Notehub
+2. DFU action is triggered for the device (via console or API)
+3. Notecard downloads firmware during next sync
+4. Notecard resets the host MCU into ROM bootloader mode
+5. Notecard flashes new firmware via UART
+6. Host MCU reboots with new firmware
+
+The host firmware does not participate in this process — the Notecard handles everything.
+
+#### 4.7.2 Notecard Configuration
+
+The firmware enables ODFU during initialization:
+
+```c
+// Enable Outboard DFU for STM32 target
+J* req = notecard.newRequest("card.dfu");
+JAddStringToObject(req, "name", "stm32");
+JAddBoolToObject(req, "on", true);
+notecard.sendRequest(req);
+```
+
+#### 4.7.3 Firmware Version Reporting
+
+The firmware reports its version to Notehub via `dfu.status`:
+
+```c
+// Report firmware version to Notehub
+J* req = notecard.newRequest("dfu.status");
+JAddBoolToObject(req, "on", true);
+JAddStringToObject(req, "version", "{\"org\":\"Blues Inc.\",\"product\":\"Songbird\",\"version\":\"1.0.0\",...}");
+notecard.sendRequest(req);
+```
+
+This allows Notehub to display the currently running firmware version for each device.
+
+#### 4.7.4 Preparing Firmware Updates
+
+1. Build the firmware: `pio run`
+2. Package binary using Notecard CLI:
+   ```bash
+   notecard -binpack stm32 0x8000000:.pio/build/blues_cygnet/firmware.bin
+   ```
+3. Upload `.binpack` file to Notehub via **Settings → Host Firmware**
+
+#### 4.7.5 Deploying Updates
+
+- **Single device**: Devices → [Device] → Host Firmware → Apply DFU
+- **Fleet-wide**: Settings → Host Firmware → Deploy to fleet
+
+### 4.8 Audio System
+
+#### 4.8.1 Hardware Interface
 
 The piezo buzzer is driven via PWM on a timer-capable GPIO pin:
 
@@ -648,7 +709,7 @@ void playTone(uint16_t frequency, uint16_t duration_ms, uint8_t volume) {
 }
 ```
 
-#### 4.6.2 Audio Events
+#### 4.8.2 Audio Events
 
 | Event | Sound Pattern | Duration | Notes |
 |-------|---------------|----------|-------|
@@ -667,7 +728,7 @@ void playTone(uint16_t frequency, uint16_t duration_ms, uint8_t volume) {
 | **Locate Pattern** | Repeating beacon (C6, pause, C6, pause) | Until stopped | "Find my device" pattern |
 | **Command Received** | Acknowledgment beep (E6) | 100ms | Command received from cloud |
 
-#### 4.6.3 Melody Definitions
+#### 4.8.3 Melody Definitions
 
 ```c
 // Note frequencies (Hz)
@@ -714,9 +775,9 @@ const uint8_t MELODY_LOCATE_LENGTH = 1;
 const uint16_t LOCATE_PAUSE_MS = 850;  // Pause between beeps
 ```
 
-### 4.7 Power Management
+### 4.9 Power Management
 
-#### 4.7.1 Sleep Strategy
+#### 4.9.1 Sleep Strategy
 
 Songbird uses the Notecarrier-F's ATTN-to-EN connection for deep sleep:
 
@@ -756,7 +817,7 @@ NoteRequest(req);
 
 This ensures the device wakes immediately when a command is sent from the cloud, even if it's in deep sleep.
 
-#### 4.7.2 State Preservation
+#### 4.9.2 State Preservation
 
 Device state is preserved across sleep cycles using the Notecard payload feature:
 
@@ -789,7 +850,7 @@ bool restoreState() {
 }
 ```
 
-#### 4.7.3 Power Budget Estimates
+#### 4.9.3 Power Budget Estimates
 
 | State | Current Draw | Duration (Transit Mode) | Energy |
 |-------|--------------|------------------------|--------|
@@ -803,9 +864,9 @@ bool restoreState() {
 - Energy per hour: ~6mAh
 - Estimated runtime: ~330 hours ≈ **14 days**
 
-### 4.8 Firmware Flow
+### 4.10 Firmware Flow
 
-#### 4.8.1 Initialization Flow (Cold Boot)
+#### 4.10.1 Initialization Flow (Cold Boot)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -873,7 +934,7 @@ bool restoreState() {
                         [ MAIN LOOP ]
 ```
 
-#### 4.8.2 Main Loop Flow
+#### 4.10.2 Main Loop Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐

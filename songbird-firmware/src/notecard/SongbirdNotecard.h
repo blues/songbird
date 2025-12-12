@@ -363,4 +363,52 @@ void notecardResetErrorCount(void);
  */
 Notecard* notecardGetInstance(void);
 
+// =============================================================================
+// Outboard DFU (ODFU) Support
+// =============================================================================
+
+/**
+ * @brief Enable Outboard Device Firmware Update (ODFU)
+ *
+ * Configures the Notecard to receive firmware updates from Notehub and
+ * flash them to the host MCU using the STM32 ROM bootloader.
+ *
+ * This enables over-the-air firmware updates without any host participation.
+ * The Notecard handles downloading, verifying, and flashing the firmware.
+ *
+ * Caller must hold I2C mutex.
+ *
+ * @return true if ODFU enabled successfully
+ */
+bool notecardEnableODFU(void);
+
+/**
+ * @brief Report firmware version to Notehub
+ *
+ * Sends the current firmware version metadata to Notehub via dfu.status.
+ * This allows Notehub to track which firmware version is running on the device.
+ *
+ * Caller must hold I2C mutex.
+ *
+ * @return true if version reported successfully
+ */
+bool notecardReportFirmwareVersion(void);
+
+/**
+ * @brief Build firmware version JSON string for dfu.status
+ *
+ * Creates a JSON string containing firmware metadata:
+ * - org: Organization name
+ * - product: Product name
+ * - version: Semantic version
+ * - ver_major, ver_minor, ver_patch: Version components
+ * - description: Firmware description
+ * - built: Build timestamp
+ *
+ * @param buffer Buffer to store JSON string
+ * @param bufferSize Size of buffer
+ * @return Length of JSON string, or 0 on error
+ */
+size_t notecardBuildVersionString(char* buffer, size_t bufferSize);
+
 #endif // SONGBIRD_NOTECARD_H

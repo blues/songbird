@@ -125,6 +125,22 @@ bool notecardConfigure(OperatingMode mode) {
     Serial.println(mode);
     #endif
 
+    // Enable Outboard DFU and report firmware version
+    // These calls enable over-the-air firmware updates via Notehub
+    if (!notecardEnableODFU()) {
+        #ifdef DEBUG_MODE
+        Serial.println("[Notecard] Warning: ODFU setup failed");
+        #endif
+        // Continue anyway - ODFU is optional but recommended
+    }
+
+    if (!notecardReportFirmwareVersion()) {
+        #ifdef DEBUG_MODE
+        Serial.println("[Notecard] Warning: Version reporting failed");
+        #endif
+        // Continue anyway
+    }
+
     return true;
 }
 
@@ -872,4 +888,116 @@ uint32_t notecardGetErrorCount(void) {
 
 void notecardResetErrorCount(void) {
     s_errorCount = 0;
+}
+
+// =============================================================================
+// Outboard DFU (ODFU) Support
+// =============================================================================
+
+size_t notecardBuildVersionString(char* buffer, size_t bufferSize) {
+    if (buffer == NULL || bufferSize == 0) {
+        return 0;
+    }
+
+    // Parse version string into major.minor.patch
+    int verMajor = 0, verMinor = 0, verPatch = 0;
+    sscanf(FIRMWARE_VERSION, "%d.%d.%d", &verMajor, &verMinor, &verPatch);
+
+    // Build JSON version object
+    int len = snprintf(buffer, bufferSize,
+        "{"
+        "\"org\":\"%s\","
+        "\"product\":\"%s\","
+        "\"description\":\"%s\","
+        "\"version\":\"%s\","
+        "\"ver_major\":%d,"
+        "\"ver_minor\":%d,"
+        "\"ver_patch\":%d,"
+        "\"built\":\"%s\","
+        "\"builder\":\"platformio\""
+        "}",
+        FIRMWARE_ORG,
+        FIRMWARE_PRODUCT,
+        FIRMWARE_DESCRIPTION,
+        FIRMWARE_VERSION,
+        verMajor,
+        verMinor,
+        verPatch,
+        BUILD_TIMESTAMP
+    );
+
+    if (len < 0 || (size_t)len >= bufferSize) {
+        return 0;
+    }
+
+    return (size_t)len;
+}
+
+bool notecardReportFirmwareVersion(void) {
+    if (!s_initialized) {
+        return false;
+    }
+
+    // Build version string
+    char versionJson[256];
+    size_t len = notecardBuildVersionString(versionJson, sizeof(versionJson));
+    if (len == 0) {
+        NC_ERROR();
+        return false;
+    }
+
+    // Send dfu.status to report version to Notehub
+    J* req = s_notecard.newRequest("dfu.status");
+    JAddBoolToObject(req, "on", true);
+    JAddStringToObject(req, "version", versionJson);
+
+    J* rsp = s_notecard.requestAndResponse(req);
+    if (rsp == NULL || s_notecard.responseError(rsp)) {
+        #ifdef DEBUG_MODE
+        Serial.println("[Notecard] dfu.status failed");
+        #endif
+        if (rsp) s_notecard.deleteResponse(rsp);
+        NC_ERROR();
+        return false;
+    }
+
+    s_notecard.deleteResponse(rsp);
+
+    #ifdef DEBUG_MODE
+    Serial.print("[Notecard] Firmware version reported: ");
+    Serial.println(FIRMWARE_VERSION);
+    #endif
+
+    return true;
+}
+
+bool notecardEnableODFU(void) {
+    if (!s_initialized) {
+        return false;
+    }
+
+    // Enable Outboard DFU for STM32 target
+    // This tells the Notecard to use the STM32 ROM bootloader for updates
+    J* req = s_notecard.newRequest("card.dfu");
+    JAddStringToObject(req, "name", DFU_TARGET);
+    JAddBoolToObject(req, "on", true);
+
+    J* rsp = s_notecard.requestAndResponse(req);
+    if (rsp == NULL || s_notecard.responseError(rsp)) {
+        #ifdef DEBUG_MODE
+        Serial.println("[Notecard] card.dfu failed");
+        #endif
+        if (rsp) s_notecard.deleteResponse(rsp);
+        NC_ERROR();
+        return false;
+    }
+
+    s_notecard.deleteResponse(rsp);
+
+    #ifdef DEBUG_MODE
+    Serial.print("[Notecard] ODFU enabled for target: ");
+    Serial.println(DFU_TARGET);
+    #endif
+
+    return true;
 }
