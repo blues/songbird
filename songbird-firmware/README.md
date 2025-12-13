@@ -117,6 +117,29 @@ The firmware uses FreeRTOS with 6 tasks:
 | `storage` | Hourly sync, minimal power consumption |
 | `sleep` | Deep sleep with wake triggers |
 
+## User Button (Mute Toggle)
+
+The user button on the Notecarrier can be used to quickly mute or unmute all audio feedback without needing to change cloud configuration.
+
+### How to Use
+
+- **Press the button once** to toggle between muted and unmuted states
+- **Rising tone (C→E→G)** confirms audio is now **unmuted**
+- **Falling tone (G→E→C)** confirms audio is now **muted**
+
+### Behavior
+
+| State | Audio Behavior |
+|-------|----------------|
+| Unmuted | All audio plays normally (power-on, alerts, notifications) |
+| Muted | All audio is silenced, including alerts and locate mode |
+
+**Note**: The mute state is temporary and resets to the configured `audio_enabled` setting after a device reboot or sleep cycle. For persistent audio control, use the `audio_enabled` environment variable in Notehub.
+
+### Hardware
+
+The button connects to GPIO pin PA9 with an internal pull-up resistor. The button is active-low (pressed = LOW).
+
 ## Configuration
 
 Configuration is managed via Notehub environment variables:

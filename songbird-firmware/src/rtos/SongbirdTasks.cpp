@@ -34,6 +34,14 @@ TaskHandle_t g_envTaskHandle = NULL;
 static SongbirdConfig s_currentConfig;
 
 // =============================================================================
+// Button State (for mute toggle)
+// =============================================================================
+
+static bool s_lastButtonState = HIGH;       // Button is active-low with pull-up
+static uint32_t s_lastButtonChange = 0;     // Debounce timing
+static const uint32_t BUTTON_DEBOUNCE_MS = 50;
+
+// =============================================================================
 // Task Creation
 // =============================================================================
 
@@ -268,6 +276,24 @@ void MainTask(void* pvParameters) {
         // Check if we should enter deep sleep
         // (In a real implementation, this would be more sophisticated)
         // For now, we don't automatically sleep - let the device run continuously
+
+        // Handle user button for mute toggle
+        bool currentButtonState = digitalRead(BUTTON_PIN);
+        if (currentButtonState != s_lastButtonState) {
+            uint32_t now = millis();
+            if (now - s_lastButtonChange > BUTTON_DEBOUNCE_MS) {
+                s_lastButtonChange = now;
+                s_lastButtonState = currentButtonState;
+
+                // Button pressed (active low)
+                if (currentButtonState == LOW) {
+                    #ifdef DEBUG_MODE
+                    Serial.println("[MainTask] Button pressed - toggling mute");
+                    #endif
+                    audioToggleMute();
+                }
+            }
+        }
 
         // Periodic health check
         static uint32_t lastHealthCheck = 0;

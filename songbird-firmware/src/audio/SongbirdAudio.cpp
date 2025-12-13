@@ -154,6 +154,45 @@ bool audioIsEnabled(void) {
     return s_audioEnabled;
 }
 
+bool audioToggleMute(void) {
+    s_audioEnabled = !s_audioEnabled;
+
+    if (s_audioEnabled) {
+        // Unmuted - play rising confirmation tone (direct, not queued)
+        tone(BUZZER_PIN, NOTE_C5);
+        vTaskDelay(pdMS_TO_TICKS(80));
+        noTone(BUZZER_PIN);
+        vTaskDelay(pdMS_TO_TICKS(30));
+        tone(BUZZER_PIN, NOTE_E5);
+        vTaskDelay(pdMS_TO_TICKS(80));
+        noTone(BUZZER_PIN);
+        vTaskDelay(pdMS_TO_TICKS(30));
+        tone(BUZZER_PIN, NOTE_G5);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        noTone(BUZZER_PIN);
+    } else {
+        // Muted - play falling confirmation tone, then silence
+        tone(BUZZER_PIN, NOTE_G5);
+        vTaskDelay(pdMS_TO_TICKS(80));
+        noTone(BUZZER_PIN);
+        vTaskDelay(pdMS_TO_TICKS(30));
+        tone(BUZZER_PIN, NOTE_E5);
+        vTaskDelay(pdMS_TO_TICKS(80));
+        noTone(BUZZER_PIN);
+        vTaskDelay(pdMS_TO_TICKS(30));
+        tone(BUZZER_PIN, NOTE_C5);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        noTone(BUZZER_PIN);
+    }
+
+    #ifdef DEBUG_MODE
+    Serial.print("[Audio] Mute toggled: ");
+    Serial.println(s_audioEnabled ? "UNMUTED" : "MUTED");
+    #endif
+
+    return s_audioEnabled;
+}
+
 void audioSetVolume(uint8_t volume) {
     s_audioVolume = CLAMP(volume, 0, 100);
 

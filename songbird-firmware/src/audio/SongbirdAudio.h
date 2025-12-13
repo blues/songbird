@@ -87,6 +87,19 @@ void audioSetEnabled(bool enabled);
 bool audioIsEnabled(void);
 
 /**
+ * @brief Toggle audio mute state
+ *
+ * Toggles between muted and unmuted. When toggling to unmuted,
+ * plays a brief confirmation tone. When toggling to muted,
+ * stops any playing audio immediately.
+ *
+ * This is designed to be called from a button press handler.
+ *
+ * @return true if audio is now enabled (unmuted), false if muted
+ */
+bool audioToggleMute(void);
+
+/**
  * @brief Set the master volume level
  *
  * @param volume Volume level 0-100
