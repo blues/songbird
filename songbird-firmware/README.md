@@ -82,12 +82,74 @@ pio run -t upload
 pio run -e cygnet_debug -t upload
 ```
 
-## Serial Monitor
+## Debugging with ST-Link
+
+The firmware uses the ST-Link's Virtual COM Port (VCP) for debug serial output, allowing you to debug via the same connection used for programming.
+
+### Hardware Setup
+
+1. Connect the ST-Link V3 (or compatible) to the Cygnet's SWD header
+2. The ST-Link provides both programming and serial debug via a single USB connection
+
+### Serial Monitor
+
+Debug output is sent to the ST-Link VCP at 115200 baud:
 
 ```bash
-# Open serial monitor (115200 baud)
+# Find the ST-Link VCP port
+# macOS: /dev/cu.usbmodemXXXX (look for STLink)
+# Linux: /dev/ttyACMX
+# Windows: COMx
+
+# Open serial monitor via PlatformIO
+pio device monitor
+
+# Or manually with screen (macOS/Linux)
+screen /dev/cu.usbmodem14203 115200
+
+# Or with minicom
+minicom -D /dev/ttyACM0 -b 115200
+```
+
+### Debug Build
+
+The debug build (`cygnet_debug` environment) enables verbose logging:
+
+```bash
+# Build and upload debug firmware
+pio run -e cygnet_debug -t upload
+
+# Then open serial monitor to see debug output
 pio device monitor
 ```
+
+Debug output includes:
+- Task startup messages
+- Notecard communication status
+- Sensor readings and alerts
+- Command execution
+- Configuration changes
+- Stack usage (periodic health checks)
+
+### GDB Debugging
+
+For interactive debugging with breakpoints:
+
+```bash
+# Start debug session
+pio debug
+
+# Or in VS Code, use the PlatformIO debug launch configuration
+```
+
+### Troubleshooting ST-Link Connection
+
+| Issue | Solution |
+|-------|----------|
+| ST-Link not detected | Check USB connection, try different port |
+| Upload fails | Verify SWD wiring, check ST-Link firmware |
+| No serial output | Ensure debug build is flashed, check VCP port |
+| Garbled output | Verify baud rate is 115200 |
 
 ## Architecture
 
@@ -176,18 +238,6 @@ The device accepts commands via the `command.qi` notefile:
 | `command_ack.qo` | Outbound | Command acknowledgments |
 | `health.qo` | Outbound | Device health/status reports |
 | `command.qi` | Inbound | Cloud-to-device commands |
-
-## Debug Build
-
-The debug build (`cygnet_debug` environment) enables:
-
-- Verbose serial logging
-- Stack usage monitoring
-- Extended error reporting
-
-```bash
-pio run -e cygnet_debug -t upload
-```
 
 ## Over-the-Air (OTA) Firmware Updates
 
