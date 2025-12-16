@@ -18,6 +18,9 @@
 #include <Notecard.h>
 #include "SongbirdConfig.h"
 
+// Note: Template type macros (TFLOAT32, TUINT32, etc.) are defined in note.h
+// which is included via Notecard.h
+
 // =============================================================================
 // Notecard Module Interface
 // =============================================================================

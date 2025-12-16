@@ -155,6 +155,7 @@ bool notecardSetupTemplates(void) {
     {
         J* req = s_notecard.newRequest("note.template");
         JAddStringToObject(req, "file", NOTEFILE_TRACK);
+        JAddStringToObject(req, "format", "compact");
         JAddNumberToObject(req, "port", 10);
 
         J* body = JCreateObject();
@@ -163,11 +164,20 @@ bool notecardSetupTemplates(void) {
         JAddNumberToObject(body, "pressure", TFLOAT32);
         JAddNumberToObject(body, "voltage", TFLOAT32);
         JAddBoolToObject(body, "motion", TBOOL);
-        JAddStringToObject(body, "mode", TSTRING(12));
+        JAddStringToObject(body, "mode", "xxxxxxxxxxxx");  // 12 char max
         JAddItemToObject(req, "body", body);
 
         J* rsp = s_notecard.requestAndResponse(req);
         if (rsp == NULL || s_notecard.responseError(rsp)) {
+            #ifdef DEBUG_MODE
+            DEBUG_SERIAL.print("[Notecard] track.qo template failed: ");
+            if (rsp) {
+                const char* err = JGetString(rsp, "err");
+                DEBUG_SERIAL.println(err ? err : "unknown error");
+            } else {
+                DEBUG_SERIAL.println("no response");
+            }
+            #endif
             success = false;
             NC_ERROR();
         }
@@ -178,17 +188,28 @@ bool notecardSetupTemplates(void) {
     {
         J* req = s_notecard.newRequest("note.template");
         JAddStringToObject(req, "file", NOTEFILE_ALERT);
+        JAddStringToObject(req, "format", "compact");
         JAddNumberToObject(req, "port", 11);
 
         J* body = JCreateObject();
-        JAddStringToObject(body, "type", TSTRING(16));
+        JAddStringToObject(body, "type", "xxxxxxxxxxxxxxxx");  // 16 char max
         JAddNumberToObject(body, "value", TFLOAT32);
         JAddNumberToObject(body, "threshold", TFLOAT32);
-        JAddStringToObject(body, "message", TSTRING(64));
+        // 64 char placeholder for message
+        JAddStringToObject(body, "message", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
         JAddItemToObject(req, "body", body);
 
         J* rsp = s_notecard.requestAndResponse(req);
         if (rsp == NULL || s_notecard.responseError(rsp)) {
+            #ifdef DEBUG_MODE
+            DEBUG_SERIAL.print("[Notecard] alert.qo template failed: ");
+            if (rsp) {
+                const char* err = JGetString(rsp, "err");
+                DEBUG_SERIAL.println(err ? err : "unknown error");
+            } else {
+                DEBUG_SERIAL.println("no response");
+            }
+            #endif
             success = false;
             NC_ERROR();
         }
@@ -199,18 +220,29 @@ bool notecardSetupTemplates(void) {
     {
         J* req = s_notecard.newRequest("note.template");
         JAddStringToObject(req, "file", NOTEFILE_CMD_ACK);
+        JAddStringToObject(req, "format", "compact");
         JAddNumberToObject(req, "port", 12);
 
         J* body = JCreateObject();
-        JAddStringToObject(body, "cmd_id", TSTRING(32));
-        JAddStringToObject(body, "cmd", TSTRING(16));
-        JAddStringToObject(body, "status", TSTRING(8));
-        JAddStringToObject(body, "message", TSTRING(64));
+        JAddStringToObject(body, "cmd_id", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");  // 32 char max
+        JAddStringToObject(body, "cmd", "xxxxxxxxxxxxxxxx");  // 16 char max
+        JAddStringToObject(body, "status", "xxxxxxxx");  // 8 char max
+        // 64 char placeholder for message
+        JAddStringToObject(body, "message", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
         JAddNumberToObject(body, "executed_at", TUINT32);
         JAddItemToObject(req, "body", body);
 
         J* rsp = s_notecard.requestAndResponse(req);
         if (rsp == NULL || s_notecard.responseError(rsp)) {
+            #ifdef DEBUG_MODE
+            DEBUG_SERIAL.print("[Notecard] command_ack.qo template failed: ");
+            if (rsp) {
+                const char* err = JGetString(rsp, "err");
+                DEBUG_SERIAL.println(err ? err : "unknown error");
+            } else {
+                DEBUG_SERIAL.println("no response");
+            }
+            #endif
             success = false;
             NC_ERROR();
         }
