@@ -50,6 +50,19 @@
 #define LED_PIN         PB5     // Built-in LED on Cygnet
 
 // =============================================================================
+// Debug Serial Configuration (STLink VCP)
+// =============================================================================
+
+// Serial is defined in main.cpp and exported here for all modules
+#define SERIAL_BAUD 115200
+
+#ifdef __cplusplus
+#include <HardwareSerial.h>
+extern HardwareSerial serialDebug;
+#define DEBUG_SERIAL serialDebug
+#endif
+
+// =============================================================================
 // I2C Configuration
 // =============================================================================
 

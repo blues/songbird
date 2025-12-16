@@ -38,7 +38,7 @@ bool notecardInit(void) {
 
     if (rsp == NULL) {
         #ifdef DEBUG_MODE
-        Serial.println("[Notecard] Not responding");
+        DEBUG_SERIAL.println("[Notecard] Not responding");
         #endif
         NC_ERROR();
         return false;
@@ -46,7 +46,7 @@ bool notecardInit(void) {
 
     if (s_notecard.responseError(rsp)) {
         #ifdef DEBUG_MODE
-        Serial.println("[Notecard] Version request failed");
+        DEBUG_SERIAL.println("[Notecard] Version request failed");
         #endif
         s_notecard.deleteResponse(rsp);
         NC_ERROR();
@@ -55,8 +55,8 @@ bool notecardInit(void) {
 
     #ifdef DEBUG_MODE
     const char* version = JGetString(rsp, "version");
-    Serial.print("[Notecard] Version: ");
-    Serial.println(version ? version : "unknown");
+    DEBUG_SERIAL.print("[Notecard] Version: ");
+    DEBUG_SERIAL.println(version ? version : "unknown");
     #endif
 
     s_notecard.deleteResponse(rsp);
@@ -112,7 +112,7 @@ bool notecardConfigure(OperatingMode mode) {
     J* rsp = s_notecard.requestAndResponse(req);
     if (rsp == NULL || s_notecard.responseError(rsp)) {
         #ifdef DEBUG_MODE
-        Serial.println("[Notecard] hub.set failed");
+        DEBUG_SERIAL.println("[Notecard] hub.set failed");
         #endif
         if (rsp) s_notecard.deleteResponse(rsp);
         NC_ERROR();
@@ -121,22 +121,22 @@ bool notecardConfigure(OperatingMode mode) {
     s_notecard.deleteResponse(rsp);
 
     #ifdef DEBUG_MODE
-    Serial.print("[Notecard] Configured for mode ");
-    Serial.println(mode);
+    DEBUG_SERIAL.print("[Notecard] Configured for mode ");
+    DEBUG_SERIAL.println(mode);
     #endif
 
     // Enable Outboard DFU and report firmware version
     // These calls enable over-the-air firmware updates via Notehub
     if (!notecardEnableODFU()) {
         #ifdef DEBUG_MODE
-        Serial.println("[Notecard] Warning: ODFU setup failed");
+        DEBUG_SERIAL.println("[Notecard] Warning: ODFU setup failed");
         #endif
         // Continue anyway - ODFU is optional but recommended
     }
 
     if (!notecardReportFirmwareVersion()) {
         #ifdef DEBUG_MODE
-        Serial.println("[Notecard] Warning: Version reporting failed");
+        DEBUG_SERIAL.println("[Notecard] Warning: Version reporting failed");
         #endif
         // Continue anyway
     }
@@ -218,7 +218,7 @@ bool notecardSetupTemplates(void) {
     }
 
     #ifdef DEBUG_MODE
-    Serial.println(success ? "[Notecard] Templates configured" : "[Notecard] Template setup failed");
+    DEBUG_SERIAL.println(success ? "[Notecard] Templates configured" : "[Notecard] Template setup failed");
     #endif
 
     return success;
@@ -338,7 +338,7 @@ bool notecardSendTrackNote(const SensorData* data, OperatingMode mode) {
     s_notecard.deleteResponse(rsp);
 
     #ifdef DEBUG_MODE
-    Serial.println("[Notecard] Track note sent");
+    DEBUG_SERIAL.println("[Notecard] Track note sent");
     #endif
 
     return true;
@@ -370,8 +370,8 @@ bool notecardSendAlertNote(const Alert* alert) {
     s_notecard.deleteResponse(rsp);
 
     #ifdef DEBUG_MODE
-    Serial.print("[Notecard] Alert note sent: ");
-    Serial.println(alert->type);
+    DEBUG_SERIAL.print("[Notecard] Alert note sent: ");
+    DEBUG_SERIAL.println(alert->type);
     #endif
 
     return true;
@@ -537,8 +537,8 @@ bool notecardGetCommand(Command* cmd) {
     s_notecard.deleteResponse(rsp);
 
     #ifdef DEBUG_MODE
-    Serial.print("[Notecard] Command received: ");
-    Serial.println(cmdStr ? cmdStr : "unknown");
+    DEBUG_SERIAL.print("[Notecard] Command received: ");
+    DEBUG_SERIAL.println(cmdStr ? cmdStr : "unknown");
     #endif
 
     return true;
@@ -853,7 +853,7 @@ void notecardEnterSleep(void) {
 
     // If we're still running, something went wrong
     #ifdef DEBUG_MODE
-    Serial.println("[Notecard] Sleep failed - still running");
+    DEBUG_SERIAL.println("[Notecard] Sleep failed - still running");
     #endif
 }
 
@@ -954,7 +954,7 @@ bool notecardReportFirmwareVersion(void) {
     J* rsp = s_notecard.requestAndResponse(req);
     if (rsp == NULL || s_notecard.responseError(rsp)) {
         #ifdef DEBUG_MODE
-        Serial.println("[Notecard] dfu.status failed");
+        DEBUG_SERIAL.println("[Notecard] dfu.status failed");
         #endif
         if (rsp) s_notecard.deleteResponse(rsp);
         NC_ERROR();
@@ -964,8 +964,8 @@ bool notecardReportFirmwareVersion(void) {
     s_notecard.deleteResponse(rsp);
 
     #ifdef DEBUG_MODE
-    Serial.print("[Notecard] Firmware version reported: ");
-    Serial.println(FIRMWARE_VERSION);
+    DEBUG_SERIAL.print("[Notecard] Firmware version reported: ");
+    DEBUG_SERIAL.println(FIRMWARE_VERSION);
     #endif
 
     return true;
@@ -985,7 +985,7 @@ bool notecardEnableODFU(void) {
     J* rsp = s_notecard.requestAndResponse(req);
     if (rsp == NULL || s_notecard.responseError(rsp)) {
         #ifdef DEBUG_MODE
-        Serial.println("[Notecard] card.dfu failed");
+        DEBUG_SERIAL.println("[Notecard] card.dfu failed");
         #endif
         if (rsp) s_notecard.deleteResponse(rsp);
         NC_ERROR();
@@ -995,8 +995,8 @@ bool notecardEnableODFU(void) {
     s_notecard.deleteResponse(rsp);
 
     #ifdef DEBUG_MODE
-    Serial.print("[Notecard] ODFU enabled for target: ");
-    Serial.println(DFU_TARGET);
+    DEBUG_SERIAL.print("[Notecard] ODFU enabled for target: ");
+    DEBUG_SERIAL.println(DFU_TARGET);
     #endif
 
     return true;

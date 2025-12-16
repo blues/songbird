@@ -35,6 +35,15 @@
 
 // Songbird modules
 #include "SongbirdConfig.h"
+
+// =============================================================================
+// Serial Configuration (STLink VCP)
+// =============================================================================
+
+HardwareSerial serialDebug(PIN_VCP_RX, PIN_VCP_TX);
+
+#define SERIAL_BAUD 115200
+#define DEBUG_SERIAL serialDebug
 #include "SongbirdSync.h"
 #include "SongbirdAudio.h"
 #include "SongbirdSensors.h"
@@ -49,26 +58,26 @@
 // =============================================================================
 
 void setup() {
-    // Initialize serial for debugging
-    Serial.begin(115200);
+    // Initialize serial for debugging via STLink VCP
+    DEBUG_SERIAL.begin(SERIAL_BAUD);
 
     // Wait for serial in debug mode (with timeout)
     #ifdef DEBUG_MODE
     uint32_t serialWait = millis();
-    while (!Serial && (millis() - serialWait < 3000)) {
+    while (!DEBUG_SERIAL && (millis() - serialWait < 3000)) {
         delay(10);
     }
     #endif
 
-    Serial.println();
-    Serial.println("========================================");
-    Serial.println("  Songbird - Blues Sales Demo Device");
-    Serial.print("  Firmware: ");
-    Serial.println(FIRMWARE_VERSION);
-    Serial.print("  Product:  ");
-    Serial.println(PRODUCT_UID);
-    Serial.println("========================================");
-    Serial.println();
+    DEBUG_SERIAL.println();
+    DEBUG_SERIAL.println("========================================");
+    DEBUG_SERIAL.println("  Songbird - Blues Sales Demo Device");
+    DEBUG_SERIAL.print("  Firmware: ");
+    DEBUG_SERIAL.println(FIRMWARE_VERSION);
+    DEBUG_SERIAL.print("  Product:  ");
+    DEBUG_SERIAL.println(PRODUCT_UID);
+    DEBUG_SERIAL.println("========================================");
+    DEBUG_SERIAL.println();
 
     // Initialize GPIO
     pinMode(LED_PIN, OUTPUT);
@@ -80,25 +89,25 @@ void setup() {
     Wire.begin();
     Wire.setClock(400000);  // 400kHz I2C
 
-    Serial.println("[Init] GPIO and I2C initialized");
+    DEBUG_SERIAL.println("[Init] GPIO and I2C initialized");
 
     // Initialize audio system (before RTOS)
     audioInit();
-    Serial.println("[Init] Audio initialized");
+    DEBUG_SERIAL.println("[Init] Audio initialized");
 
     // Initialize Notecard
     if (!notecardInit()) {
-        Serial.println("[Init] ERROR: Notecard init failed!");
+        DEBUG_SERIAL.println("[Init] ERROR: Notecard init failed!");
         // Play error tone
         audioPlayEvent(AUDIO_EVENT_ERROR, DEFAULT_AUDIO_VOLUME);
         // Continue anyway - might recover later
     } else {
-        Serial.println("[Init] Notecard initialized");
+        DEBUG_SERIAL.println("[Init] Notecard initialized");
     }
 
     // Initialize synchronization primitives
     if (!syncInit()) {
-        Serial.println("[Init] ERROR: Sync init failed!");
+        DEBUG_SERIAL.println("[Init] ERROR: Sync init failed!");
         audioPlayEvent(AUDIO_EVENT_ERROR, DEFAULT_AUDIO_VOLUME);
         // This is fatal - can't continue without RTOS primitives
         while (1) {
@@ -106,31 +115,31 @@ void setup() {
             delay(100);
         }
     }
-    Serial.println("[Init] Sync primitives initialized");
+    DEBUG_SERIAL.println("[Init] Sync primitives initialized");
 
     // Create FreeRTOS tasks
     if (!tasksCreate()) {
-        Serial.println("[Init] ERROR: Task creation failed!");
+        DEBUG_SERIAL.println("[Init] ERROR: Task creation failed!");
         audioPlayEvent(AUDIO_EVENT_ERROR, DEFAULT_AUDIO_VOLUME);
         while (1) {
             digitalWrite(LED_PIN, !digitalRead(LED_PIN));
             delay(100);
         }
     }
-    Serial.println("[Init] Tasks created");
+    DEBUG_SERIAL.println("[Init] Tasks created");
 
     // Turn off LED - tasks will control it
     digitalWrite(LED_PIN, LOW);
 
-    Serial.println("[Init] Starting FreeRTOS scheduler...");
-    Serial.println();
+    DEBUG_SERIAL.println("[Init] Starting FreeRTOS scheduler...");
+    DEBUG_SERIAL.println();
 
     // Start FreeRTOS scheduler
     // This function does not return
     tasksStart();
 
     // Should never reach here
-    Serial.println("[Init] ERROR: Scheduler returned!");
+    DEBUG_SERIAL.println("[Init] ERROR: Scheduler returned!");
     while (1) {
         digitalWrite(LED_PIN, !digitalRead(LED_PIN));
         delay(50);

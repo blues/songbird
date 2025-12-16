@@ -61,8 +61,8 @@ bool commandsExecute(const Command* cmd, const SongbirdConfig* config, CommandAc
     ack->executedAt = millis() / 1000;  // Would use RTC in production
 
     #ifdef DEBUG_MODE
-    Serial.print("[Commands] Executing: ");
-    Serial.println(commandsGetTypeName(cmd->type));
+    DEBUG_SERIAL.print("[Commands] Executing: ");
+    DEBUG_SERIAL.println(commandsGetTypeName(cmd->type));
     #endif
 
     // Dispatch to handler

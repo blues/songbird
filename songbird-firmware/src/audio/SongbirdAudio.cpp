@@ -55,7 +55,7 @@ void audioInit(void) {
     s_initialized = true;
 
     #ifdef DEBUG_MODE
-    Serial.println("[Audio] Initialized");
+    DEBUG_SERIAL.println("[Audio] Initialized");
     #endif
 }
 
@@ -145,8 +145,8 @@ void audioSetEnabled(bool enabled) {
     }
 
     #ifdef DEBUG_MODE
-    Serial.print("[Audio] ");
-    Serial.println(enabled ? "Enabled" : "Disabled");
+    DEBUG_SERIAL.print("[Audio] ");
+    DEBUG_SERIAL.println(enabled ? "Enabled" : "Disabled");
     #endif
 }
 
@@ -186,8 +186,8 @@ bool audioToggleMute(void) {
     }
 
     #ifdef DEBUG_MODE
-    Serial.print("[Audio] Mute toggled: ");
-    Serial.println(s_audioEnabled ? "UNMUTED" : "MUTED");
+    DEBUG_SERIAL.print("[Audio] Mute toggled: ");
+    DEBUG_SERIAL.println(s_audioEnabled ? "UNMUTED" : "MUTED");
     #endif
 
     return s_audioEnabled;
@@ -197,8 +197,8 @@ void audioSetVolume(uint8_t volume) {
     s_audioVolume = CLAMP(volume, 0, 100);
 
     #ifdef DEBUG_MODE
-    Serial.print("[Audio] Volume: ");
-    Serial.println(s_audioVolume);
+    DEBUG_SERIAL.print("[Audio] Volume: ");
+    DEBUG_SERIAL.println(s_audioVolume);
     #endif
 }
 
@@ -210,8 +210,8 @@ void audioSetAlertsOnly(bool alertsOnly) {
     s_alertsOnly = alertsOnly;
 
     #ifdef DEBUG_MODE
-    Serial.print("[Audio] Alerts only: ");
-    Serial.println(alertsOnly ? "Yes" : "No");
+    DEBUG_SERIAL.print("[Audio] Alerts only: ");
+    DEBUG_SERIAL.println(alertsOnly ? "Yes" : "No");
     #endif
 }
 
@@ -234,8 +234,8 @@ bool audioQueueEvent(AudioEventType event) {
     }
 
     #ifdef DEBUG_MODE
-    Serial.print("[Audio] Queueing: ");
-    Serial.println(audioGetEventName(event));
+    DEBUG_SERIAL.print("[Audio] Queueing: ");
+    DEBUG_SERIAL.println(audioGetEventName(event));
     #endif
 
     return syncQueueAudio(event);
@@ -266,9 +266,9 @@ bool audioStartLocate(uint16_t durationSec) {
     item.locateDurationSec = durationSec;
 
     #ifdef DEBUG_MODE
-    Serial.print("[Audio] Starting locate mode for ");
-    Serial.print(durationSec);
-    Serial.println(" seconds");
+    DEBUG_SERIAL.print("[Audio] Starting locate mode for ");
+    DEBUG_SERIAL.print(durationSec);
+    DEBUG_SERIAL.println(" seconds");
     #endif
 
     return syncQueueAudioItem(&item);
@@ -276,7 +276,7 @@ bool audioStartLocate(uint16_t durationSec) {
 
 bool audioStopLocate(void) {
     #ifdef DEBUG_MODE
-    Serial.println("[Audio] Stopping locate mode");
+    DEBUG_SERIAL.println("[Audio] Stopping locate mode");
     #endif
 
     return syncQueueAudio(AUDIO_EVENT_LOCATE_STOP);

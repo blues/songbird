@@ -27,14 +27,14 @@ bool sensorsInit(void) {
     // Try to initialize BME280 at configured address
     if (!s_bme.begin(BME280_I2C_ADDRESS, &Wire)) {
         #ifdef DEBUG_MODE
-        Serial.print("[Sensors] BME280 not found at 0x");
-        Serial.println(BME280_I2C_ADDRESS, HEX);
+        DEBUG_SERIAL.print("[Sensors] BME280 not found at 0x");
+        DEBUG_SERIAL.println(BME280_I2C_ADDRESS, HEX);
         #endif
 
         // Try alternate address (0x76)
         if (!s_bme.begin(0x76, &Wire)) {
             #ifdef DEBUG_MODE
-            Serial.println("[Sensors] BME280 not found at 0x76 either");
+            DEBUG_SERIAL.println("[Sensors] BME280 not found at 0x76 either");
             #endif
             s_initialized = false;
             return false;
@@ -53,7 +53,7 @@ bool sensorsInit(void) {
     s_errorCount = 0;
 
     #ifdef DEBUG_MODE
-    Serial.println("[Sensors] BME280 initialized");
+    DEBUG_SERIAL.println("[Sensors] BME280 initialized");
     #endif
 
     return true;
@@ -89,7 +89,7 @@ bool sensorsRead(SensorData* data) {
     // Take a forced reading (wakes sensor, takes measurement, returns to sleep)
     if (!s_bme.takeForcedMeasurement()) {
         #ifdef DEBUG_MODE
-        Serial.println("[Sensors] Failed to take forced measurement");
+        DEBUG_SERIAL.println("[Sensors] Failed to take forced measurement");
         #endif
         s_errorCount++;
         return false;
@@ -103,7 +103,7 @@ bool sensorsRead(SensorData* data) {
     // Validate readings
     if (isnan(data->temperature) || isnan(data->humidity) || isnan(data->pressure)) {
         #ifdef DEBUG_MODE
-        Serial.println("[Sensors] Invalid readings (NaN)");
+        DEBUG_SERIAL.println("[Sensors] Invalid readings (NaN)");
         #endif
         s_errorCount++;
         return false;
@@ -114,7 +114,7 @@ bool sensorsRead(SensorData* data) {
         data->humidity < 0.0f || data->humidity > 100.0f ||
         data->pressure < 300.0f || data->pressure > 1100.0f) {
         #ifdef DEBUG_MODE
-        Serial.println("[Sensors] Readings out of valid range");
+        DEBUG_SERIAL.println("[Sensors] Readings out of valid range");
         #endif
         s_errorCount++;
         return false;
@@ -123,13 +123,13 @@ bool sensorsRead(SensorData* data) {
     data->valid = true;
 
     #ifdef DEBUG_MODE
-    Serial.print("[Sensors] T=");
-    Serial.print(data->temperature, 1);
-    Serial.print("C H=");
-    Serial.print(data->humidity, 1);
-    Serial.print("% P=");
-    Serial.print(data->pressure, 1);
-    Serial.println("hPa");
+    DEBUG_SERIAL.print("[Sensors] T=");
+    DEBUG_SERIAL.print(data->temperature, 1);
+    DEBUG_SERIAL.print("C H=");
+    DEBUG_SERIAL.print(data->humidity, 1);
+    DEBUG_SERIAL.print("% P=");
+    DEBUG_SERIAL.print(data->pressure, 1);
+    DEBUG_SERIAL.println("hPa");
     #endif
 
     return true;

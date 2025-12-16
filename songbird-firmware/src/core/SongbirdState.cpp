@@ -62,7 +62,7 @@ void stateInit(void) {
     s_warmBoot = false;
 
     #ifdef DEBUG_MODE
-    Serial.println("[State] Initialized with defaults");
+    DEBUG_SERIAL.println("[State] Initialized with defaults");
     #endif
 }
 
@@ -81,10 +81,10 @@ bool stateRestore(void) {
 
     if (size != sizeof(SongbirdState)) {
         #ifdef DEBUG_MODE
-        Serial.print("[State] Payload size mismatch: ");
-        Serial.print(size);
-        Serial.print(" vs ");
-        Serial.println(sizeof(SongbirdState));
+        DEBUG_SERIAL.print("[State] Payload size mismatch: ");
+        DEBUG_SERIAL.print(size);
+        DEBUG_SERIAL.print(" vs ");
+        DEBUG_SERIAL.println(sizeof(SongbirdState));
         #endif
         return false;
     }
@@ -96,7 +96,7 @@ bool stateRestore(void) {
     // Validate magic number
     if (restored.magic != STATE_MAGIC) {
         #ifdef DEBUG_MODE
-        Serial.println("[State] Invalid magic number");
+        DEBUG_SERIAL.println("[State] Invalid magic number");
         #endif
         return false;
     }
@@ -104,8 +104,8 @@ bool stateRestore(void) {
     // Validate version
     if (restored.version != STATE_VERSION) {
         #ifdef DEBUG_MODE
-        Serial.print("[State] Version mismatch: ");
-        Serial.println(restored.version);
+        DEBUG_SERIAL.print("[State] Version mismatch: ");
+        DEBUG_SERIAL.println(restored.version);
         #endif
         return false;
     }
@@ -113,7 +113,7 @@ bool stateRestore(void) {
     // Validate checksum
     if (!stateValidateChecksum(&restored)) {
         #ifdef DEBUG_MODE
-        Serial.println("[State] Checksum invalid");
+        DEBUG_SERIAL.println("[State] Checksum invalid");
         #endif
         return false;
     }
@@ -130,9 +130,9 @@ bool stateRestore(void) {
     s_warmBoot = true;
 
     #ifdef DEBUG_MODE
-    Serial.print("[State] Restored (boot #");
-    Serial.print(s_state.bootCount);
-    Serial.println(")");
+    DEBUG_SERIAL.print("[State] Restored (boot #");
+    DEBUG_SERIAL.print(s_state.bootCount);
+    DEBUG_SERIAL.println(")");
     #endif
 
     return true;
@@ -158,9 +158,9 @@ bool stateSave(void) {
 
     #ifdef DEBUG_MODE
     if (success) {
-        Serial.println("[State] Saved to Notecard payload");
+        DEBUG_SERIAL.println("[State] Saved to Notecard payload");
     } else {
-        Serial.println("[State] Failed to save");
+        DEBUG_SERIAL.println("[State] Failed to save");
     }
     #endif
 

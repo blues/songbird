@@ -115,7 +115,7 @@ bool tasksCreate(void) {
     if (result != pdPASS) return false;
 
     #ifdef DEBUG_MODE
-    Serial.println("[Tasks] All tasks created");
+    DEBUG_SERIAL.println("[Tasks] All tasks created");
     #endif
 
     return true;
@@ -123,14 +123,14 @@ bool tasksCreate(void) {
 
 void tasksStart(void) {
     #ifdef DEBUG_MODE
-    Serial.println("[Tasks] Starting scheduler...");
+    DEBUG_SERIAL.println("[Tasks] Starting scheduler...");
     #endif
 
     vTaskStartScheduler();
 
     // Should never reach here
     #ifdef DEBUG_MODE
-    Serial.println("[Tasks] ERROR: Scheduler returned!");
+    DEBUG_SERIAL.println("[Tasks] ERROR: Scheduler returned!");
     #endif
 }
 
@@ -153,19 +153,19 @@ void tasksGetConfig(SongbirdConfig* config) {
 
 void tasksLogStackUsage(void) {
     #ifdef DEBUG_MODE
-    Serial.println("[Tasks] Stack high water marks:");
-    Serial.print("  Main: ");
-    Serial.println(uxTaskGetStackHighWaterMark(g_mainTaskHandle));
-    Serial.print("  Sensor: ");
-    Serial.println(uxTaskGetStackHighWaterMark(g_sensorTaskHandle));
-    Serial.print("  Audio: ");
-    Serial.println(uxTaskGetStackHighWaterMark(g_audioTaskHandle));
-    Serial.print("  Command: ");
-    Serial.println(uxTaskGetStackHighWaterMark(g_commandTaskHandle));
-    Serial.print("  Notecard: ");
-    Serial.println(uxTaskGetStackHighWaterMark(g_notecardTaskHandle));
-    Serial.print("  Env: ");
-    Serial.println(uxTaskGetStackHighWaterMark(g_envTaskHandle));
+    DEBUG_SERIAL.println("[Tasks] Stack high water marks:");
+    DEBUG_SERIAL.print("  Main: ");
+    DEBUG_SERIAL.println(uxTaskGetStackHighWaterMark(g_mainTaskHandle));
+    DEBUG_SERIAL.print("  Sensor: ");
+    DEBUG_SERIAL.println(uxTaskGetStackHighWaterMark(g_sensorTaskHandle));
+    DEBUG_SERIAL.print("  Audio: ");
+    DEBUG_SERIAL.println(uxTaskGetStackHighWaterMark(g_audioTaskHandle));
+    DEBUG_SERIAL.print("  Command: ");
+    DEBUG_SERIAL.println(uxTaskGetStackHighWaterMark(g_commandTaskHandle));
+    DEBUG_SERIAL.print("  Notecard: ");
+    DEBUG_SERIAL.println(uxTaskGetStackHighWaterMark(g_notecardTaskHandle));
+    DEBUG_SERIAL.print("  Env: ");
+    DEBUG_SERIAL.println(uxTaskGetStackHighWaterMark(g_envTaskHandle));
     #endif
 }
 
@@ -177,7 +177,7 @@ void MainTask(void* pvParameters) {
     (void)pvParameters;
 
     #ifdef DEBUG_MODE
-    Serial.println("[MainTask] Starting");
+    DEBUG_SERIAL.println("[MainTask] Starting");
     #endif
 
     // Initialize default configuration
@@ -237,7 +237,7 @@ void MainTask(void* pvParameters) {
     g_systemReady = true;
 
     #ifdef DEBUG_MODE
-    Serial.println("[MainTask] Initialization complete");
+    DEBUG_SERIAL.println("[MainTask] Initialization complete");
     envLogConfig(&s_currentConfig);
     #endif
 
@@ -247,7 +247,7 @@ void MainTask(void* pvParameters) {
         SongbirdConfig newConfig;
         if (syncReceiveConfig(&newConfig)) {
             #ifdef DEBUG_MODE
-            Serial.println("[MainTask] Config update received");
+            DEBUG_SERIAL.println("[MainTask] Config update received");
             #endif
 
             // Apply new configuration
@@ -288,7 +288,7 @@ void MainTask(void* pvParameters) {
                 // Button pressed (active low)
                 if (currentButtonState == LOW) {
                     #ifdef DEBUG_MODE
-                    Serial.println("[MainTask] Button pressed - toggling mute");
+                    DEBUG_SERIAL.println("[MainTask] Button pressed - toggling mute");
                     #endif
                     audioToggleMute();
                 }
@@ -344,7 +344,7 @@ void SensorTask(void* pvParameters) {
     }
 
     #ifdef DEBUG_MODE
-    Serial.println("[SensorTask] Starting");
+    DEBUG_SERIAL.println("[SensorTask] Starting");
     #endif
 
     // Initialize sensor
@@ -458,7 +458,7 @@ void AudioTask(void* pvParameters) {
     (void)pvParameters;
 
     #ifdef DEBUG_MODE
-    Serial.println("[AudioTask] Starting");
+    DEBUG_SERIAL.println("[AudioTask] Starting");
     #endif
 
     AudioQueueItem item;
@@ -532,7 +532,7 @@ void CommandTask(void* pvParameters) {
     }
 
     #ifdef DEBUG_MODE
-    Serial.println("[CommandTask] Starting");
+    DEBUG_SERIAL.println("[CommandTask] Starting");
     #endif
 
     for (;;) {
@@ -593,7 +593,7 @@ void NotecardTask(void* pvParameters) {
     }
 
     #ifdef DEBUG_MODE
-    Serial.println("[NotecardTask] Starting");
+    DEBUG_SERIAL.println("[NotecardTask] Starting");
     #endif
 
     uint32_t lastSyncCheck = 0;
@@ -681,7 +681,7 @@ void EnvTask(void* pvParameters) {
     }
 
     #ifdef DEBUG_MODE
-    Serial.println("[EnvTask] Starting");
+    DEBUG_SERIAL.println("[EnvTask] Starting");
     #endif
 
     SongbirdConfig lastConfig;
@@ -715,7 +715,7 @@ void EnvTask(void* pvParameters) {
             // Check if config actually changed
             if (envConfigChanged(&lastConfig, &newConfig)) {
                 #ifdef DEBUG_MODE
-                Serial.println("[EnvTask] Config changed, notifying MainTask");
+                DEBUG_SERIAL.println("[EnvTask] Config changed, notifying MainTask");
                 #endif
 
                 // Send to MainTask

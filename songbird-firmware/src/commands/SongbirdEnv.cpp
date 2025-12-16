@@ -389,53 +389,53 @@ MotionSensitivity envParseSensitivity(const char* str) {
 void envLogConfig(const SongbirdConfig* config) {
     #ifdef DEBUG_MODE
     if (config == NULL) {
-        Serial.println("[Env] Config is NULL");
+        DEBUG_SERIAL.println("[Env] Config is NULL");
         return;
     }
 
-    Serial.println("[Env] Current Configuration:");
-    Serial.print("  Mode: ");
-    Serial.println(envGetModeName(config->mode));
-    Serial.print("  GPS Interval: ");
-    Serial.print(config->gpsIntervalMin);
-    Serial.println(" min");
-    Serial.print("  Sync Interval: ");
-    Serial.print(config->syncIntervalMin);
-    Serial.println(" min");
-    Serial.print("  Heartbeat: ");
-    Serial.print(config->heartbeatHours);
-    Serial.println(" hrs");
+    DEBUG_SERIAL.println("[Env] Current Configuration:");
+    DEBUG_SERIAL.print("  Mode: ");
+    DEBUG_SERIAL.println(envGetModeName(config->mode));
+    DEBUG_SERIAL.print("  GPS Interval: ");
+    DEBUG_SERIAL.print(config->gpsIntervalMin);
+    DEBUG_SERIAL.println(" min");
+    DEBUG_SERIAL.print("  Sync Interval: ");
+    DEBUG_SERIAL.print(config->syncIntervalMin);
+    DEBUG_SERIAL.println(" min");
+    DEBUG_SERIAL.print("  Heartbeat: ");
+    DEBUG_SERIAL.print(config->heartbeatHours);
+    DEBUG_SERIAL.println(" hrs");
 
-    Serial.print("  Temp Alert: ");
-    Serial.print(config->tempAlertLowC);
-    Serial.print(" - ");
-    Serial.print(config->tempAlertHighC);
-    Serial.println(" C");
-    Serial.print("  Humidity Alert: ");
-    Serial.print(config->humidityAlertLow);
-    Serial.print(" - ");
-    Serial.print(config->humidityAlertHigh);
-    Serial.println(" %");
-    Serial.print("  Pressure Delta: ");
-    Serial.print(config->pressureAlertDelta);
-    Serial.println(" hPa");
-    Serial.print("  Voltage Alert: ");
-    Serial.print(config->voltageAlertLow);
-    Serial.println(" V");
+    DEBUG_SERIAL.print("  Temp Alert: ");
+    DEBUG_SERIAL.print(config->tempAlertLowC);
+    DEBUG_SERIAL.print(" - ");
+    DEBUG_SERIAL.print(config->tempAlertHighC);
+    DEBUG_SERIAL.println(" C");
+    DEBUG_SERIAL.print("  Humidity Alert: ");
+    DEBUG_SERIAL.print(config->humidityAlertLow);
+    DEBUG_SERIAL.print(" - ");
+    DEBUG_SERIAL.print(config->humidityAlertHigh);
+    DEBUG_SERIAL.println(" %");
+    DEBUG_SERIAL.print("  Pressure Delta: ");
+    DEBUG_SERIAL.print(config->pressureAlertDelta);
+    DEBUG_SERIAL.println(" hPa");
+    DEBUG_SERIAL.print("  Voltage Alert: ");
+    DEBUG_SERIAL.print(config->voltageAlertLow);
+    DEBUG_SERIAL.println(" V");
 
-    Serial.print("  Audio: ");
-    Serial.print(config->audioEnabled ? "ON" : "OFF");
-    Serial.print(" Vol:");
-    Serial.print(config->audioVolume);
-    Serial.print(" AlertsOnly:");
-    Serial.println(config->audioAlertsOnly ? "Yes" : "No");
+    DEBUG_SERIAL.print("  Audio: ");
+    DEBUG_SERIAL.print(config->audioEnabled ? "ON" : "OFF");
+    DEBUG_SERIAL.print(" Vol:");
+    DEBUG_SERIAL.print(config->audioVolume);
+    DEBUG_SERIAL.print(" AlertsOnly:");
+    DEBUG_SERIAL.println(config->audioAlertsOnly ? "Yes" : "No");
 
-    Serial.print("  Motion Wake: ");
-    Serial.println(config->motionWakeEnabled ? "Yes" : "No");
-    Serial.print("  Cmd Wake: ");
-    Serial.println(config->cmdWakeEnabled ? "Yes" : "No");
-    Serial.print("  Debug: ");
-    Serial.println(config->debugMode ? "Yes" : "No");
+    DEBUG_SERIAL.print("  Motion Wake: ");
+    DEBUG_SERIAL.println(config->motionWakeEnabled ? "Yes" : "No");
+    DEBUG_SERIAL.print("  Cmd Wake: ");
+    DEBUG_SERIAL.println(config->cmdWakeEnabled ? "Yes" : "No");
+    DEBUG_SERIAL.print("  Debug: ");
+    DEBUG_SERIAL.println(config->debugMode ? "Yes" : "No");
     #else
     (void)config;
     #endif

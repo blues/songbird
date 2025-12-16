@@ -156,7 +156,7 @@ void tasksGetConfig(SongbirdConfig* config);
 /**
  * @brief Log task stack high water marks (debug)
  *
- * Prints stack usage for all tasks to Serial.
+ * Prints stack usage for all tasks to DEBUG_SERIAL.
  */
 void tasksLogStackUsage(void);
 

@@ -241,11 +241,11 @@ void vAssertCalled(const char* file, int line) {
     taskDISABLE_INTERRUPTS();
 
     // Print assertion info
-    Serial.print("ASSERT FAILED: ");
-    Serial.print(file);
-    Serial.print(":");
-    Serial.println(line);
-    Serial.flush();
+    DEBUG_SERIAL.print("ASSERT FAILED: ");
+    DEBUG_SERIAL.print(file);
+    DEBUG_SERIAL.print(":");
+    DEBUG_SERIAL.println(line);
+    DEBUG_SERIAL.flush();
 
     // Hang for debugging
     for (;;) {
@@ -266,8 +266,8 @@ extern "C" {
 // Called when malloc fails
 void vApplicationMallocFailedHook(void) {
     #ifdef DEBUG_MODE
-    Serial.println("ERROR: FreeRTOS malloc failed!");
-    Serial.flush();
+    DEBUG_SERIAL.println("ERROR: FreeRTOS malloc failed!");
+    DEBUG_SERIAL.flush();
     #endif
 
     // Hang - this is a fatal error
@@ -278,9 +278,9 @@ void vApplicationMallocFailedHook(void) {
 // Called on stack overflow
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName) {
     #ifdef DEBUG_MODE
-    Serial.print("ERROR: Stack overflow in task: ");
-    Serial.println(pcTaskName);
-    Serial.flush();
+    DEBUG_SERIAL.print("ERROR: Stack overflow in task: ");
+    DEBUG_SERIAL.println(pcTaskName);
+    DEBUG_SERIAL.flush();
     #endif
 
     // Hang - this is a fatal error
