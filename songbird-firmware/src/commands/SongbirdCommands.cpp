@@ -126,9 +126,10 @@ const char* commandsGetTypeName(CommandType type) {
 // =============================================================================
 
 void commandsHandlePing(const Command* cmd, const SongbirdConfig* config, CommandAck* ack) {
-    (void)cmd;  // Unused
+    (void)cmd;     // Unused
+    (void)config;  // Use audioIsEnabled() instead for reliability
 
-    if (!config->audioEnabled) {
+    if (!audioIsEnabled()) {
         ack->status = CMD_STATUS_IGNORED;
         strncpy(ack->message, "Audio disabled", sizeof(ack->message) - 1);
         return;
@@ -145,7 +146,7 @@ void commandsHandlePing(const Command* cmd, const SongbirdConfig* config, Comman
 }
 
 void commandsHandleLocate(const Command* cmd, const SongbirdConfig* config, CommandAck* ack) {
-    if (!config->audioEnabled) {
+    if (!audioIsEnabled()) {
         ack->status = CMD_STATUS_IGNORED;
         strncpy(ack->message, "Audio disabled", sizeof(ack->message) - 1);
         return;
@@ -171,7 +172,9 @@ void commandsHandleLocate(const Command* cmd, const SongbirdConfig* config, Comm
 }
 
 void commandsHandlePlayMelody(const Command* cmd, const SongbirdConfig* config, CommandAck* ack) {
-    if (!config->audioEnabled) {
+    (void)config;  // Use audioIsEnabled() instead for reliability
+
+    if (!audioIsEnabled()) {
         ack->status = CMD_STATUS_IGNORED;
         strncpy(ack->message, "Audio disabled", sizeof(ack->message) - 1);
         return;
@@ -199,7 +202,9 @@ void commandsHandlePlayMelody(const Command* cmd, const SongbirdConfig* config, 
 }
 
 void commandsHandleTestAudio(const Command* cmd, const SongbirdConfig* config, CommandAck* ack) {
-    if (!config->audioEnabled) {
+    (void)config;  // Use audioIsEnabled() instead for reliability
+
+    if (!audioIsEnabled()) {
         ack->status = CMD_STATUS_IGNORED;
         strncpy(ack->message, "Audio disabled", sizeof(ack->message) - 1);
         return;

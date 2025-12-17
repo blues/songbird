@@ -6,7 +6,7 @@ AWS CDK infrastructure for the Songbird demo platform. This deploys all cloud re
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              NOTEHUB.                                       │
+│                              NOTEHUB                                        │
 │                                  │                                          │
 │                            Route (HTTPS)                                    │
 └──────────────────────────────────┼──────────────────────────────────────────┘

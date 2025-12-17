@@ -10,7 +10,7 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
 ┌────────────────────────────────────────────────────────────────────────────┐
 │                              SONGBIRD DEVICE                               │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │   Cygnet    │  │   BME280    │  │   Piezo     │  │   LiPo      │        │
+│  │ Cygnet / CX │  │   BME280    │  │   Piezo     │  │   LiPo      │        │
 │  │   (Host)    │  │   Sensor    │  │   Buzzer    │  │   Battery   │        │
 │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘        │
 │         │                │                │                │               │
@@ -24,7 +24,7 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
                            │
                            ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                               NOTEHUB.IO                                     │
+│                               NOTEHUB                                        │
 │         Routes events to AWS via HTTPS                                       │
 └──────────────────────────────────────────────────────────────────────────────┘
                            │
@@ -70,7 +70,7 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
 
 ```
 songbird/
-├── songbird-firmware/        # STM32 firmware (PlatformIO)
+├── songbird-firmware/        # STM32 firmware
 │   ├── src/
 │   │   ├── audio/           # Audio/buzzer subsystem
 │   │   ├── notecard/        # Notecard communication
@@ -111,8 +111,9 @@ songbird/
 | Component | Description |
 |-----------|-------------|
 | **Notecard** | Cell+WiFi (NBGL) with GPS/GNSS |
-| **Host MCU** | Blues Cygnet (STM32L433) |
-| **Carrier** | Notecarrier-F with ATTN→EN |
+| **Host MCU** | Blues Cygnet OR Notecarrier CX (STM32L433) |
+| **Carrier** | Notecarrier-F with ATTN→EN OR Notecarrier CX |
+| **Mojo** | Blues hardware accessory for battery power monitoring |
 | **Sensor** | BME280 Qwiic breakout |
 | **Audio** | Passive piezo buzzer |
 | **Battery** | 3.7V LiPo, 2000mAh |

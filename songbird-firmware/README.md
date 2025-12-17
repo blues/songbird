@@ -17,9 +17,9 @@ Firmware for the Songbird sales demo device - a portable, battery-powered asset 
 
 | Component | Description |
 |-----------|-------------|
-| MCU | Blues Cygnet (STM32L433) |
-| Notecarrier | Notecarrier-F with ATTN→EN connection |
-| Notecard | Cell+WiFi (NBGL) |
+| MCU | Blues Cygnet OR Notecarrier CX (STM32L433) |
+| Notecarrier | Notecarrier-F with ATTN→EN connection OR Notecarrier CX |
+| Notecard | Cell+WiFi (MBGLW) |
 | Sensor | BME280 Qwiic breakout (I2C address 0x77) |
 | Audio | [SparkFun Qwiic Buzzer](https://www.sparkfun.com/sparkfun-qwiic-buzzer.html) (I2C address 0x34) |
 | Power Monitor | [Blues Mojo](https://dev.blues.io/quickstart/mojo-quickstart/) (optional) |
@@ -62,7 +62,7 @@ songbird-firmware/
 
 - [PlatformIO](https://platformio.org/) (CLI or VS Code extension)
 - ST-Link programmer/debugger
-- Blues Cygnet development board
+- Blues Cygnet development board or Notecarrier CX
 
 ## Building
 
@@ -259,7 +259,7 @@ Configuration is managed via Notehub environment variables:
 
 ## Commands
 
-The device accepts commands via the `command.qi` notefile:
+The device accepts commands via the `command.qi` notefile in the format `{"cmd":"<command>"}`:
 
 | Command | Description |
 |---------|-------------|
