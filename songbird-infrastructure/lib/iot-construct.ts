@@ -2,7 +2,7 @@
  * IoT Construct
  *
  * Defines IoT Core rules for processing events from Notehub.
- * Events are routed to Lambda for processing into Timestream and DynamoDB.
+ * Events are routed to Lambda for processing into DynamoDB.
  */
 
 import * as cdk from 'aws-cdk-lib';
@@ -10,7 +10,6 @@ import * as iot from 'aws-cdk-lib/aws-iot';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as sns from 'aws-cdk-lib/aws-sns';
-import * as timestream from 'aws-cdk-lib/aws-timestream';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
@@ -18,10 +17,9 @@ import { Construct } from 'constructs';
 import * as path from 'path';
 
 export interface IotConstructProps {
-  timestreamDatabase: timestream.CfnDatabase;
-  timestreamTable: timestream.CfnTable;
+  telemetryTable: dynamodb.Table;
   devicesTable: dynamodb.Table;
-  alertTopic: sns.Topic;
+  alertTopic: sns.ITopic;
 }
 
 export class IotConstruct extends Construct {
@@ -36,7 +34,7 @@ export class IotConstruct extends Construct {
     // ==========================================================================
     this.eventProcessorFunction = new NodejsFunction(this, 'EventProcessor', {
       functionName: 'songbird-event-processor',
-      description: 'Processes Songbird events from IoT Core, writes to Timestream and DynamoDB',
+      description: 'Processes Songbird events from IoT Core, writes to DynamoDB',
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'handler',
       entry: path.join(__dirname, '../lambda/event-processor/index.ts'),
@@ -44,8 +42,7 @@ export class IotConstruct extends Construct {
       memorySize: 256,
 
       environment: {
-        TIMESTREAM_DATABASE: props.timestreamDatabase.databaseName!,
-        TIMESTREAM_TABLE: props.timestreamTable.tableName!,
+        TELEMETRY_TABLE: props.telemetryTable.tableName,
         DEVICES_TABLE: props.devicesTable.tableName,
         ALERT_TOPIC_ARN: props.alertTopic.topicArn,
       },
@@ -58,28 +55,8 @@ export class IotConstruct extends Construct {
       logRetention: logs.RetentionDays.TWO_WEEKS,
     });
 
-    // Grant Timestream write permissions
-    this.eventProcessorFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: [
-          'timestream:WriteRecords',
-          'timestream:DescribeEndpoints',
-        ],
-        resources: ['*'], // Timestream requires * for DescribeEndpoints
-      })
-    );
-
-    // Specific table permission
-    this.eventProcessorFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: ['timestream:WriteRecords'],
-        resources: [
-          `arn:aws:timestream:${cdk.Stack.of(this).region}:${cdk.Stack.of(this).account}:database/${props.timestreamDatabase.databaseName}/table/${props.timestreamTable.tableName}`,
-        ],
-      })
-    );
-
     // Grant DynamoDB permissions
+    props.telemetryTable.grantReadWriteData(this.eventProcessorFunction);
     props.devicesTable.grantReadWriteData(this.eventProcessorFunction);
 
     // Grant SNS publish for alerts

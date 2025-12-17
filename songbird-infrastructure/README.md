@@ -8,27 +8,27 @@ AWS CDK infrastructure for the Songbird demo platform. This deploys all cloud re
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              NOTEHUB                                        │
 │                                  │                                          │
-│                            Route (HTTPS)                                    │
+│                         HTTP Route (POST)                                   │
 └──────────────────────────────────┼──────────────────────────────────────────┘
                                    ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                              AWS CLOUD                                       │
 │                                                                              │
-│  ┌─────────────┐     ┌─────────────┐     ┌─────────────────────────────┐     │
-│  │  IoT Core   │────▶│   Lambda    │────▶│  Timestream (telemetry)     │     │
-│  │  (Rules)    │     │ (Processor) │     │  DynamoDB (device metadata) │     │
-│  └─────────────┘     └──────┬──────┘     └─────────────────────────────┘     │
-│                             │                         ▲                      │
-│                             ▼                         │                      │
-│                      ┌─────────────┐           ┌──────┴──────┐               │
-│                      │     SNS     │           │   Lambda    │               │
-│                      │  (Alerts)   │           │   (APIs)    │               │
-│                      └─────────────┘           └──────┬──────┘               │
-│                                                       │                      │
-│  ┌─────────────┐     ┌─────────────┐           ┌──────┴──────┐               │
-│  │  CloudFront │────▶│     S3      │           │ API Gateway │               │
-│  │   (CDN)     │     │ (Dashboard) │           │  (HTTP API) │               │
-│  └─────────────┘     └─────────────┘           └─────────────┘               │
+│                         ┌─────────────┐     ┌─────────────────────────────┐  │
+│                         │ API Gateway │────▶│  DynamoDB (telemetry +      │  │
+│                         │  (Ingest)   │     │  device metadata)           │  │
+│                         └──────┬──────┘     └─────────────────────────────┘  │
+│                                │                         ▲                   │
+│                                ▼                         │                   │
+│                         ┌─────────────┐           ┌──────┴──────┐            │
+│                         │     SNS     │           │   Lambda    │            │
+│                         │  (Alerts)   │           │   (APIs)    │            │
+│                         └─────────────┘           └──────┬──────┘            │
+│                                                          │                   │
+│  ┌─────────────┐     ┌─────────────┐           ┌─────────┴───────┐           │
+│  │  CloudFront │────▶│     S3      │           │   API Gateway   │           │
+│  │   (CDN)     │     │ (Dashboard) │           │   (HTTP API)    │           │
+│  └─────────────┘     └─────────────┘           └─────────────────┘           │
 │         │                                             │                      │
 │         │            ┌─────────────┐                  │                      │
 │         └───────────▶│   Cognito   │◀─────────────────┘                      │
@@ -56,14 +56,12 @@ songbird-infrastructure/
 │   └── songbird.ts              # CDK app entry point
 ├── lib/
 │   ├── songbird-stack.ts        # Main stack definition
-│   ├── storage-construct.ts     # Timestream + DynamoDB
+│   ├── storage-construct.ts     # DynamoDB tables
 │   ├── auth-construct.ts        # Cognito User Pool
-│   ├── iot-construct.ts         # IoT Core rules
 │   ├── api-construct.ts         # API Gateway + Lambda
 │   └── dashboard-construct.ts   # S3 + CloudFront
 ├── lambda/
-│   ├── event-processor/         # Process incoming events
-│   ├── alert-handler/           # Handle alert notifications
+│   ├── api-ingest/              # Event ingest from Notehub HTTP route
 │   ├── api-devices/             # Devices API
 │   ├── api-telemetry/           # Telemetry queries API
 │   ├── api-commands/            # Commands API
@@ -177,35 +175,35 @@ aws secretsmanager put-secret-value \
 
 ### 2. Configure Notehub Route
 
-Create a route in Notehub to send events to AWS IoT Core:
+Create an HTTP route in Notehub to send events to the API Gateway ingest endpoint:
 
 1. Go to your Notehub project → **Routes**
-2. Create a new **AWS IoT Core** route
-3. Configure:
-   - **Region**: Same as your CDK deployment (e.g., `us-east-1`)
-   - **Topic**: `songbird/events`
-   - **Notefiles**: `track.qo`, `alert.qo`, `command_ack.qo`, `health.qo`, `_log.qo`
-4. Use the JSONata transform from the PRD to format events
+2. Click **Create Route** and select **General HTTP/HTTPS Request/Response**
+3. Configure the route:
+   - **Name**: `Songbird AWS Ingest`
+   - **URL**: Use the `IngestUrl` from the CDK deployment outputs (e.g., `https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/v1/ingest`)
+   - **HTTP Method**: `POST`
+   - **HTTP Headers**: Add `Content-Type: application/json`
+4. Under **Notefiles**, select:
+   - `track.qo` - Telemetry data
+   - `alert.qo` - Alert events
+   - `command_ack.qo` - Command acknowledgments
+   - `health.qo` - Device health
+   - `_log.qo` - Mojo power monitoring data
+5. Under **Data**, leave as **All Data** (no JSONata transform needed - the Lambda handles the Notehub event format directly)
+6. Click **Create Route**
 
 **Note**: The `_log.qo` Notefile contains Mojo power monitoring data (voltage, temperature, milliamp_hours) when enabled via the `_log` environment variable set to `power`.
+
+**Testing the Route**: After creating the route, you can test it by clicking the route and selecting **Test Route**. Send a sample event and verify it returns a 200 status.
 
 ### 3. Create Initial Cognito Users
 
 Create admin users for the dashboard:
 
 ```bash
-# Create a user
-aws cognito-idp admin-create-user \
-  --user-pool-id <UserPoolId from CDK output> \
-  --username admin@yourcompany.com \
-  --user-attributes Name=email,Value=admin@yourcompany.com Name=name,Value="Admin User" \
-  --temporary-password "TempPass123!"
-
-# Add user to Admin group
-aws cognito-idp admin-add-user-to-group \
-  --user-pool-id <UserPoolId> \
-  --username admin@yourcompany.com \
-  --group-name Admin
+# Create a user (use single line to avoid parsing issues)
+aws cognito-idp admin-create-user --user-pool-id <UserPoolId> --username admin@yourcompany.com --user-attributes Name=email,Value=admin@yourcompany.com Name=name,Value="Admin User" --temporary-password "TempPass123!"
 ```
 
 ### 4. Note the Outputs
@@ -214,18 +212,30 @@ After deployment, CDK will output important values:
 
 ```
 Outputs:
-SongbirdStack.ApiUrl = https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com
+SongbirdStack.ApiUrl = https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/
+SongbirdStack.IngestUrl = https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/v1/ingest
 SongbirdStack.DashboardUrl = https://xxxxxxxxxx.cloudfront.net
 SongbirdStack.UserPoolId = us-east-1_xxxxxxxxx
 SongbirdStack.UserPoolClientId = xxxxxxxxxxxxxxxxxxxxxxxxxx
-SongbirdStack.IoTRuleName = songbird_event_processor
 ```
+
+- **IngestUrl**: Use this for configuring the Notehub HTTP route
+- **ApiUrl**: Base URL for dashboard API calls
+- **DashboardUrl**: URL to access the web dashboard
 
 Save these for configuring the dashboard application.
 
 ## API Endpoints
 
 Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com`
+
+### Event Ingest (Notehub Route)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/v1/ingest` | Receive events from Notehub HTTP route (no auth) |
+
+### Dashboard APIs (Cognito Auth Required)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -241,7 +251,7 @@ Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com`
 | PUT | `/v1/devices/{device_uid}/config` | Update device configuration |
 | PUT | `/v1/fleets/{fleet_uid}/config` | Update fleet configuration |
 
-All endpoints require a valid Cognito JWT token in the `Authorization` header.
+Dashboard API endpoints require a valid Cognito JWT token in the `Authorization` header.
 
 ## Useful Commands
 
@@ -260,27 +270,24 @@ All endpoints require a valid Cognito JWT token in the `Authorization` header.
 
 Lambda function logs are available in CloudWatch Logs:
 
-- `/aws/lambda/songbird-event-processor`
-- `/aws/lambda/songbird-alert-handler`
+- `/aws/lambda/songbird-api-ingest` - Event ingestion from Notehub
 - `/aws/lambda/songbird-api-devices`
 - `/aws/lambda/songbird-api-telemetry`
 - `/aws/lambda/songbird-api-commands`
 - `/aws/lambda/songbird-api-config`
 
-IoT Core errors are logged to:
-- `/aws/iot/songbird-errors`
+### DynamoDB Queries
 
-### Timestream Queries
+Query telemetry data using the AWS CLI:
 
-Query telemetry data directly:
-
-```sql
-SELECT *
-FROM "songbird"."telemetry"
-WHERE device_uid = 'dev:xxxxx'
-  AND time > ago(24h)
-ORDER BY time DESC
-LIMIT 100
+```bash
+aws dynamodb query \
+  --table-name songbird-telemetry \
+  --key-condition-expression "device_uid = :uid AND #ts > :cutoff" \
+  --expression-attribute-names '{"#ts": "timestamp"}' \
+  --expression-attribute-values '{":uid": {"S": "dev:xxxxx"}, ":cutoff": {"N": "1700000000000"}}' \
+  --scan-index-forward false \
+  --limit 100
 ```
 
 ## Cleanup
@@ -291,15 +298,17 @@ To remove all deployed resources:
 cdk destroy
 ```
 
-**Warning**: This will delete all data in Timestream and DynamoDB tables.
+**Warning**: This will delete all data in DynamoDB tables.
 
 ## Troubleshooting
 
 ### Events Not Appearing
 
-1. Check the Notehub route is correctly configured
-2. Verify IoT Core rule is active: AWS Console → IoT Core → Act → Rules
-3. Check CloudWatch Logs for the event processor Lambda
+1. Check the Notehub route is correctly configured with the IngestUrl
+2. Verify the route is enabled and not paused in Notehub
+3. Test the route using Notehub's "Test Route" feature
+4. Check CloudWatch Logs for the `songbird-api-ingest` Lambda
+5. Look for any errors in the Lambda logs (DynamoDB permissions, malformed events, etc.)
 
 ### API Returns 401 Unauthorized
 
@@ -319,15 +328,13 @@ For a demo fleet of ~20 devices:
 
 | Service | Estimated Monthly Cost |
 |---------|----------------------|
-| Timestream | $5-10 |
-| DynamoDB | $1-2 |
+| DynamoDB | $2-5 |
 | Lambda | $1-2 |
-| API Gateway | $1-2 |
-| IoT Core | $1-2 |
+| API Gateway | $2-4 |
 | CloudFront | $1-2 |
 | S3 | < $1 |
 | Cognito | Free tier |
-| **Total** | **~$15-20/month** |
+| **Total** | **~$8-14/month** |
 
 Costs scale with data volume and API requests.
 

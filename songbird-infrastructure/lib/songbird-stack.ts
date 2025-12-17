@@ -5,6 +5,7 @@
  */
 
 import * as cdk from 'aws-cdk-lib';
+import * as sns from 'aws-cdk-lib/aws-sns';
 import { Construct } from 'constructs';
 import { StorageConstruct } from './storage-construct';
 import { IotConstruct } from './iot-construct';
@@ -21,12 +22,11 @@ export class SongbirdStack extends cdk.Stack {
     super(scope, id, props);
 
     // ==========================================================================
-    // Storage Layer (Timestream + DynamoDB)
+    // Storage Layer (DynamoDB for devices and telemetry)
     // ==========================================================================
     const storage = new StorageConstruct(this, 'Storage', {
-      timestreamDatabaseName: 'songbird',
-      timestreamTableName: 'telemetry',
       dynamoTableName: 'songbird-devices',
+      telemetryTableName: 'songbird-telemetry',
     });
 
     // ==========================================================================
@@ -37,24 +37,34 @@ export class SongbirdStack extends cdk.Stack {
     });
 
     // ==========================================================================
+    // SNS Topic for Alerts (shared between API and IoT constructs)
+    // ==========================================================================
+    // Note: We import the existing topic created by the previous ApiConstruct deployment
+    // rather than creating a new one to avoid name conflicts
+    const alertTopic = sns.Topic.fromTopicArn(
+      this,
+      'AlertTopic',
+      `arn:aws:sns:${this.region}:${this.account}:songbird-alerts`
+    );
+
+    // ==========================================================================
     // API Layer (API Gateway + Lambda)
     // ==========================================================================
     const api = new ApiConstruct(this, 'Api', {
-      timestreamDatabase: storage.timestreamDatabase,
-      timestreamTable: storage.timestreamTable,
+      telemetryTable: storage.telemetryTable,
       devicesTable: storage.devicesTable,
       userPool: auth.userPool,
       notehubProjectUid: props.notehubProjectUid,
+      alertTopic,
     });
 
     // ==========================================================================
     // IoT Layer (IoT Core Rules + Lambda)
     // ==========================================================================
     const iot = new IotConstruct(this, 'Iot', {
-      timestreamDatabase: storage.timestreamDatabase,
-      timestreamTable: storage.timestreamTable,
+      telemetryTable: storage.telemetryTable,
       devicesTable: storage.devicesTable,
-      alertTopic: api.alertTopic,
+      alertTopic,
     });
 
     // ==========================================================================
@@ -73,6 +83,12 @@ export class SongbirdStack extends cdk.Stack {
       value: api.apiUrl,
       description: 'Songbird API endpoint URL',
       exportName: 'SongbirdApiUrl',
+    });
+
+    new cdk.CfnOutput(this, 'IngestUrl', {
+      value: api.ingestUrl,
+      description: 'Event ingest URL for Notehub HTTP route',
+      exportName: 'SongbirdIngestUrl',
     });
 
     new cdk.CfnOutput(this, 'DashboardUrl', {
@@ -99,16 +115,16 @@ export class SongbirdStack extends cdk.Stack {
       exportName: 'SongbirdIoTRuleName',
     });
 
-    new cdk.CfnOutput(this, 'TimestreamDatabase', {
-      value: storage.timestreamDatabase.databaseName!,
-      description: 'Timestream database name',
-      exportName: 'SongbirdTimestreamDatabase',
-    });
-
     new cdk.CfnOutput(this, 'DevicesTableName', {
       value: storage.devicesTable.tableName,
       description: 'DynamoDB devices table name',
       exportName: 'SongbirdDevicesTable',
+    });
+
+    new cdk.CfnOutput(this, 'TelemetryTableName', {
+      value: storage.telemetryTable.tableName,
+      description: 'DynamoDB telemetry table name',
+      exportName: 'SongbirdTelemetryTable',
     });
   }
 }

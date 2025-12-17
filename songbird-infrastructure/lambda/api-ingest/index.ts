@@ -1,15 +1,14 @@
 /**
- * Event Processor Lambda
+ * Event Ingest API Lambda
  *
- * Processes incoming Songbird events from IoT Core:
- * - Writes telemetry data to DynamoDB
- * - Updates device metadata in DynamoDB
- * - Triggers alerts via SNS for alert events
+ * HTTP endpoint for receiving events from Notehub HTTP routes.
+ * Processes incoming Songbird events and writes to DynamoDB.
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 // Initialize clients
 const ddbClient = new DynamoDBClient({});
@@ -25,14 +24,19 @@ const ALERT_TOPIC_ARN = process.env.ALERT_TOPIC_ARN!;
 const TTL_DAYS = 90;
 const TTL_SECONDS = TTL_DAYS * 24 * 60 * 60;
 
-// Songbird event structure (from Notehub via IoT Core)
-interface SongbirdEvent {
-  device_uid: string;
-  serial_number?: string;
-  fleet?: string;
-  event_type: string;
-  timestamp: number;
+// Notehub event structure (from HTTP route)
+interface NotehubEvent {
+  event: string;           // e.g., "dev:xxxxx#track.qo#1"
+  session: string;
+  best_id: string;
+  device: string;          // Device UID
+  sn: string;              // Serial number
+  product: string;
+  app: string;
   received: number;
+  req: string;             // e.g., "note.add"
+  when: number;            // Unix timestamp
+  file: string;            // e.g., "track.qo"
   body: {
     temp?: number;
     humidity?: number;
@@ -51,7 +55,114 @@ interface SongbirdEvent {
     executed_at?: number;
     // Mojo power monitoring fields (_log.qo)
     milliamp_hours?: number;
-    temperature?: number;  // Mojo board temperature
+    temperature?: number;
+  };
+  best_location_type?: string;
+  best_location_when?: number;
+  best_lat?: number;
+  best_lon?: number;
+  best_location?: string;
+  tower_location?: string;
+  tower_lat?: number;
+  tower_lon?: number;
+  tower_when?: number;
+  fleets?: string[];
+}
+
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  console.log('Ingest request:', JSON.stringify(event));
+
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+
+  try {
+    if (!event.body) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Request body required' }),
+      };
+    }
+
+    const notehubEvent: NotehubEvent = JSON.parse(event.body);
+    console.log('Processing Notehub event:', JSON.stringify(notehubEvent));
+
+    // Transform to internal format
+    const songbirdEvent = {
+      device_uid: notehubEvent.device,
+      serial_number: notehubEvent.sn,
+      fleet: notehubEvent.fleets?.[0] || 'default',
+      event_type: notehubEvent.file,
+      timestamp: notehubEvent.when,
+      received: notehubEvent.received,
+      body: notehubEvent.body || {},
+      location: notehubEvent.best_lat !== undefined ? {
+        lat: notehubEvent.best_lat,
+        lon: notehubEvent.best_lon,
+        time: notehubEvent.best_location_when,
+        source: notehubEvent.best_location_type,
+      } : undefined,
+    };
+
+    // Write telemetry to DynamoDB (for track.qo events)
+    if (songbirdEvent.event_type === 'track.qo') {
+      await writeTelemetry(songbirdEvent, 'telemetry');
+    }
+
+    // Write Mojo power data to DynamoDB (_log.qo contains power telemetry)
+    if (songbirdEvent.event_type === '_log.qo') {
+      await writePowerTelemetry(songbirdEvent);
+    }
+
+    // Update device metadata in DynamoDB
+    await updateDeviceMetadata(songbirdEvent);
+
+    // Publish alert if this is an alert event
+    if (songbirdEvent.event_type === 'alert.qo') {
+      await publishAlert(songbirdEvent);
+    }
+
+    console.log('Event processed successfully');
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ status: 'ok', device: songbirdEvent.device_uid }),
+    };
+  } catch (error) {
+    console.error('Error processing event:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: 'Internal server error' }),
+    };
+  }
+};
+
+interface SongbirdEvent {
+  device_uid: string;
+  serial_number?: string;
+  fleet?: string;
+  event_type: string;
+  timestamp: number;
+  received: number;
+  body: {
+    temp?: number;
+    humidity?: number;
+    pressure?: number;
+    voltage?: number;
+    motion?: boolean;
+    mode?: string;
+    type?: string;
+    value?: number;
+    threshold?: number;
+    message?: string;
+    cmd?: string;
+    status?: string;
+    executed_at?: number;
+    milliamp_hours?: number;
+    temperature?: number;
   };
   location?: {
     lat?: number;
@@ -59,58 +170,23 @@ interface SongbirdEvent {
     time?: number;
     source?: string;
   };
-  tower?: {
-    lat?: number;
-    lon?: number;
-  };
 }
-
-export const handler = async (event: SongbirdEvent): Promise<void> => {
-  console.log('Processing event:', JSON.stringify(event));
-
-  try {
-    // Write telemetry to DynamoDB (for track.qo events)
-    if (event.event_type === 'track.qo') {
-      await writeTelemetry(event, 'telemetry');
-    }
-
-    // Write Mojo power data to DynamoDB (_log.qo contains power telemetry)
-    if (event.event_type === '_log.qo') {
-      await writePowerTelemetry(event);
-    }
-
-    // Update device metadata in DynamoDB
-    await updateDeviceMetadata(event);
-
-    // Publish alert if this is an alert event
-    if (event.event_type === 'alert.qo') {
-      await publishAlert(event);
-    }
-
-    console.log('Event processed successfully');
-  } catch (error) {
-    console.error('Error processing event:', error);
-    throw error;
-  }
-};
 
 async function writeTelemetry(event: SongbirdEvent, dataType: string): Promise<void> {
   const timestamp = event.timestamp * 1000; // Convert to milliseconds
   const ttl = Math.floor(Date.now() / 1000) + TTL_SECONDS;
 
-  // Create telemetry record
   const record: Record<string, any> = {
     device_uid: event.device_uid,
     timestamp,
     ttl,
     data_type: dataType,
     event_type: event.event_type,
-    event_type_timestamp: `${dataType}#${timestamp}`, // For GSI queries
+    event_type_timestamp: `${dataType}#${timestamp}`,
     serial_number: event.serial_number || 'unknown',
     fleet: event.fleet || 'default',
   };
 
-  // Add telemetry values
   if (event.body.temp !== undefined) {
     record.temperature = event.body.temp;
   }
@@ -127,7 +203,6 @@ async function writeTelemetry(event: SongbirdEvent, dataType: string): Promise<v
     record.motion = event.body.motion;
   }
 
-  // Add location if available
   if (event.location?.lat !== undefined && event.location?.lon !== undefined) {
     record.latitude = event.location.lat;
     record.longitude = event.location.lon;
@@ -144,22 +219,20 @@ async function writeTelemetry(event: SongbirdEvent, dataType: string): Promise<v
 }
 
 async function writePowerTelemetry(event: SongbirdEvent): Promise<void> {
-  const timestamp = event.timestamp * 1000; // Convert to milliseconds
+  const timestamp = event.timestamp * 1000;
   const ttl = Math.floor(Date.now() / 1000) + TTL_SECONDS;
 
-  // Create power telemetry record
   const record: Record<string, any> = {
     device_uid: event.device_uid,
     timestamp,
     ttl,
     data_type: 'power',
     event_type: event.event_type,
-    event_type_timestamp: `power#${timestamp}`, // For GSI queries
+    event_type_timestamp: `power#${timestamp}`,
     serial_number: event.serial_number || 'unknown',
     fleet: event.fleet || 'default',
   };
 
-  // Add Mojo power values
   if (event.body.voltage !== undefined) {
     record.mojo_voltage = event.body.voltage;
   }
@@ -170,7 +243,6 @@ async function writePowerTelemetry(event: SongbirdEvent): Promise<void> {
     record.milliamp_hours = event.body.milliamp_hours;
   }
 
-  // Only write if we have at least one power metric
   if (record.mojo_voltage !== undefined ||
       record.mojo_temperature !== undefined ||
       record.milliamp_hours !== undefined) {
@@ -189,12 +261,10 @@ async function writePowerTelemetry(event: SongbirdEvent): Promise<void> {
 async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
   const now = Date.now();
 
-  // Build update expression dynamically
   const updateExpressions: string[] = [];
   const expressionAttributeNames: Record<string, string> = {};
   const expressionAttributeValues: Record<string, any> = {};
 
-  // Always update last_seen and updated_at
   updateExpressions.push('#last_seen = :last_seen');
   expressionAttributeNames['#last_seen'] = 'last_seen';
   expressionAttributeValues[':last_seen'] = now;
@@ -203,33 +273,28 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
   expressionAttributeNames['#updated_at'] = 'updated_at';
   expressionAttributeValues[':updated_at'] = now;
 
-  // Update status to online
   updateExpressions.push('#status = :status');
   expressionAttributeNames['#status'] = 'status';
   expressionAttributeValues[':status'] = 'online';
 
-  // Update serial number if provided
   if (event.serial_number) {
     updateExpressions.push('#sn = :sn');
     expressionAttributeNames['#sn'] = 'serial_number';
     expressionAttributeValues[':sn'] = event.serial_number;
   }
 
-  // Update fleet if provided
   if (event.fleet) {
     updateExpressions.push('#fleet = :fleet');
     expressionAttributeNames['#fleet'] = 'fleet';
     expressionAttributeValues[':fleet'] = event.fleet;
   }
 
-  // Update current mode if in body
   if (event.body.mode) {
     updateExpressions.push('#mode = :mode');
     expressionAttributeNames['#mode'] = 'current_mode';
     expressionAttributeValues[':mode'] = event.body.mode;
   }
 
-  // Update last location if available
   if (event.location?.lat !== undefined && event.location?.lon !== undefined) {
     updateExpressions.push('#loc = :loc');
     expressionAttributeNames['#loc'] = 'last_location';
@@ -241,7 +306,6 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
     };
   }
 
-  // Update last telemetry for track events
   if (event.event_type === 'track.qo') {
     updateExpressions.push('#telemetry = :telemetry');
     expressionAttributeNames['#telemetry'] = 'last_telemetry';
@@ -255,7 +319,6 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
     };
   }
 
-  // Update last power data for Mojo power events (_log.qo)
   if (event.event_type === '_log.qo') {
     updateExpressions.push('#power = :power');
     expressionAttributeNames['#power'] = 'last_power';
@@ -267,7 +330,6 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
     };
   }
 
-  // Set created_at if not exists (first time seeing device)
   updateExpressions.push('#created_at = if_not_exists(#created_at, :created_at)');
   expressionAttributeNames['#created_at'] = 'created_at';
   expressionAttributeValues[':created_at'] = now;

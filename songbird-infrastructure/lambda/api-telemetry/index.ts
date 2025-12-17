@@ -1,21 +1,20 @@
 /**
  * Telemetry API Lambda
  *
- * Queries Timestream for device telemetry data:
+ * Queries DynamoDB for device telemetry data:
  * - GET /devices/{device_uid}/telemetry - Get telemetry history
  * - GET /devices/{device_uid}/location - Get location history
+ * - GET /devices/{device_uid}/power - Get Mojo power history
  */
 
-import {
-  TimestreamQueryClient,
-  QueryCommand,
-} from '@aws-sdk/client-timestream-query';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
-const timestreamClient = new TimestreamQueryClient({});
+const ddbClient = new DynamoDBClient({});
+const docClient = DynamoDBDocumentClient.from(ddbClient);
 
-const TIMESTREAM_DATABASE = process.env.TIMESTREAM_DATABASE!;
-const TIMESTREAM_TABLE = process.env.TIMESTREAM_TABLE!;
+const TELEMETRY_TABLE = process.env.TELEMETRY_TABLE!;
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   console.log('Request:', JSON.stringify(event));
@@ -72,51 +71,35 @@ async function getTelemetryHistory(
   limit: number,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
-  // Query for all telemetry measures
-  const query = `
-    SELECT
-      device_uid,
-      time,
-      measure_name,
-      measure_value::double as value
-    FROM "${TIMESTREAM_DATABASE}"."${TIMESTREAM_TABLE}"
-    WHERE device_uid = '${deviceUid}'
-      AND time > ago(${hours}h)
-      AND measure_name IN ('temperature', 'humidity', 'pressure', 'voltage')
-    ORDER BY time DESC
-    LIMIT ${limit}
-  `;
+  const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
 
-  const command = new QueryCommand({ QueryString: query });
-  const result = await timestreamClient.send(command);
+  const command = new QueryCommand({
+    TableName: TELEMETRY_TABLE,
+    KeyConditionExpression: 'device_uid = :device_uid AND #ts > :cutoff',
+    FilterExpression: 'data_type = :data_type',
+    ExpressionAttributeNames: {
+      '#ts': 'timestamp',
+    },
+    ExpressionAttributeValues: {
+      ':device_uid': deviceUid,
+      ':cutoff': cutoffTime,
+      ':data_type': 'telemetry',
+    },
+    ScanIndexForward: false, // Newest first
+    Limit: limit,
+  });
 
-  // Transform results into a more usable format
-  const telemetryMap = new Map<string, Record<string, any>>();
+  const result = await docClient.send(command);
 
-  if (result.Rows) {
-    for (const row of result.Rows) {
-      const data = row.Data;
-      if (!data) continue;
-
-      const time = data[1]?.ScalarValue;
-      const measureName = data[2]?.ScalarValue;
-      const value = parseFloat(data[3]?.ScalarValue || '0');
-
-      if (!time || !measureName) continue;
-
-      if (!telemetryMap.has(time)) {
-        telemetryMap.set(time, { time });
-      }
-
-      const entry = telemetryMap.get(time)!;
-      entry[measureName] = value;
-    }
-  }
-
-  // Convert to array and sort by time
-  const telemetry = Array.from(telemetryMap.values()).sort(
-    (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
-  );
+  // Transform to API response format
+  const telemetry = (result.Items || []).map((item) => ({
+    time: new Date(item.timestamp).toISOString(),
+    temperature: item.temperature,
+    humidity: item.humidity,
+    pressure: item.pressure,
+    voltage: item.voltage,
+    motion: item.motion,
+  }));
 
   return {
     statusCode: 200,
@@ -136,55 +119,34 @@ async function getLocationHistory(
   limit: number,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
-  // Query for location data
-  const query = `
-    WITH lat_data AS (
-      SELECT
-        time,
-        measure_value::double as lat
-      FROM "${TIMESTREAM_DATABASE}"."${TIMESTREAM_TABLE}"
-      WHERE device_uid = '${deviceUid}'
-        AND time > ago(${hours}h)
-        AND measure_name = 'latitude'
-    ),
-    lon_data AS (
-      SELECT
-        time,
-        measure_value::double as lon
-      FROM "${TIMESTREAM_DATABASE}"."${TIMESTREAM_TABLE}"
-      WHERE device_uid = '${deviceUid}'
-        AND time > ago(${hours}h)
-        AND measure_name = 'longitude'
-    )
-    SELECT
-      lat_data.time,
-      lat_data.lat,
-      lon_data.lon
-    FROM lat_data
-    JOIN lon_data ON lat_data.time = lon_data.time
-    ORDER BY lat_data.time DESC
-    LIMIT ${limit}
-  `;
+  const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
 
-  const command = new QueryCommand({ QueryString: query });
-  const result = await timestreamClient.send(command);
+  const command = new QueryCommand({
+    TableName: TELEMETRY_TABLE,
+    KeyConditionExpression: 'device_uid = :device_uid AND #ts > :cutoff',
+    FilterExpression: 'data_type = :data_type AND attribute_exists(latitude)',
+    ExpressionAttributeNames: {
+      '#ts': 'timestamp',
+    },
+    ExpressionAttributeValues: {
+      ':device_uid': deviceUid,
+      ':cutoff': cutoffTime,
+      ':data_type': 'telemetry',
+    },
+    ScanIndexForward: false, // Newest first
+    Limit: limit,
+  });
 
-  const locations: Array<{ time: string; lat: number; lon: number }> = [];
+  const result = await docClient.send(command);
 
-  if (result.Rows) {
-    for (const row of result.Rows) {
-      const data = row.Data;
-      if (!data) continue;
-
-      const time = data[0]?.ScalarValue;
-      const lat = parseFloat(data[1]?.ScalarValue || '0');
-      const lon = parseFloat(data[2]?.ScalarValue || '0');
-
-      if (time && lat && lon) {
-        locations.push({ time, lat, lon });
-      }
-    }
-  }
+  // Transform to API response format
+  const locations = (result.Items || [])
+    .filter((item) => item.latitude !== undefined && item.longitude !== undefined)
+    .map((item) => ({
+      time: new Date(item.timestamp).toISOString(),
+      lat: item.latitude,
+      lon: item.longitude,
+    }));
 
   return {
     statusCode: 200,
@@ -204,58 +166,33 @@ async function getPowerHistory(
   limit: number,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
-  // Query for Mojo power data (from _log.qo events)
-  const query = `
-    SELECT
-      device_uid,
-      time,
-      measure_name,
-      measure_value::double as value
-    FROM "${TIMESTREAM_DATABASE}"."${TIMESTREAM_TABLE}"
-    WHERE device_uid = '${deviceUid}'
-      AND time > ago(${hours}h)
-      AND measure_name IN ('mojo_voltage', 'mojo_temperature', 'milliamp_hours')
-    ORDER BY time DESC
-    LIMIT ${limit}
-  `;
+  const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
 
-  const command = new QueryCommand({ QueryString: query });
-  const result = await timestreamClient.send(command);
+  const command = new QueryCommand({
+    TableName: TELEMETRY_TABLE,
+    KeyConditionExpression: 'device_uid = :device_uid AND #ts > :cutoff',
+    FilterExpression: 'data_type = :data_type',
+    ExpressionAttributeNames: {
+      '#ts': 'timestamp',
+    },
+    ExpressionAttributeValues: {
+      ':device_uid': deviceUid,
+      ':cutoff': cutoffTime,
+      ':data_type': 'power',
+    },
+    ScanIndexForward: false, // Newest first
+    Limit: limit,
+  });
 
-  // Transform results into a more usable format
-  const powerMap = new Map<string, Record<string, any>>();
+  const result = await docClient.send(command);
 
-  if (result.Rows) {
-    for (const row of result.Rows) {
-      const data = row.Data;
-      if (!data) continue;
-
-      const time = data[1]?.ScalarValue;
-      const measureName = data[2]?.ScalarValue;
-      const value = parseFloat(data[3]?.ScalarValue || '0');
-
-      if (!time || !measureName) continue;
-
-      if (!powerMap.has(time)) {
-        powerMap.set(time, { time });
-      }
-
-      const entry = powerMap.get(time)!;
-      // Map measure names to cleaner keys
-      if (measureName === 'mojo_voltage') {
-        entry.voltage = value;
-      } else if (measureName === 'mojo_temperature') {
-        entry.temperature = value;
-      } else if (measureName === 'milliamp_hours') {
-        entry.milliamp_hours = value;
-      }
-    }
-  }
-
-  // Convert to array and sort by time
-  const power = Array.from(powerMap.values()).sort(
-    (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
-  );
+  // Transform to API response format
+  const power = (result.Items || []).map((item) => ({
+    time: new Date(item.timestamp).toISOString(),
+    voltage: item.mojo_voltage,
+    temperature: item.mojo_temperature,
+    milliamp_hours: item.milliamp_hours,
+  }));
 
   return {
     statusCode: 200,

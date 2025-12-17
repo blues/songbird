@@ -13,10 +13,8 @@ import * as apigateway from 'aws-cdk-lib/aws-apigatewayv2';
 import * as apigatewayIntegrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import * as apigatewayAuthorizers from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as iam from 'aws-cdk-lib/aws-iam';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
-import * as timestream from 'aws-cdk-lib/aws-timestream';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
@@ -25,28 +23,20 @@ import { Construct } from 'constructs';
 import * as path from 'path';
 
 export interface ApiConstructProps {
-  timestreamDatabase: timestream.CfnDatabase;
-  timestreamTable: timestream.CfnTable;
+  telemetryTable: dynamodb.Table;
   devicesTable: dynamodb.Table;
   userPool: cognito.UserPool;
   notehubProjectUid: string;
+  alertTopic: sns.ITopic;
 }
 
 export class ApiConstruct extends Construct {
   public readonly api: apigateway.HttpApi;
   public readonly apiUrl: string;
-  public readonly alertTopic: sns.Topic;
+  public readonly ingestUrl: string;
 
   constructor(scope: Construct, id: string, props: ApiConstructProps) {
     super(scope, id);
-
-    // ==========================================================================
-    // SNS Topic for Alerts
-    // ==========================================================================
-    this.alertTopic = new sns.Topic(this, 'AlertTopic', {
-      topicName: 'songbird-alerts',
-      displayName: 'Songbird Device Alerts',
-    });
 
     // ==========================================================================
     // Commands Table (for command history)
@@ -104,24 +94,12 @@ export class ApiConstruct extends Construct {
       timeout: cdk.Duration.seconds(30),
       memorySize: 256,
       environment: {
-        TIMESTREAM_DATABASE: props.timestreamDatabase.databaseName!,
-        TIMESTREAM_TABLE: props.timestreamTable.tableName!,
+        TELEMETRY_TABLE: props.telemetryTable.tableName,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
     });
-
-    // Grant Timestream query permissions
-    telemetryFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: [
-          'timestream:Select',
-          'timestream:DescribeEndpoints',
-          'timestream:DescribeTable',
-        ],
-        resources: ['*'],
-      })
-    );
+    props.telemetryTable.grantReadData(telemetryFunction);
 
     // Commands API
     const commandsFunction = new NodejsFunction(this, 'CommandsFunction', {
@@ -158,6 +136,27 @@ export class ApiConstruct extends Construct {
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
     });
+
+    // Event Ingest API (for Notehub HTTP route - no authentication)
+    const ingestFunction = new NodejsFunction(this, 'IngestFunction', {
+      functionName: 'songbird-api-ingest',
+      description: 'Songbird Event Ingest API for Notehub HTTP routes',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/api-ingest/index.ts'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        TELEMETRY_TABLE: props.telemetryTable.tableName,
+        DEVICES_TABLE: props.devicesTable.tableName,
+        ALERT_TOPIC_ARN: props.alertTopic.topicArn,
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+    props.telemetryTable.grantReadWriteData(ingestFunction);
+    props.devicesTable.grantReadWriteData(ingestFunction);
+    props.alertTopic.grantPublish(ingestFunction);
 
     // ==========================================================================
     // HTTP API Gateway
@@ -273,7 +272,21 @@ export class ApiConstruct extends Construct {
       authorizer,
     });
 
+    // Event ingest endpoint (no auth - called by Notehub)
+    const ingestIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+      'IngestIntegration',
+      ingestFunction
+    );
+
+    this.api.addRoutes({
+      path: '/v1/ingest',
+      methods: [apigateway.HttpMethod.POST],
+      integration: ingestIntegration,
+      // No authorizer - Notehub HTTP routes don't support Cognito auth
+    });
+
     // Store API URL
     this.apiUrl = this.api.url!;
+    this.ingestUrl = `${this.api.url}v1/ingest`;
   }
 }

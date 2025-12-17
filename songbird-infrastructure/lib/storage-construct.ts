@@ -1,66 +1,25 @@
 /**
  * Storage Construct
  *
- * Defines Timestream database/table for time-series telemetry data
- * and DynamoDB table for device metadata.
+ * Defines DynamoDB tables for device metadata and telemetry data.
+ * (Timestream is no longer available to new AWS customers)
  */
 
 import * as cdk from 'aws-cdk-lib';
-import * as timestream from 'aws-cdk-lib/aws-timestream';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import { Construct } from 'constructs';
 
 export interface StorageConstructProps {
-  timestreamDatabaseName: string;
-  timestreamTableName: string;
   dynamoTableName: string;
+  telemetryTableName: string;
 }
 
 export class StorageConstruct extends Construct {
-  public readonly timestreamDatabase: timestream.CfnDatabase;
-  public readonly timestreamTable: timestream.CfnTable;
   public readonly devicesTable: dynamodb.Table;
+  public readonly telemetryTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: StorageConstructProps) {
     super(scope, id);
-
-    // ==========================================================================
-    // Timestream Database
-    // ==========================================================================
-    this.timestreamDatabase = new timestream.CfnDatabase(this, 'Database', {
-      databaseName: props.timestreamDatabaseName,
-      tags: [{ key: 'Application', value: 'Songbird' }],
-    });
-
-    // ==========================================================================
-    // Timestream Table for Telemetry Data
-    // ==========================================================================
-    this.timestreamTable = new timestream.CfnTable(this, 'TelemetryTable', {
-      databaseName: props.timestreamDatabaseName,
-      tableName: props.timestreamTableName,
-
-      // Retention policy
-      retentionProperties: {
-        // Memory store retention: 24 hours (for real-time queries)
-        memoryStoreRetentionPeriodInHours: '24',
-        // Magnetic store retention: 90 days (for historical queries)
-        magneticStoreRetentionPeriodInDays: '90',
-      },
-
-      // Enable magnetic store writes for late-arriving data
-      magneticStoreWriteProperties: {
-        enableMagneticStoreWrites: true,
-      },
-
-      // Schema definition (informational - Timestream is schema-on-write)
-      // Dimensions: device_uid, serial_number, fleet, event_type
-      // Measures: temperature, humidity, pressure, voltage, latitude, longitude, motion, mode
-
-      tags: [{ key: 'Application', value: 'Songbird' }],
-    });
-
-    // Ensure table is created after database
-    this.timestreamTable.addDependency(this.timestreamDatabase);
 
     // ==========================================================================
     // DynamoDB Table for Device Metadata
@@ -111,6 +70,46 @@ export class StorageConstruct extends Construct {
       sortKey: {
         name: 'last_seen',
         type: dynamodb.AttributeType.NUMBER,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // ==========================================================================
+    // DynamoDB Table for Telemetry Data
+    // ==========================================================================
+    this.telemetryTable = new dynamodb.Table(this, 'TelemetryTable', {
+      tableName: props.telemetryTableName,
+
+      // Composite primary key: device_uid + timestamp
+      partitionKey: {
+        name: 'device_uid',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'timestamp',
+        type: dynamodb.AttributeType.NUMBER,
+      },
+
+      // Billing mode - on-demand for unpredictable demo usage
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+
+      // Remove table on stack deletion (demo environment)
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+
+      // TTL to automatically delete old telemetry (90 days)
+      timeToLiveAttribute: 'ttl',
+    });
+
+    // GSI for querying by event type
+    this.telemetryTable.addGlobalSecondaryIndex({
+      indexName: 'event-type-index',
+      partitionKey: {
+        name: 'device_uid',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'event_type_timestamp',
+        type: dynamodb.AttributeType.STRING,
       },
       projectionType: dynamodb.ProjectionType.ALL,
     });
