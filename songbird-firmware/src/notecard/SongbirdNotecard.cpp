@@ -197,6 +197,7 @@ bool notecardSetupTemplates(void) {
         JAddNumberToObject(body, "humidity", TFLOAT32);
         JAddNumberToObject(body, "pressure", TFLOAT32);
         JAddNumberToObject(body, "voltage", TFLOAT32);
+        JAddNumberToObject(body, "_time", TINT32);
         JAddBoolToObject(body, "motion", TBOOL);
         JAddStringToObject(body, "mode", "xxxxxxxxxxxx");  // 12 char max
         JAddItemToObject(req, "body", body);
@@ -229,6 +230,7 @@ bool notecardSetupTemplates(void) {
         JAddStringToObject(body, "type", "xxxxxxxxxxxxxxxx");  // 16 char max
         JAddNumberToObject(body, "value", TFLOAT32);
         JAddNumberToObject(body, "threshold", TFLOAT32);
+        JAddNumberToObject(body, "_time", TINT32);
         // 64 char placeholder for message
         JAddStringToObject(body, "message", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
         JAddItemToObject(req, "body", body);
@@ -264,6 +266,7 @@ bool notecardSetupTemplates(void) {
         // 64 char placeholder for message
         JAddStringToObject(body, "message", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
         JAddNumberToObject(body, "executed_at", TUINT32);
+        JAddNumberToObject(body, "_time", TINT32);
         JAddItemToObject(req, "body", body);
 
         J* rsp = s_notecard.requestAndResponse(req);
