@@ -6,6 +6,7 @@ Firmware for the Songbird sales demo device - a portable, battery-powered asset 
 
 - Environmental sensing (temperature, humidity, pressure) via BME280
 - GPS/GNSS location tracking via Notecard
+- Power monitoring via Blues Mojo (battery voltage, current, mAh consumed)
 - Audio feedback via SparkFun Qwiic Buzzer with configurable melodies
 - Remote configuration via Notehub environment variables
 - Cloud-to-device command handling
@@ -21,6 +22,7 @@ Firmware for the Songbird sales demo device - a portable, battery-powered asset 
 | Notecard | Cell+WiFi (NBGL) |
 | Sensor | BME280 Qwiic breakout (I2C address 0x77) |
 | Audio | [SparkFun Qwiic Buzzer](https://www.sparkfun.com/sparkfun-qwiic-buzzer.html) (I2C address 0x34) |
+| Power Monitor | [Blues Mojo](https://dev.blues.io/quickstart/mojo-quickstart/) (optional) |
 
 ## Project Structure
 
@@ -178,6 +180,44 @@ The firmware uses FreeRTOS with 6 tasks:
 | `transit` | Periodic sync (configurable), motion-triggered tracking |
 | `storage` | Hourly sync, minimal power consumption |
 | `sleep` | Deep sleep with wake triggers |
+
+## Blues Mojo Power Monitor
+
+[Blues Mojo](https://dev.blues.io/quickstart/mojo-quickstart/) is an optional power monitoring accessory that provides detailed battery telemetry including voltage, current draw, and cumulative energy consumption (mAh).
+
+### Hardware Setup
+
+1. Connect Mojo between your battery and the Notecarrier power input
+2. **Important**: Mojo must be connected before the Notecard powers on for automatic detection
+
+### Data Collected
+
+| Metric | Description |
+|--------|-------------|
+| `voltage` | Battery voltage (V) |
+| `temperature` | Mojo board temperature (°C) |
+| `milliamp_hours` | Cumulative energy consumed (mAh) |
+
+### Reading Intervals
+
+Mojo readings are automatically configured based on the operating mode:
+
+| Mode | Interval |
+|------|----------|
+| Demo | Every 1 minute |
+| Transit | Every 5 minutes |
+| Storage | Every 60 minutes |
+| Sleep | Disabled |
+
+### Viewing Data
+
+Mojo data is automatically logged to Notehub. To enable automatic power logging:
+
+1. In Notehub, navigate to your device's **Environment** tab
+2. Set the environment variable `_log` to `power`
+3. Sync the device
+
+Power data will appear in the `_power.qo` notefile.
 
 ## User Button (Mute Toggle)
 
