@@ -82,6 +82,16 @@ export interface LocationPoint {
 }
 
 /**
+ * Mojo power monitoring data point
+ */
+export interface PowerPoint {
+  time: string;
+  voltage?: number;
+  temperature?: number;
+  milliamp_hours?: number;
+}
+
+/**
  * Alert record
  */
 export interface Alert {
@@ -182,6 +192,13 @@ export interface LocationResponse {
   hours: number;
   count: number;
   locations: LocationPoint[];
+}
+
+export interface PowerResponse {
+  device_uid: string;
+  hours: number;
+  count: number;
+  power: PowerPoint[];
 }
 
 export interface ConfigResponse {

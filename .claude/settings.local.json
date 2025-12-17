@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(pio run:*)",
-      "Bash(pio pkg search:*)"
+      "Bash(pio pkg search:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx:*)",
+      "Bash(npm install)"
     ],
     "deny": [],
     "ask": []

@@ -184,8 +184,10 @@ Create a route in Notehub to send events to AWS IoT Core:
 3. Configure:
    - **Region**: Same as your CDK deployment (e.g., `us-east-1`)
    - **Topic**: `songbird/events`
-   - **Notefiles**: `track.qo`, `alert.qo`, `command_ack.qo`, `health.qo`
+   - **Notefiles**: `track.qo`, `alert.qo`, `command_ack.qo`, `health.qo`, `_log.qo`
 4. Use the JSONata transform from the PRD to format events
+
+**Note**: The `_log.qo` Notefile contains Mojo power monitoring data (voltage, temperature, milliamp_hours) when enabled via the `_log` environment variable set to `power`.
 
 ### 3. Create Initial Cognito Users
 
@@ -232,6 +234,7 @@ Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com`
 | PATCH | `/v1/devices/{device_uid}` | Update device metadata |
 | GET | `/v1/devices/{device_uid}/telemetry` | Get telemetry history |
 | GET | `/v1/devices/{device_uid}/location` | Get location history |
+| GET | `/v1/devices/{device_uid}/power` | Get Mojo power monitoring history |
 | GET | `/v1/devices/{device_uid}/commands` | Get command history |
 | POST | `/v1/devices/{device_uid}/commands` | Send command to device |
 | GET | `/v1/devices/{device_uid}/config` | Get device configuration |

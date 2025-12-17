@@ -1,23 +1,21 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery } from 'lucide-react';
+import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DeviceStatus } from '@/components/devices/DeviceStatus';
 import { LocationTrail } from '@/components/maps/LocationTrail';
 import { TelemetryChart } from '@/components/charts/TelemetryChart';
+import { PowerChart } from '@/components/charts/PowerChart';
 import { GaugeCard } from '@/components/charts/GaugeCard';
 import { CommandPanel } from '@/components/commands/CommandPanel';
 import { ConfigPanel } from '@/components/config/ConfigPanel';
 import { useDevice } from '@/hooks/useDevices';
-import { useTelemetry, useLocationHistory } from '@/hooks/useTelemetry';
+import { useTelemetry, useLocationHistory, usePowerHistory } from '@/hooks/useTelemetry';
 import { useCommands } from '@/hooks/useCommands';
 import {
-  formatTemperature,
-  formatHumidity,
-  formatPressure,
   formatBattery,
   formatMode,
   formatRelativeTime,
@@ -32,6 +30,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const { deviceUid } = useParams<{ deviceUid: string }>();
   const [showConfig, setShowConfig] = useState(false);
   const [timeRange, setTimeRange] = useState(24);
+  const [chartTab, setChartTab] = useState('telemetry');
 
   const { data: device, isLoading: deviceLoading } = useDevice(deviceUid!);
   const { data: telemetryData, isLoading: telemetryLoading } = useTelemetry(
@@ -39,10 +38,12 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
     timeRange
   );
   const { data: locationData } = useLocationHistory(deviceUid!, timeRange);
+  const { data: powerData, isLoading: powerLoading } = usePowerHistory(deviceUid!, timeRange);
   const { data: commandsData } = useCommands(deviceUid!);
 
   const telemetry = telemetryData?.telemetry || [];
   const locations = locationData?.locations || [];
+  const power = powerData?.power || [];
   const lastCommand = commandsData?.commands?.[0];
 
   // Get latest values and sparkline data
@@ -166,30 +167,69 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
           <Card className="mb-6">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Historical Data</CardTitle>
-              <Tabs value={String(timeRange)} onValueChange={(v) => setTimeRange(Number(v))}>
-                <TabsList>
-                  <TabsTrigger value="24">24h</TabsTrigger>
-                  <TabsTrigger value="168">7d</TabsTrigger>
-                  <TabsTrigger value="720">30d</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <div className="flex gap-4">
+                <Tabs value={chartTab} onValueChange={setChartTab}>
+                  <TabsList>
+                    <TabsTrigger value="telemetry">
+                      <Thermometer className="h-3 w-3 mr-1" />
+                      Telemetry
+                    </TabsTrigger>
+                    <TabsTrigger value="power">
+                      <Zap className="h-3 w-3 mr-1" />
+                      Power
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <Tabs value={String(timeRange)} onValueChange={(v) => setTimeRange(Number(v))}>
+                  <TabsList>
+                    <TabsTrigger value="24">24h</TabsTrigger>
+                    <TabsTrigger value="168">7d</TabsTrigger>
+                    <TabsTrigger value="720">30d</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
             </CardHeader>
             <CardContent>
-              {telemetryLoading ? (
-                <div className="h-[300px] flex items-center justify-center">
-                  <span className="text-muted-foreground">Loading chart...</span>
-                </div>
-              ) : telemetry.length > 0 ? (
-                <TelemetryChart
-                  data={telemetry}
-                  showTemperature
-                  showHumidity
-                  height={300}
-                />
-              ) : (
-                <div className="h-[300px] flex items-center justify-center">
-                  <span className="text-muted-foreground">No data available</span>
-                </div>
+              {chartTab === 'telemetry' && (
+                <>
+                  {telemetryLoading ? (
+                    <div className="h-[300px] flex items-center justify-center">
+                      <span className="text-muted-foreground">Loading chart...</span>
+                    </div>
+                  ) : telemetry.length > 0 ? (
+                    <TelemetryChart
+                      data={telemetry}
+                      showTemperature
+                      showHumidity
+                      height={300}
+                    />
+                  ) : (
+                    <div className="h-[300px] flex items-center justify-center">
+                      <span className="text-muted-foreground">No telemetry data available</span>
+                    </div>
+                  )}
+                </>
+              )}
+              {chartTab === 'power' && (
+                <>
+                  {powerLoading ? (
+                    <div className="h-[300px] flex items-center justify-center">
+                      <span className="text-muted-foreground">Loading chart...</span>
+                    </div>
+                  ) : power.length > 0 ? (
+                    <PowerChart
+                      data={power}
+                      showVoltage
+                      showTemperature
+                      showMilliampHours
+                      height={300}
+                    />
+                  ) : (
+                    <div className="h-[300px] flex items-center justify-center">
+                      <span className="text-muted-foreground">No power data available (Mojo required)</span>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

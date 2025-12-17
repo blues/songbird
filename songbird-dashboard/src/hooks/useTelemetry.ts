@@ -3,7 +3,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { getTelemetry, getLocationHistory } from '@/api/telemetry';
+import { getTelemetry, getLocationHistory, getPowerHistory } from '@/api/telemetry';
 
 /**
  * Hook to fetch telemetry data
@@ -49,4 +49,17 @@ export function useLatestTelemetry(deviceUid: string) {
       time: latest.time,
     } : undefined,
   };
+}
+
+/**
+ * Hook to fetch Mojo power monitoring history
+ */
+export function usePowerHistory(deviceUid: string, hours: number = 24) {
+  return useQuery({
+    queryKey: ['power', deviceUid, hours],
+    queryFn: () => getPowerHistory(deviceUid, hours),
+    refetchInterval: 60_000, // Poll every 60 seconds (power data updates less frequently)
+    staleTime: 30_000,
+    enabled: !!deviceUid,
+  });
 }

@@ -233,6 +233,13 @@ export class ApiConstruct extends Construct {
       authorizer,
     });
 
+    this.api.addRoutes({
+      path: '/v1/devices/{device_uid}/power',
+      methods: [apigateway.HttpMethod.GET],
+      integration: telemetryIntegration,
+      authorizer,
+    });
+
     // Commands endpoints
     const commandsIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
       'CommandsIntegration',

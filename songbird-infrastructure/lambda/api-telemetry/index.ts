@@ -51,6 +51,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       return await getLocationHistory(deviceUid, hours, limit, corsHeaders);
     }
 
+    if (path.endsWith('/power')) {
+      return await getPowerHistory(deviceUid, hours, limit, corsHeaders);
+    }
+
     return await getTelemetryHistory(deviceUid, hours, limit, corsHeaders);
   } catch (error) {
     console.error('Error:', error);
@@ -190,6 +194,77 @@ async function getLocationHistory(
       hours,
       count: locations.length,
       locations,
+    }),
+  };
+}
+
+async function getPowerHistory(
+  deviceUid: string,
+  hours: number,
+  limit: number,
+  headers: Record<string, string>
+): Promise<APIGatewayProxyResult> {
+  // Query for Mojo power data (from _log.qo events)
+  const query = `
+    SELECT
+      device_uid,
+      time,
+      measure_name,
+      measure_value::double as value
+    FROM "${TIMESTREAM_DATABASE}"."${TIMESTREAM_TABLE}"
+    WHERE device_uid = '${deviceUid}'
+      AND time > ago(${hours}h)
+      AND measure_name IN ('mojo_voltage', 'mojo_temperature', 'milliamp_hours')
+    ORDER BY time DESC
+    LIMIT ${limit}
+  `;
+
+  const command = new QueryCommand({ QueryString: query });
+  const result = await timestreamClient.send(command);
+
+  // Transform results into a more usable format
+  const powerMap = new Map<string, Record<string, any>>();
+
+  if (result.Rows) {
+    for (const row of result.Rows) {
+      const data = row.Data;
+      if (!data) continue;
+
+      const time = data[1]?.ScalarValue;
+      const measureName = data[2]?.ScalarValue;
+      const value = parseFloat(data[3]?.ScalarValue || '0');
+
+      if (!time || !measureName) continue;
+
+      if (!powerMap.has(time)) {
+        powerMap.set(time, { time });
+      }
+
+      const entry = powerMap.get(time)!;
+      // Map measure names to cleaner keys
+      if (measureName === 'mojo_voltage') {
+        entry.voltage = value;
+      } else if (measureName === 'mojo_temperature') {
+        entry.temperature = value;
+      } else if (measureName === 'milliamp_hours') {
+        entry.milliamp_hours = value;
+      }
+    }
+  }
+
+  // Convert to array and sort by time
+  const power = Array.from(powerMap.values()).sort(
+    (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
+  );
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      device_uid: deviceUid,
+      hours,
+      count: power.length,
+      power,
     }),
   };
 }

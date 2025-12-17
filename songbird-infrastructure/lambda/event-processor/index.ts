@@ -52,6 +52,9 @@ interface SongbirdEvent {
     cmd?: string;
     status?: string;
     executed_at?: number;
+    // Mojo power monitoring fields (_power.qo)
+    milliamp_hours?: number;
+    temperature?: number;  // Mojo board temperature
   };
   location?: {
     lat?: number;
@@ -72,6 +75,11 @@ export const handler = async (event: SongbirdEvent): Promise<void> => {
     // Write to Timestream (for telemetry events)
     if (event.event_type === 'track.qo') {
       await writeToTimestream(event);
+    }
+
+    // Write Mojo power data to Timestream (_log.qo contains power telemetry)
+    if (event.event_type === '_log.qo') {
+      await writePowerToTimestream(event);
     }
 
     // Update device metadata in DynamoDB
@@ -193,6 +201,75 @@ async function writeToTimestream(event: SongbirdEvent): Promise<void> {
   }
 }
 
+async function writePowerToTimestream(event: SongbirdEvent): Promise<void> {
+  const timestamp = (event.timestamp * 1000).toString(); // Convert to milliseconds
+
+  // Build dimensions
+  const dimensions = [
+    { Name: 'device_uid', Value: event.device_uid },
+    { Name: 'serial_number', Value: event.serial_number || 'unknown' },
+    { Name: 'fleet', Value: event.fleet || 'default' },
+    { Name: 'event_type', Value: event.event_type },
+  ];
+
+  // Build measures from Mojo power data
+  const records: any[] = [];
+
+  // Mojo provides voltage in the body
+  if (event.body.voltage !== undefined) {
+    records.push({
+      Dimensions: dimensions,
+      MeasureName: 'mojo_voltage',
+      MeasureValue: event.body.voltage.toString(),
+      MeasureValueType: 'DOUBLE',
+      Time: timestamp,
+    });
+  }
+
+  // Mojo provides temperature (board temperature)
+  if (event.body.temperature !== undefined) {
+    records.push({
+      Dimensions: dimensions,
+      MeasureName: 'mojo_temperature',
+      MeasureValue: event.body.temperature.toString(),
+      MeasureValueType: 'DOUBLE',
+      Time: timestamp,
+    });
+  }
+
+  // Mojo provides milliamp_hours (cumulative energy consumed)
+  if (event.body.milliamp_hours !== undefined) {
+    records.push({
+      Dimensions: dimensions,
+      MeasureName: 'milliamp_hours',
+      MeasureValue: event.body.milliamp_hours.toString(),
+      MeasureValueType: 'DOUBLE',
+      Time: timestamp,
+    });
+  }
+
+  if (records.length === 0) {
+    console.log('No power measures to write to Timestream');
+    return;
+  }
+
+  try {
+    const command = new WriteRecordsCommand({
+      DatabaseName: TIMESTREAM_DATABASE,
+      TableName: TIMESTREAM_TABLE,
+      Records: records,
+    });
+
+    await timestreamClient.send(command);
+    console.log(`Wrote ${records.length} power records to Timestream`);
+  } catch (error) {
+    if (error instanceof RejectedRecordsException) {
+      console.error('Rejected power records:', error.RejectedRecords);
+    }
+    throw error;
+  }
+}
+
 async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
   const now = Date.now();
 
@@ -258,6 +335,18 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
       pressure: event.body.pressure,
       voltage: event.body.voltage,
       motion: event.body.motion,
+      timestamp: event.timestamp,
+    };
+  }
+
+  // Update last power data for Mojo power events (_log.qo)
+  if (event.event_type === '_log.qo') {
+    updateExpressions.push('#power = :power');
+    expressionAttributeNames['#power'] = 'last_power';
+    expressionAttributeValues[':power'] = {
+      voltage: event.body.voltage,
+      temperature: event.body.temperature,
+      milliamp_hours: event.body.milliamp_hours,
       timestamp: event.timestamp,
     };
   }
