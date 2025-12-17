@@ -125,6 +125,40 @@ bool notecardConfigure(OperatingMode mode) {
     DEBUG_SERIAL.println(mode);
     #endif
 
+    // Configure Mojo power monitoring (periodic readings)
+    // Mojo is automatically detected if connected before Notecard power-on
+    {
+        J* req = s_notecard.newRequest("card.power");
+        // Set periodic reading interval based on mode
+        switch (mode) {
+            case MODE_DEMO:
+                JAddNumberToObject(req, "minutes", 1);  // Every minute for demo
+                break;
+            case MODE_TRANSIT:
+                JAddNumberToObject(req, "minutes", 5);  // Every 5 minutes
+                break;
+            case MODE_STORAGE:
+                JAddNumberToObject(req, "minutes", 60); // Every hour
+                break;
+            case MODE_SLEEP:
+                JAddNumberToObject(req, "minutes", 0);  // Disable periodic readings
+                break;
+        }
+
+        J* rsp = s_notecard.requestAndResponse(req);
+        if (rsp == NULL || s_notecard.responseError(rsp)) {
+            #ifdef DEBUG_MODE
+            DEBUG_SERIAL.println("[Notecard] card.power config failed (Mojo may not be connected)");
+            #endif
+            // Don't fail overall config - Mojo is optional
+        } else {
+            #ifdef DEBUG_MODE
+            DEBUG_SERIAL.println("[Notecard] Mojo power monitoring configured");
+            #endif
+        }
+        if (rsp) s_notecard.deleteResponse(rsp);
+    }
+
     // Enable Outboard DFU and report firmware version
     // These calls enable over-the-air firmware updates via Notehub
     if (!notecardEnableODFU()) {
@@ -1012,6 +1046,7 @@ bool notecardEnableODFU(void) {
     // This tells the Notecard to use the STM32 ROM bootloader for updates
     J* req = s_notecard.newRequest("card.dfu");
     JAddStringToObject(req, "name", DFU_TARGET);
+    JAddStringToObject(req, "mode", DFU_MODE);
     JAddBoolToObject(req, "on", true);
 
     J* rsp = s_notecard.requestAndResponse(req);
@@ -1028,7 +1063,9 @@ bool notecardEnableODFU(void) {
 
     #ifdef DEBUG_MODE
     DEBUG_SERIAL.print("[Notecard] ODFU enabled for target: ");
-    DEBUG_SERIAL.println(DFU_TARGET);
+    DEBUG_SERIAL.print(DFU_TARGET);
+    DEBUG_SERIAL.print(" mode: ");
+    DEBUG_SERIAL.println(DFU_MODE);
     #endif
 
     return true;

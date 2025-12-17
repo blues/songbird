@@ -183,8 +183,9 @@ void MainTask(void* pvParameters) {
     // Initialize default configuration
     envInitDefaults(&s_currentConfig);
 
-    // Play power-on melody
-    audioQueueEvent(AUDIO_EVENT_POWER_ON);
+    // Play power-on melody directly (not queued) to avoid mutex contention
+    // during startup when we hold I2C for extended Notecard operations
+    audioPlayEvent(AUDIO_EVENT_POWER_ON, s_currentConfig.audioVolume);
 
     // Try to restore state from previous sleep
     bool warmBoot = false;
@@ -217,7 +218,8 @@ void MainTask(void* pvParameters) {
     }
 
     if (connected) {
-        audioQueueEvent(AUDIO_EVENT_CONNECTED);
+        // Play connected melody directly (not queued) to avoid mutex contention
+        audioPlayEvent(AUDIO_EVENT_CONNECTED, s_currentConfig.audioVolume);
     }
 
     // Fetch initial configuration
@@ -465,10 +467,6 @@ void AudioTask(void* pvParameters) {
     bool locateActive = false;
     TickType_t locateEndTime = 0;
 
-    // Get initial config
-    SongbirdConfig config;
-    tasksGetConfig(&config);
-
     for (;;) {
         // Check for sleep request
         if (g_sleepRequested && !locateActive) {
@@ -482,9 +480,6 @@ void AudioTask(void* pvParameters) {
 
         // Check for audio events
         if (syncReceiveAudio(&item, waitTime)) {
-            // Update config
-            tasksGetConfig(&config);
-
             switch (item.event) {
                 case AUDIO_EVENT_LOCATE_STOP:
                     locateActive = false;
@@ -497,11 +492,11 @@ void AudioTask(void* pvParameters) {
                     break;
 
                 case AUDIO_EVENT_CUSTOM_TONE:
-                    audioPlayTone(item.frequency, item.durationMs, config.audioVolume);
+                    audioPlayTone(item.frequency, item.durationMs, audioGetVolume());
                     break;
 
                 default:
-                    audioPlayEvent(item.event, config.audioVolume);
+                    audioPlayEvent(item.event, audioGetVolume());
                     break;
             }
         }
@@ -512,7 +507,7 @@ void AudioTask(void* pvParameters) {
                 locateActive = false;
             } else {
                 // Play locate beep
-                audioPlayEvent(AUDIO_EVENT_LOCATE_START, config.audioVolume);
+                audioPlayEvent(AUDIO_EVENT_LOCATE_START, audioGetVolume());
                 vTaskDelay(pdMS_TO_TICKS(LOCATE_PAUSE_MS));
             }
         }
@@ -616,9 +611,7 @@ void NotecardTask(void* pvParameters) {
             if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
                 switch (item.type) {
                     case NOTE_TYPE_TRACK:
-                        if (notecardSendTrackNote(&item.data.track, config.mode)) {
-                            audioQueueEvent(AUDIO_EVENT_NOTE_SENT);
-                        }
+                        notecardSendTrackNote(&item.data.track, config.mode);
                         break;
 
                     case NOTE_TYPE_ALERT:

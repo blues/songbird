@@ -1,17 +1,22 @@
 /**
  * @file SongbirdAudio.cpp
- * @brief Audio/buzzer implementation for Songbird
+ * @brief Audio/buzzer implementation for Songbird using SparkFun Qwiic Buzzer
+ *
+ * Uses the SparkFun Qwiic Buzzer (I2C) for audio feedback.
+ * I2C access is protected by mutex for thread safety.
  *
  * Songbird - Blues Sales Demo Device
  * Copyright (c) 2025 Blues Inc.
  */
 
 #include "SongbirdAudio.h"
+#include "SparkFun_Qwiic_Buzzer_Arduino_Library.h"
 
 // =============================================================================
 // Module State
 // =============================================================================
 
+static QwiicBuzzer s_buzzer;
 static bool s_audioEnabled = DEFAULT_AUDIO_ENABLED;
 static uint8_t s_audioVolume = DEFAULT_AUDIO_VOLUME;
 static bool s_alertsOnly = DEFAULT_AUDIO_ALERTS_ONLY;
@@ -40,23 +45,67 @@ static const char* const EVENT_NAMES[] = {
 };
 
 // =============================================================================
+// Volume Conversion
+// =============================================================================
+
+/**
+ * @brief Convert 0-100 volume to Qwiic Buzzer volume constant
+ *
+ * Qwiic Buzzer has 5 discrete volume levels:
+ * - SFE_QWIIC_BUZZER_VOLUME_OFF (0)
+ * - SFE_QWIIC_BUZZER_VOLUME_MIN (1)
+ * - SFE_QWIIC_BUZZER_VOLUME_LOW (2)
+ * - SFE_QWIIC_BUZZER_VOLUME_MID (3)
+ * - SFE_QWIIC_BUZZER_VOLUME_MAX (4)
+ */
+static uint8_t volumeToQwiic(uint8_t volume) {
+    if (volume == 0) {
+        return SFE_QWIIC_BUZZER_VOLUME_OFF;
+    } else if (volume <= 25) {
+        return SFE_QWIIC_BUZZER_VOLUME_MIN;
+    } else if (volume <= 50) {
+        return SFE_QWIIC_BUZZER_VOLUME_LOW;
+    } else if (volume <= 75) {
+        return SFE_QWIIC_BUZZER_VOLUME_MID;
+    } else {
+        return SFE_QWIIC_BUZZER_VOLUME_MAX;
+    }
+}
+
+/**
+ * @brief Check if we need to use RTOS primitives
+ *
+ * Returns true only if:
+ * 1. The I2C mutex exists (syncInit() has been called)
+ * 2. The scheduler is actually running
+ *
+ * @return true if RTOS primitives should be used
+ */
+static inline bool useRtosPrimitives(void) {
+    // Check if mutex exists (syncInit called) AND scheduler is running
+    extern SemaphoreHandle_t g_i2cMutex;
+    return (g_i2cMutex != NULL) && (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING);
+}
+
+// =============================================================================
 // Initialization
 // =============================================================================
 
 void audioInit(void) {
-    // Configure buzzer pin as output
-    pinMode(BUZZER_PIN, OUTPUT);
-    digitalWrite(BUZZER_PIN, LOW);
+    // Note: Called during setup() before FreeRTOS starts, so no mutex needed.
+    // I2C bus is already initialized by main.cpp before this is called.
 
-    // Configure PWM for tone generation
-    // Note: On STM32, analogWrite uses PWM automatically
-    // Default frequency will be overridden by tone() calls
-
-    s_initialized = true;
-
-    #ifdef DEBUG_MODE
-    DEBUG_SERIAL.println("[Audio] Initialized");
-    #endif
+    // Initialize Qwiic Buzzer at default address
+    if (s_buzzer.begin(QWIIC_BUZZER_ADDRESS)) {
+        s_initialized = true;
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.println("[Audio] Qwiic Buzzer initialized");
+        #endif
+    } else {
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.println("[Audio] Qwiic Buzzer not found!");
+        #endif
+    }
 }
 
 // =============================================================================
@@ -68,33 +117,65 @@ void audioPlayTone(uint16_t frequency, uint16_t durationMs, uint8_t volume) {
         return;
     }
 
+    bool useRtos = useRtosPrimitives();
+
     // Handle rest/silence
     if (frequency == 0 || volume == 0) {
-        noTone(BUZZER_PIN);
         if (durationMs > 0) {
-            vTaskDelay(pdMS_TO_TICKS(durationMs));
+            if (useRtos) {
+                vTaskDelay(pdMS_TO_TICKS(durationMs));
+            } else {
+                delay(durationMs);
+            }
         }
         return;
     }
 
     // Clamp volume to valid range
     volume = CLAMP(volume, 0, 100);
+    uint8_t qwiicVolume = volumeToQwiic(volume);
 
-    // Generate tone using Arduino tone() function
-    // Note: tone() generates a square wave, volume is approximate
-    // For true volume control, we'd need PWM duty cycle adjustment
-    tone(BUZZER_PIN, frequency);
+    // Take I2C mutex only if scheduler is running
+    // Use longer timeout for audio since Notecard operations can be slow
+    if (useRtos) {
+        if (!syncAcquireI2C(5000)) {
+            return;
+        }
+    }
 
-    // Wait for duration
-    vTaskDelay(pdMS_TO_TICKS(durationMs));
+    // Configure and play tone
+    // The Qwiic Buzzer handles timing internally when duration > 0
+    s_buzzer.configureBuzzer(frequency, durationMs, qwiicVolume);
+    s_buzzer.on();
 
-    // Stop tone
-    noTone(BUZZER_PIN);
+    if (useRtos) {
+        syncReleaseI2C();
+        // Wait for tone to complete
+        vTaskDelay(pdMS_TO_TICKS(durationMs));
+    } else {
+        // Pre-scheduler: use blocking delay
+        delay(durationMs);
+    }
 }
 
 void audioStop(void) {
-    noTone(BUZZER_PIN);
-    digitalWrite(BUZZER_PIN, LOW);
+    if (!s_initialized) {
+        return;
+    }
+
+    bool useRtos = useRtosPrimitives();
+
+    if (useRtos) {
+        if (!syncAcquireI2C(5000)) {
+            return;
+        }
+    }
+
+    s_buzzer.off();
+
+    if (useRtos) {
+        syncReleaseI2C();
+    }
 }
 
 // =============================================================================
@@ -155,34 +236,31 @@ bool audioIsEnabled(void) {
 }
 
 bool audioToggleMute(void) {
-    s_audioEnabled = !s_audioEnabled;
+    bool newState = !s_audioEnabled;
 
-    if (s_audioEnabled) {
-        // Unmuted - play rising confirmation tone (direct, not queued)
-        tone(BUZZER_PIN, NOTE_C5);
-        vTaskDelay(pdMS_TO_TICKS(80));
-        noTone(BUZZER_PIN);
+    if (!s_initialized) {
+        s_audioEnabled = newState;
+        return s_audioEnabled;
+    }
+
+    // For unmuting: enable audio first so the confirmation tone plays
+    // For muting: audio is already enabled, play tone then disable
+    if (newState) {
+        // Unmuting - enable first, then play rising confirmation tone (C→E→G)
+        s_audioEnabled = true;
+        audioPlayTone(NOTE_C5, 80, s_audioVolume);
         vTaskDelay(pdMS_TO_TICKS(30));
-        tone(BUZZER_PIN, NOTE_E5);
-        vTaskDelay(pdMS_TO_TICKS(80));
-        noTone(BUZZER_PIN);
+        audioPlayTone(NOTE_E5, 80, s_audioVolume);
         vTaskDelay(pdMS_TO_TICKS(30));
-        tone(BUZZER_PIN, NOTE_G5);
-        vTaskDelay(pdMS_TO_TICKS(100));
-        noTone(BUZZER_PIN);
+        audioPlayTone(NOTE_G5, 100, s_audioVolume);
     } else {
-        // Muted - play falling confirmation tone, then silence
-        tone(BUZZER_PIN, NOTE_G5);
-        vTaskDelay(pdMS_TO_TICKS(80));
-        noTone(BUZZER_PIN);
+        // Muting - play falling confirmation tone (G→E→C), then disable
+        audioPlayTone(NOTE_G5, 80, s_audioVolume);
         vTaskDelay(pdMS_TO_TICKS(30));
-        tone(BUZZER_PIN, NOTE_E5);
-        vTaskDelay(pdMS_TO_TICKS(80));
-        noTone(BUZZER_PIN);
+        audioPlayTone(NOTE_E5, 80, s_audioVolume);
         vTaskDelay(pdMS_TO_TICKS(30));
-        tone(BUZZER_PIN, NOTE_C5);
-        vTaskDelay(pdMS_TO_TICKS(100));
-        noTone(BUZZER_PIN);
+        audioPlayTone(NOTE_C5, 100, s_audioVolume);
+        s_audioEnabled = false;
     }
 
     #ifdef DEBUG_MODE

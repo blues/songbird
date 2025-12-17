@@ -797,7 +797,7 @@ build_flags =
 
 // Pin Definitions
 #define BUZZER_PIN      PA8     // Timer 1, Channel 1 (PWM capable)
-#define BUTTON_PIN      PA9     // User button (optional)
+#define BUTTON_PIN      USR_BTN // User button (optional)
 #define LED_PIN         PB5     // Built-in LED on Cygnet
 
 // I2C Configuration

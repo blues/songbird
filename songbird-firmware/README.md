@@ -6,7 +6,7 @@ Firmware for the Songbird sales demo device - a portable, battery-powered asset 
 
 - Environmental sensing (temperature, humidity, pressure) via BME280
 - GPS/GNSS location tracking via Notecard
-- Audio feedback via piezo buzzer with configurable melodies
+- Audio feedback via SparkFun Qwiic Buzzer with configurable melodies
 - Remote configuration via Notehub environment variables
 - Cloud-to-device command handling
 - Low-power operation with ATTN-based sleep
@@ -19,8 +19,8 @@ Firmware for the Songbird sales demo device - a portable, battery-powered asset 
 | MCU | Blues Cygnet (STM32L433) |
 | Notecarrier | Notecarrier-F with ATTN→EN connection |
 | Notecard | Cell+WiFi (NBGL) |
-| Sensor | BME280 Qwiic breakout |
-| Audio | Passive piezo buzzer on PA8 |
+| Sensor | BME280 Qwiic breakout (I2C address 0x77) |
+| Audio | [SparkFun Qwiic Buzzer](https://www.sparkfun.com/sparkfun-qwiic-buzzer.html) (I2C address 0x34) |
 
 ## Project Structure
 

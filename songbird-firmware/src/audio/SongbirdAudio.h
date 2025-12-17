@@ -1,9 +1,11 @@
 /**
  * @file SongbirdAudio.h
- * @brief Audio/buzzer interface for Songbird
+ * @brief Audio/buzzer interface for Songbird using SparkFun Qwiic Buzzer
  *
  * Provides non-blocking audio playback via FreeRTOS queue.
  * Other tasks queue audio events; AudioTask handles playback.
+ * Uses SparkFun Qwiic Buzzer (I2C) for tone generation with
+ * hardware volume control (5 discrete levels).
  *
  * Songbird - Blues Sales Demo Device
  * Copyright (c) 2025 Blues Inc.
@@ -24,8 +26,9 @@
 /**
  * @brief Initialize the audio subsystem
  *
- * Configures the buzzer pin for PWM output.
+ * Initializes the SparkFun Qwiic Buzzer over I2C.
  * Must be called before any audio functions.
+ * Requires I2C bus to be initialized first.
  */
 void audioInit(void);
 
@@ -34,10 +37,11 @@ void audioInit(void);
  *
  * This function blocks until the tone completes.
  * Should only be called from AudioTask or during initialization.
+ * Uses I2C mutex for thread-safe access to Qwiic Buzzer.
  *
- * @param frequency Tone frequency in Hz (0 for silence/rest)
+ * @param frequency Tone frequency in Hz (0 for silence/rest), range ~30-11000Hz
  * @param durationMs Duration in milliseconds
- * @param volume Volume level 0-100 (affects PWM duty cycle)
+ * @param volume Volume level 0-100 (mapped to 5 discrete Qwiic levels)
  */
 void audioPlayTone(uint16_t frequency, uint16_t durationMs, uint8_t volume);
 

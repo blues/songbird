@@ -38,16 +38,16 @@
 #define BUILD_TIMESTAMP     __DATE__ " " __TIME__
 #endif
 
-// DFU target architecture for STM32L433 (Cygnet)
+// DFU target architecture for STM32L433 (Cygnet) and ODFU Mode
 #define DFU_TARGET          "stm32"
+#define DFU_MODE            "altdfu" // Use ALT_DFU pins (for Notecarrier CX)
 
 // =============================================================================
 // Pin Definitions (Blues Cygnet - STM32L433)
 // =============================================================================
 
-#define BUZZER_PIN      PA8     // Timer 1, Channel 1 (PWM capable)
-#define BUTTON_PIN      PA9     // User button (optional), internal pull-up
-#define LED_PIN         PB5     // Built-in LED on Cygnet
+#define BUTTON_PIN      USER_BTN    // User button (optional), internal pull-up
+#define LED_PIN         LED_BUILTIN // Built-in LED on Cygnet
 
 // =============================================================================
 // Debug Serial Configuration (STLink VCP)
@@ -68,6 +68,7 @@ extern HardwareSerial serialDebug;
 
 #define BME280_I2C_ADDRESS      0x77    // SparkFun/Adafruit Qwiic default
 #define NOTECARD_I2C_ADDRESS    0x17    // Notecard default address
+#define QWIIC_BUZZER_ADDRESS    0x34    // SparkFun Qwiic Buzzer default
 
 // =============================================================================
 // FreeRTOS Task Configuration
