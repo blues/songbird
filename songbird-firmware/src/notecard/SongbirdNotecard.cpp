@@ -93,10 +93,13 @@ bool notecardConfigure(OperatingMode mode) {
         case MODE_DEMO:
             JAddStringToObject(req, "mode", "continuous");
             JAddBoolToObject(req, "sync", true);  // Immediate sync
+            JAddNumberToObject(req, "outbound", 1);  // 1 minute
+            JAddNumberToObject(req, "inbound", 1440);  // 24 hours (sync:true handles immediate)
+            JAddNumberToObject(req, "duration", 15);
             break;
         case MODE_TRANSIT:
             JAddStringToObject(req, "mode", "periodic");
-            JAddNumberToObject(req, "outbound", DEFAULT_SYNC_INTERVAL_MIN);
+            JAddNumberToObject(req, "outbound", 10);  // 10 minutes
             JAddNumberToObject(req, "inbound", DEFAULT_SYNC_INTERVAL_MIN);
             break;
         case MODE_STORAGE:
@@ -727,8 +730,7 @@ bool notecardConfigureGPS(OperatingMode mode) {
 
     switch (mode) {
         case MODE_DEMO:
-            JAddStringToObject(req, "mode", "periodic");
-            JAddNumberToObject(req, "seconds", 60);  // Every minute
+            JAddStringToObject(req, "mode", "off");
             break;
         case MODE_TRANSIT:
             JAddStringToObject(req, "mode", "periodic");

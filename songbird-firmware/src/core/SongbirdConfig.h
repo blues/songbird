@@ -200,15 +200,15 @@ typedef enum {
 // =============================================================================
 
 // Sensor read intervals per mode
-#define SENSOR_INTERVAL_DEMO_MS         10000   // 10 seconds
+#define SENSOR_INTERVAL_DEMO_MS         60000   // 60 seconds
 #define SENSOR_INTERVAL_TRANSIT_MS      60000   // 1 minute
 #define SENSOR_INTERVAL_STORAGE_MS      300000  // 5 minutes
 #define SENSOR_INTERVAL_SLEEP_MS        0       // Disabled (wake-on-motion)
 
 // Command polling intervals per mode
 #define COMMAND_POLL_DEMO_MS            1000    // 1 second (responsive)
-#define COMMAND_POLL_TRANSIT_MS         5000    // 5 seconds
-#define COMMAND_POLL_STORAGE_MS         15000   // 15 seconds
+#define COMMAND_POLL_TRANSIT_MS         30000   // 30 seconds
+#define COMMAND_POLL_STORAGE_MS         60000   // 60 seconds
 #define COMMAND_POLL_SLEEP_MS           0       // Disabled (wake handles)
 
 // Environment variable polling
