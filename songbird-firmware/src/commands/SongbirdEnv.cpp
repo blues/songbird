@@ -440,3 +440,159 @@ void envLogConfig(const SongbirdConfig* config) {
     (void)config;
     #endif
 }
+
+// Helper to get sensitivity name
+static const char* getSensitivityName(MotionSensitivity sensitivity) {
+    switch (sensitivity) {
+        case MOTION_SENSITIVITY_LOW:    return "low";
+        case MOTION_SENSITIVITY_MEDIUM: return "medium";
+        case MOTION_SENSITIVITY_HIGH:   return "high";
+        default:                        return "unknown";
+    }
+}
+
+void envLogConfigChanges(const SongbirdConfig* oldConfig, const SongbirdConfig* newConfig) {
+    if (oldConfig == NULL || newConfig == NULL) {
+        return;
+    }
+
+    Serial.println("[Env] Configuration changed from Notehub:");
+
+    // Mode
+    if (oldConfig->mode != newConfig->mode) {
+        Serial.print("  mode: ");
+        Serial.print(envGetModeName(oldConfig->mode));
+        Serial.print(" -> ");
+        Serial.println(envGetModeName(newConfig->mode));
+    }
+
+    // Timing
+    if (oldConfig->gpsIntervalMin != newConfig->gpsIntervalMin) {
+        Serial.print("  gps_interval_min: ");
+        Serial.print(oldConfig->gpsIntervalMin);
+        Serial.print(" -> ");
+        Serial.println(newConfig->gpsIntervalMin);
+    }
+    if (oldConfig->syncIntervalMin != newConfig->syncIntervalMin) {
+        Serial.print("  sync_interval_min: ");
+        Serial.print(oldConfig->syncIntervalMin);
+        Serial.print(" -> ");
+        Serial.println(newConfig->syncIntervalMin);
+    }
+    if (oldConfig->heartbeatHours != newConfig->heartbeatHours) {
+        Serial.print("  heartbeat_hours: ");
+        Serial.print(oldConfig->heartbeatHours);
+        Serial.print(" -> ");
+        Serial.println(newConfig->heartbeatHours);
+    }
+
+    // Temperature alerts
+    if (oldConfig->tempAlertHighC != newConfig->tempAlertHighC) {
+        Serial.print("  temp_alert_high_c: ");
+        Serial.print(oldConfig->tempAlertHighC);
+        Serial.print(" -> ");
+        Serial.println(newConfig->tempAlertHighC);
+    }
+    if (oldConfig->tempAlertLowC != newConfig->tempAlertLowC) {
+        Serial.print("  temp_alert_low_c: ");
+        Serial.print(oldConfig->tempAlertLowC);
+        Serial.print(" -> ");
+        Serial.println(newConfig->tempAlertLowC);
+    }
+
+    // Humidity alerts
+    if (oldConfig->humidityAlertHigh != newConfig->humidityAlertHigh) {
+        Serial.print("  humidity_alert_high: ");
+        Serial.print(oldConfig->humidityAlertHigh);
+        Serial.print(" -> ");
+        Serial.println(newConfig->humidityAlertHigh);
+    }
+    if (oldConfig->humidityAlertLow != newConfig->humidityAlertLow) {
+        Serial.print("  humidity_alert_low: ");
+        Serial.print(oldConfig->humidityAlertLow);
+        Serial.print(" -> ");
+        Serial.println(newConfig->humidityAlertLow);
+    }
+
+    // Pressure and voltage alerts
+    if (oldConfig->pressureAlertDelta != newConfig->pressureAlertDelta) {
+        Serial.print("  pressure_alert_delta: ");
+        Serial.print(oldConfig->pressureAlertDelta);
+        Serial.print(" -> ");
+        Serial.println(newConfig->pressureAlertDelta);
+    }
+    if (oldConfig->voltageAlertLow != newConfig->voltageAlertLow) {
+        Serial.print("  voltage_alert_low: ");
+        Serial.print(oldConfig->voltageAlertLow);
+        Serial.print(" -> ");
+        Serial.println(newConfig->voltageAlertLow);
+    }
+
+    // Motion
+    if (oldConfig->motionSensitivity != newConfig->motionSensitivity) {
+        Serial.print("  motion_sensitivity: ");
+        Serial.print(getSensitivityName(oldConfig->motionSensitivity));
+        Serial.print(" -> ");
+        Serial.println(getSensitivityName(newConfig->motionSensitivity));
+    }
+    if (oldConfig->motionWakeEnabled != newConfig->motionWakeEnabled) {
+        Serial.print("  motion_wake_enabled: ");
+        Serial.print(oldConfig->motionWakeEnabled ? "true" : "false");
+        Serial.print(" -> ");
+        Serial.println(newConfig->motionWakeEnabled ? "true" : "false");
+    }
+
+    // Audio
+    if (oldConfig->audioEnabled != newConfig->audioEnabled) {
+        Serial.print("  audio_enabled: ");
+        Serial.print(oldConfig->audioEnabled ? "true" : "false");
+        Serial.print(" -> ");
+        Serial.println(newConfig->audioEnabled ? "true" : "false");
+    }
+    if (oldConfig->audioVolume != newConfig->audioVolume) {
+        Serial.print("  audio_volume: ");
+        Serial.print(oldConfig->audioVolume);
+        Serial.print(" -> ");
+        Serial.println(newConfig->audioVolume);
+    }
+    if (oldConfig->audioAlertsOnly != newConfig->audioAlertsOnly) {
+        Serial.print("  audio_alerts_only: ");
+        Serial.print(oldConfig->audioAlertsOnly ? "true" : "false");
+        Serial.print(" -> ");
+        Serial.println(newConfig->audioAlertsOnly ? "true" : "false");
+    }
+
+    // Commands
+    if (oldConfig->cmdWakeEnabled != newConfig->cmdWakeEnabled) {
+        Serial.print("  cmd_wake_enabled: ");
+        Serial.print(oldConfig->cmdWakeEnabled ? "true" : "false");
+        Serial.print(" -> ");
+        Serial.println(newConfig->cmdWakeEnabled ? "true" : "false");
+    }
+    if (oldConfig->cmdAckEnabled != newConfig->cmdAckEnabled) {
+        Serial.print("  cmd_ack_enabled: ");
+        Serial.print(oldConfig->cmdAckEnabled ? "true" : "false");
+        Serial.print(" -> ");
+        Serial.println(newConfig->cmdAckEnabled ? "true" : "false");
+    }
+    if (oldConfig->locateDurationSec != newConfig->locateDurationSec) {
+        Serial.print("  locate_duration_sec: ");
+        Serial.print(oldConfig->locateDurationSec);
+        Serial.print(" -> ");
+        Serial.println(newConfig->locateDurationSec);
+    }
+
+    // Misc
+    if (oldConfig->ledEnabled != newConfig->ledEnabled) {
+        Serial.print("  led_enabled: ");
+        Serial.print(oldConfig->ledEnabled ? "true" : "false");
+        Serial.print(" -> ");
+        Serial.println(newConfig->ledEnabled ? "true" : "false");
+    }
+    if (oldConfig->debugMode != newConfig->debugMode) {
+        Serial.print("  debug_mode: ");
+        Serial.print(oldConfig->debugMode ? "true" : "false");
+        Serial.print(" -> ");
+        Serial.println(newConfig->debugMode ? "true" : "false");
+    }
+}

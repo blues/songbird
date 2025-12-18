@@ -4,9 +4,10 @@ import type { Device } from '@/types';
 interface DeviceListProps {
   devices: Device[];
   loading?: boolean;
+  alertsByDevice?: Record<string, number>;
 }
 
-export function DeviceList({ devices, loading }: DeviceListProps) {
+export function DeviceList({ devices, loading, alertsByDevice = {} }: DeviceListProps) {
   if (loading) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -31,7 +32,11 @@ export function DeviceList({ devices, loading }: DeviceListProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {devices.map((device) => (
-        <DeviceCard key={device.device_uid} device={device} />
+        <DeviceCard
+          key={device.device_uid}
+          device={device}
+          alertCount={alertsByDevice[device.device_uid] || 0}
+        />
       ))}
     </div>
   );

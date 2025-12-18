@@ -25,6 +25,7 @@ import * as path from 'path';
 export interface ApiConstructProps {
   telemetryTable: dynamodb.Table;
   devicesTable: dynamodb.Table;
+  alertsTable: dynamodb.Table;
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
   notehubProjectUid: string;
@@ -148,6 +149,23 @@ export class ApiConstruct extends Construct {
     });
     notehubSecret.grantRead(configFunction);
 
+    // Alerts API
+    const alertsFunction = new NodejsFunction(this, 'AlertsFunction', {
+      functionName: 'songbird-api-alerts',
+      description: 'Songbird Alerts API',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/api-alerts/index.ts'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        ALERTS_TABLE: props.alertsTable.tableName,
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+    props.alertsTable.grantReadWriteData(alertsFunction);
+
     // Event Ingest API (for Notehub HTTP route - no authentication)
     const ingestFunction = new NodejsFunction(this, 'IngestFunction', {
       functionName: 'songbird-api-ingest',
@@ -161,6 +179,7 @@ export class ApiConstruct extends Construct {
         TELEMETRY_TABLE: props.telemetryTable.tableName,
         DEVICES_TABLE: props.devicesTable.tableName,
         COMMANDS_TABLE: commandsTable.tableName,
+        ALERTS_TABLE: props.alertsTable.tableName,
         ALERT_TOPIC_ARN: props.alertTopic.topicArn,
       },
       bundling: { minify: true, sourceMap: true },
@@ -169,6 +188,7 @@ export class ApiConstruct extends Construct {
     props.telemetryTable.grantReadWriteData(ingestFunction);
     props.devicesTable.grantReadWriteData(ingestFunction);
     commandsTable.grantReadWriteData(ingestFunction);
+    props.alertsTable.grantReadWriteData(ingestFunction);
     props.alertTopic.grantPublish(ingestFunction);
 
     // ==========================================================================
@@ -283,6 +303,33 @@ export class ApiConstruct extends Construct {
       path: '/v1/fleets/{fleet_uid}/config',
       methods: [apigateway.HttpMethod.PUT],
       integration: configIntegration,
+      authorizer,
+    });
+
+    // Alerts endpoints
+    const alertsIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+      'AlertsIntegration',
+      alertsFunction
+    );
+
+    this.api.addRoutes({
+      path: '/v1/alerts',
+      methods: [apigateway.HttpMethod.GET],
+      integration: alertsIntegration,
+      authorizer,
+    });
+
+    this.api.addRoutes({
+      path: '/v1/alerts/{alert_id}',
+      methods: [apigateway.HttpMethod.GET],
+      integration: alertsIntegration,
+      authorizer,
+    });
+
+    this.api.addRoutes({
+      path: '/v1/alerts/{alert_id}/acknowledge',
+      methods: [apigateway.HttpMethod.POST],
+      integration: alertsIntegration,
       authorizer,
     });
 

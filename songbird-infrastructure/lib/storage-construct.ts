@@ -17,6 +17,7 @@ export interface StorageConstructProps {
 export class StorageConstruct extends Construct {
   public readonly devicesTable: dynamodb.Table;
   public readonly telemetryTable: dynamodb.Table;
+  public readonly alertsTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: StorageConstructProps) {
     super(scope, id);
@@ -110,6 +111,56 @@ export class StorageConstruct extends Construct {
       sortKey: {
         name: 'event_type_timestamp',
         type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // ==========================================================================
+    // DynamoDB Table for Alerts
+    // ==========================================================================
+    this.alertsTable = new dynamodb.Table(this, 'AlertsTable', {
+      tableName: 'songbird-alerts',
+
+      // Primary key: alert_id (UUID)
+      partitionKey: {
+        name: 'alert_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+
+      // Billing mode - on-demand for unpredictable demo usage
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+
+      // Remove table on stack deletion (demo environment)
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+
+      // TTL to automatically delete old alerts (90 days)
+      timeToLiveAttribute: 'ttl',
+    });
+
+    // GSI for querying alerts by device
+    this.alertsTable.addGlobalSecondaryIndex({
+      indexName: 'device-index',
+      partitionKey: {
+        name: 'device_uid',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'created_at',
+        type: dynamodb.AttributeType.NUMBER,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // GSI for querying active (unacknowledged) alerts
+    this.alertsTable.addGlobalSecondaryIndex({
+      indexName: 'status-index',
+      partitionKey: {
+        name: 'acknowledged',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'created_at',
+        type: dynamodb.AttributeType.NUMBER,
       },
       projectionType: dynamodb.ProjectionType.ALL,
     });

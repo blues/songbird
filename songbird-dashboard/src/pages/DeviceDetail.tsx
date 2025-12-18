@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, Zap } from 'lucide-react';
+import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, Zap, AlertTriangle, Check, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,12 +15,24 @@ import { ConfigPanel } from '@/components/config/ConfigPanel';
 import { useDevice } from '@/hooks/useDevices';
 import { useTelemetry, useLocationHistory, usePowerHistory } from '@/hooks/useTelemetry';
 import { useCommands } from '@/hooks/useCommands';
+import { useDeviceAlerts, useAcknowledgeAlert } from '@/hooks/useAlerts';
 import {
   formatBattery,
   formatMode,
   formatRelativeTime,
   truncateDeviceUid,
 } from '@/utils/formatters';
+import type { Alert } from '@/types';
+
+const alertTypeLabels: Record<string, string> = {
+  temp_high: 'High Temperature',
+  temp_low: 'Low Temperature',
+  humidity_high: 'High Humidity',
+  humidity_low: 'Low Humidity',
+  pressure_change: 'Pressure Change',
+  low_battery: 'Low Battery',
+  motion: 'Motion Detected',
+};
 
 interface DeviceDetailProps {
   mapboxToken: string;
@@ -40,8 +52,12 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const { data: locationData } = useLocationHistory(deviceUid!, timeRange);
   const { data: powerData, isLoading: powerLoading } = usePowerHistory(deviceUid!, timeRange);
   const { data: commandsData } = useCommands(deviceUid!);
+  const { data: alertsData } = useDeviceAlerts(deviceUid!);
+  const acknowledgeMutation = useAcknowledgeAlert();
 
   const telemetry = telemetryData?.telemetry || [];
+  const alerts = alertsData?.alerts || [];
+  const activeAlerts = alerts.filter((a: Alert) => a.acknowledged === 'false' || a.acknowledged === false);
   const locations = locationData?.locations || [];
   const power = powerData?.power || [];
   const lastCommand = commandsData?.commands?.[0];
@@ -76,6 +92,12 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
               {device.name || device.serial_number || truncateDeviceUid(device.device_uid)}
             </h1>
             <DeviceStatus status={device.status} />
+            {activeAlerts.length > 0 && (
+              <Badge variant="destructive" className="gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                {activeAlerts.length} Alert{activeAlerts.length !== 1 ? 's' : ''}
+              </Badge>
+            )}
           </div>
           <p className="text-muted-foreground">
             {device.fleet_name && `Fleet: ${device.fleet_name} • `}
@@ -241,6 +263,81 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
             audioEnabled={device.audio_enabled !== false}
             lastCommand={lastCommand}
           />
+
+          {/* Alerts Section */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                Alerts
+                {activeAlerts.length > 0 && (
+                  <Badge variant="destructive">{activeAlerts.length} Active</Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {alerts.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  <Check className="h-8 w-8 mx-auto mb-2 text-green-500" />
+                  <p>No alerts for this device</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {alerts.slice(0, 10).map((alert: Alert) => {
+                    const isAcknowledged = alert.acknowledged === 'true' || alert.acknowledged === true;
+                    return (
+                      <div
+                        key={alert.alert_id}
+                        className={`flex items-center justify-between p-3 rounded-lg border ${
+                          isAcknowledged ? 'bg-muted/50 opacity-60' : 'bg-destructive/5 border-destructive/20'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <AlertTriangle
+                            className={`h-4 w-4 ${isAcknowledged ? 'text-muted-foreground' : 'text-destructive'}`}
+                          />
+                          <div>
+                            <p className="font-medium text-sm">
+                              {alertTypeLabels[alert.type] || alert.type}
+                            </p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              {formatRelativeTime(new Date(alert.created_at))}
+                              {alert.value !== undefined && (
+                                <span>• Value: {alert.value.toFixed(1)}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {!isAcknowledged && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => acknowledgeMutation.mutate({ alertId: alert.alert_id })}
+                            disabled={acknowledgeMutation.isPending}
+                          >
+                            <Check className="h-3 w-3 mr-1" />
+                            Ack
+                          </Button>
+                        )}
+                        {isAcknowledged && (
+                          <Badge variant="secondary" className="text-xs">
+                            <Check className="h-3 w-3 mr-1" />
+                            Acknowledged
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {alerts.length > 10 && (
+                    <p className="text-center text-sm text-muted-foreground">
+                      Showing 10 of {alerts.length} alerts
+                    </p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Device Info */}
           <Card className="mt-6">

@@ -5,6 +5,7 @@ import { StatsCards } from '@/components/devices/StatsCards';
 import { DeviceList } from '@/components/devices/DeviceList';
 import { FleetMap } from '@/components/maps/FleetMap';
 import { useDevices } from '@/hooks/useDevices';
+import { useActiveAlerts } from '@/hooks/useAlerts';
 import { formatRelativeTime } from '@/utils/formatters';
 import type { DashboardStats, ActivityItem } from '@/types';
 
@@ -18,8 +19,20 @@ export function Dashboard({ mapboxToken, selectedFleet }: DashboardProps) {
   const { data: devicesData, isLoading } = useDevices(
     selectedFleet === 'all' ? undefined : selectedFleet
   );
+  const { data: alertsData } = useActiveAlerts();
 
   const devices = devicesData?.devices || [];
+  const activeAlerts = alertsData?.alerts || [];
+  const activeAlertCount = alertsData?.active_count || 0;
+
+  // Build a map of device_uid -> alert count for device cards
+  const alertsByDevice = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const alert of activeAlerts) {
+      counts[alert.device_uid] = (counts[alert.device_uid] || 0) + 1;
+    }
+    return counts;
+  }, [activeAlerts]);
 
   // Calculate stats
   const stats: DashboardStats = useMemo(() => {
@@ -32,10 +45,10 @@ export function Dashboard({ mapboxToken, selectedFleet }: DashboardProps) {
       total_devices: devices.length,
       online_devices: onlineCount,
       offline_devices: devices.length - onlineCount,
-      active_alerts: 0, // TODO: Fetch from alerts API
+      active_alerts: activeAlertCount,
       low_battery_count: lowBatteryCount,
     };
-  }, [devices]);
+  }, [devices, activeAlertCount]);
 
   // Mock recent activity (would come from API)
   const recentActivity: ActivityItem[] = useMemo(() => {
@@ -125,7 +138,7 @@ export function Dashboard({ mapboxToken, selectedFleet }: DashboardProps) {
       {/* Device List */}
       <div>
         <h2 className="text-xl font-semibold mb-4">All Devices</h2>
-        <DeviceList devices={devices} loading={isLoading} />
+        <DeviceList devices={devices} loading={isLoading} alertsByDevice={alertsByDevice} />
       </div>
     </div>
   );

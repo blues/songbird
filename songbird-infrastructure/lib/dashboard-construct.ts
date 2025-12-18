@@ -33,8 +33,7 @@ export class DashboardConstruct extends Construct {
     // ==========================================================================
     this.bucket = new s3.Bucket(this, 'DashboardBucket', {
       bucketName: `songbird-dashboard-${cdk.Stack.of(this).account}`,
-      websiteIndexDocument: 'index.html',
-      websiteErrorDocument: 'index.html', // SPA routing
+      // Note: NOT using websiteIndexDocument - using CloudFront with OAC instead
       publicReadAccess: false,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -52,29 +51,15 @@ export class DashboardConstruct extends Construct {
     });
 
     // ==========================================================================
-    // CloudFront Origin Access Identity
+    // CloudFront Distribution with Origin Access Control (OAC)
     // ==========================================================================
-    const originAccessIdentity = new cloudfront.OriginAccessIdentity(
-      this,
-      'OAI',
-      {
-        comment: 'Songbird Dashboard OAI',
-      }
-    );
-
-    // Grant OAI read access to bucket
-    this.bucket.grantRead(originAccessIdentity);
-
-    // ==========================================================================
-    // CloudFront Distribution
-    // ==========================================================================
+    // Using S3BucketOrigin.withOriginAccessControl() which is the recommended approach
+    // This automatically creates an OAC and grants the necessary permissions
     this.distribution = new cloudfront.Distribution(this, 'Distribution', {
       comment: 'Songbird Dashboard',
 
       defaultBehavior: {
-        origin: new cloudfrontOrigins.S3Origin(this.bucket, {
-          originAccessIdentity,
-        }),
+        origin: cloudfrontOrigins.S3BucketOrigin.withOriginAccessControl(this.bucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,

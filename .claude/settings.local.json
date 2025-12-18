@@ -16,7 +16,18 @@
       "Bash(aws lambda get-function-configuration:*)",
       "Bash(curl:*)",
       "Bash(aws s3 sync:*)",
-      "Bash(aws cloudfront create-invalidation:*)"
+      "Bash(aws cloudfront create-invalidation:*)",
+      "Bash(aws logs filter-log-events --log-group-name /aws/lambda/songbird-api-ingest --filter-pattern \"alert\" --start-time 1766070000000)",
+      "Bash(aws logs filter-log-events:*)",
+      "Bash(aws sns list-topics --query 'Topics[*].TopicArn')",
+      "Bash(aws s3:*)",
+      "Bash(aws cloudfront list-distributions:*)",
+      "Bash(aws s3api get-bucket-policy:*)",
+      "Bash(aws cloudfront get-distribution:*)",
+      "Bash(aws s3api get-bucket-website:*)",
+      "Bash(aws s3api get-public-access-block:*)",
+      "Bash(cdk diff:*)",
+      "Bash(cdk synth:*)"
     ],
     "deny": [],
     "ask": []

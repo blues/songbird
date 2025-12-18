@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Bell, User, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -58,14 +59,16 @@ export function Header({
         {/* Right side items */}
         <div className="flex items-center gap-2">
           {/* Alerts */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            {alertCount > 0 && (
-              <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">
-                {alertCount > 9 ? '9+' : alertCount}
-              </span>
-            )}
-          </Button>
+          <Link to="/alerts">
+            <Button variant="ghost" size="icon" className="relative">
+              <Bell className={`h-5 w-5 ${alertCount > 0 ? 'text-destructive' : ''}`} />
+              {alertCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center animate-pulse">
+                  {alertCount > 9 ? '9+' : alertCount}
+                </span>
+              )}
+            </Button>
+          </Link>
 
           {/* User */}
           {user && (

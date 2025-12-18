@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Thermometer, Droplets, Gauge, Battery, MapPin } from 'lucide-react';
+import { Thermometer, Droplets, Gauge, Battery, MapPin, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { DeviceStatus } from './DeviceStatus';
@@ -14,9 +14,10 @@ import type { Device } from '@/types';
 
 interface DeviceCardProps {
   device: Device;
+  alertCount?: number;
 }
 
-export function DeviceCard({ device }: DeviceCardProps) {
+export function DeviceCard({ device, alertCount = 0 }: DeviceCardProps) {
   const battery = formatBattery(device.voltage);
 
   return (
@@ -33,6 +34,12 @@ export function DeviceCard({ device }: DeviceCardProps) {
               )}
             </div>
             <div className="flex items-center gap-2">
+              {alertCount > 0 && (
+                <Badge variant="destructive" className="gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  {alertCount}
+                </Badge>
+              )}
               <Badge variant="secondary">{formatMode(device.mode)}</Badge>
               <DeviceStatus status={device.status} showLabel={false} />
             </div>

@@ -39,13 +39,10 @@ export class SongbirdStack extends cdk.Stack {
     // ==========================================================================
     // SNS Topic for Alerts (shared between API and IoT constructs)
     // ==========================================================================
-    // Note: We import the existing topic created by the previous ApiConstruct deployment
-    // rather than creating a new one to avoid name conflicts
-    const alertTopic = sns.Topic.fromTopicArn(
-      this,
-      'AlertTopic',
-      `arn:aws:sns:${this.region}:${this.account}:songbird-alerts`
-    );
+    const alertTopic = new sns.Topic(this, 'AlertTopic', {
+      topicName: 'songbird-alerts',
+      displayName: 'Songbird Alert Notifications',
+    });
 
     // ==========================================================================
     // API Layer (API Gateway + Lambda)
@@ -53,6 +50,7 @@ export class SongbirdStack extends cdk.Stack {
     const api = new ApiConstruct(this, 'Api', {
       telemetryTable: storage.telemetryTable,
       devicesTable: storage.devicesTable,
+      alertsTable: storage.alertsTable,
       userPool: auth.userPool,
       userPoolClient: auth.userPoolClient,
       notehubProjectUid: props.notehubProjectUid,

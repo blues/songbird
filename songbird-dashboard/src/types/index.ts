@@ -97,14 +97,21 @@ export interface PowerPoint {
 export interface Alert {
   alert_id: string;
   device_uid: string;
+  serial_number?: string;
+  fleet?: string;
   type: AlertType;
-  value: number;
-  threshold: number;
+  value?: number;
+  threshold?: number;
   message: string;
-  created_at: string;
-  acknowledged?: boolean;
-  acknowledged_at?: string;
+  created_at: number; // Timestamp in milliseconds
+  event_timestamp?: number;
+  acknowledged: string | boolean; // 'true' or 'false' (string for GSI)
+  acknowledged_at?: number;
   acknowledged_by?: string;
+  location?: {
+    lat?: number;
+    lon?: number;
+  };
 }
 
 /**

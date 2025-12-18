@@ -23,6 +23,7 @@ const snsClient = new SNSClient({});
 const TELEMETRY_TABLE = process.env.TELEMETRY_TABLE!;
 const DEVICES_TABLE = process.env.DEVICES_TABLE!;
 const COMMANDS_TABLE = process.env.COMMANDS_TABLE!;
+const ALERTS_TABLE = process.env.ALERTS_TABLE!;
 const ALERT_TOPIC_ARN = process.env.ALERT_TOPIC_ARN!;
 
 // TTL: 90 days in seconds
@@ -94,12 +95,15 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     console.log('Processing Notehub event:', JSON.stringify(notehubEvent));
 
     // Transform to internal format
+    // Use 'when' if available, otherwise fall back to 'received' (as integer seconds)
+    const eventTimestamp = notehubEvent.when || Math.floor(notehubEvent.received);
+
     const songbirdEvent = {
       device_uid: notehubEvent.device,
       serial_number: notehubEvent.sn,
       fleet: notehubEvent.fleets?.[0] || 'default',
       event_type: notehubEvent.file,
-      timestamp: notehubEvent.when,
+      timestamp: eventTimestamp,
       received: notehubEvent.received,
       body: notehubEvent.body || {},
       location: notehubEvent.best_lat !== undefined ? {
@@ -123,8 +127,9 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Update device metadata in DynamoDB
     await updateDeviceMetadata(songbirdEvent);
 
-    // Publish alert if this is an alert event
+    // Store and publish alert if this is an alert event
     if (songbirdEvent.event_type === 'alert.qo') {
+      await storeAlert(songbirdEvent);
       await publishAlert(songbirdEvent);
     }
 
@@ -389,6 +394,41 @@ async function processCommandAck(event: SongbirdEvent): Promise<void> {
 
   await docClient.send(command);
   console.log(`Updated command ${cmdId} with status: ${event.body.status}`);
+}
+
+async function storeAlert(event: SongbirdEvent): Promise<void> {
+  const now = Date.now();
+  const ttl = Math.floor(now / 1000) + TTL_SECONDS;
+
+  // Generate a unique alert ID
+  const alertId = `alert_${event.device_uid}_${now}_${Math.random().toString(36).substring(7)}`;
+
+  const alertRecord = {
+    alert_id: alertId,
+    device_uid: event.device_uid,
+    serial_number: event.serial_number || 'unknown',
+    fleet: event.fleet || 'default',
+    type: event.body.type || 'unknown',
+    value: event.body.value,
+    threshold: event.body.threshold,
+    message: event.body.message || '',
+    created_at: now,
+    event_timestamp: event.timestamp * 1000,
+    acknowledged: 'false', // String for GSI partition key
+    ttl,
+    location: event.location ? {
+      lat: event.location.lat,
+      lon: event.location.lon,
+    } : undefined,
+  };
+
+  const command = new PutCommand({
+    TableName: ALERTS_TABLE,
+    Item: alertRecord,
+  });
+
+  await docClient.send(command);
+  console.log(`Stored alert ${alertId} for ${event.device_uid}`);
 }
 
 async function publishAlert(event: SongbirdEvent): Promise<void> {

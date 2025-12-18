@@ -154,4 +154,15 @@ MotionSensitivity envParseSensitivity(const char* str);
  */
 void envLogConfig(const SongbirdConfig* config);
 
+/**
+ * @brief Log specific configuration changes between old and new config
+ *
+ * Compares two configurations and logs each field that changed.
+ * Always logs to serial so changes are visible during demos.
+ *
+ * @param oldConfig Previous configuration
+ * @param newConfig New configuration
+ */
+void envLogConfigChanges(const SongbirdConfig* oldConfig, const SongbirdConfig* newConfig);
+
 #endif // SONGBIRD_ENV_H

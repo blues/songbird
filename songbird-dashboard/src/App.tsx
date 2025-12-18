@@ -8,7 +8,9 @@ import '@aws-amplify/ui-react/styles.css';
 import { Layout } from '@/components/layout/Layout';
 import { Dashboard } from '@/pages/Dashboard';
 import { DeviceDetail } from '@/pages/DeviceDetail';
+import { Alerts } from '@/pages/Alerts';
 import { initializeApi } from '@/api/client';
+import { useActiveAlerts } from '@/hooks/useAlerts';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -93,6 +95,29 @@ function App() {
 
   const mapboxToken = config.mapboxToken || import.meta.env.VITE_MAPBOX_TOKEN || '';
 
+  // Wrapper component to use hooks inside QueryClientProvider
+  function AppLayout({
+    user,
+    signOut,
+  }: {
+    user?: { username: string; email: string };
+    signOut?: () => void;
+  }) {
+    const { data: alertsData } = useActiveAlerts();
+    const alertCount = alertsData?.active_count || 0;
+
+    return (
+      <Layout
+        user={user}
+        alertCount={alertCount}
+        selectedFleet={selectedFleet}
+        fleets={[]}
+        onFleetChange={setSelectedFleet}
+        onSignOut={signOut}
+      />
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <Authenticator>
@@ -101,12 +126,9 @@ function App() {
             <Routes>
               <Route
                 element={
-                  <Layout
+                  <AppLayout
                     user={user ? { username: user.username || '', email: user.signInDetails?.loginId || '' } : undefined}
-                    selectedFleet={selectedFleet}
-                    fleets={[]}
-                    onFleetChange={setSelectedFleet}
-                    onSignOut={signOut}
+                    signOut={signOut}
                   />
                 }
               >
@@ -143,11 +165,7 @@ function App() {
                 />
                 <Route
                   path="/alerts"
-                  element={
-                    <div className="text-center py-12 text-muted-foreground">
-                      Alerts page coming soon
-                    </div>
-                  }
+                  element={<Alerts />}
                 />
                 <Route
                   path="/settings"

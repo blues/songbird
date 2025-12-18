@@ -707,9 +707,8 @@ void EnvTask(void* pvParameters) {
 
             // Check if config actually changed
             if (envConfigChanged(&lastConfig, &newConfig)) {
-                #ifdef DEBUG_MODE
-                DEBUG_SERIAL.println("[EnvTask] Config changed, notifying MainTask");
-                #endif
+                // Log which specific values changed (always, for demo visibility)
+                envLogConfigChanges(&lastConfig, &newConfig);
 
                 // Send to MainTask
                 syncQueueConfig(&newConfig);
