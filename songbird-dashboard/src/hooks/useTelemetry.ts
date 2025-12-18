@@ -3,7 +3,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { getTelemetry, getLocationHistory, getPowerHistory } from '@/api/telemetry';
+import { getTelemetry, getLocationHistory, getPowerHistory, getHealthHistory } from '@/api/telemetry';
 
 /**
  * Hook to fetch telemetry data
@@ -59,6 +59,19 @@ export function usePowerHistory(deviceUid: string, hours: number = 24) {
     queryKey: ['power', deviceUid, hours],
     queryFn: () => getPowerHistory(deviceUid, hours),
     refetchInterval: 60_000, // Poll every 60 seconds (power data updates less frequently)
+    staleTime: 30_000,
+    enabled: !!deviceUid,
+  });
+}
+
+/**
+ * Hook to fetch health event history (_health.qo)
+ */
+export function useHealthHistory(deviceUid: string, hours: number = 168) {
+  return useQuery({
+    queryKey: ['health', deviceUid, hours],
+    queryFn: () => getHealthHistory(deviceUid, hours),
+    refetchInterval: 60_000, // Poll every 60 seconds
     staleTime: 30_000,
     enabled: !!deviceUid,
   });

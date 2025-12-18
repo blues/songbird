@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, Zap, AlertTriangle, Check, Clock } from 'lucide-react';
+import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, Zap, AlertTriangle, Check, Clock, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,7 @@ import { GaugeCard } from '@/components/charts/GaugeCard';
 import { CommandPanel } from '@/components/commands/CommandPanel';
 import { ConfigPanel } from '@/components/config/ConfigPanel';
 import { useDevice } from '@/hooks/useDevices';
-import { useTelemetry, useLocationHistory, usePowerHistory } from '@/hooks/useTelemetry';
+import { useTelemetry, useLocationHistory, usePowerHistory, useHealthHistory } from '@/hooks/useTelemetry';
 import { useCommands } from '@/hooks/useCommands';
 import { useDeviceAlerts, useAcknowledgeAlert } from '@/hooks/useAlerts';
 import {
@@ -22,7 +22,7 @@ import {
   formatRelativeTime,
   truncateDeviceUid,
 } from '@/utils/formatters';
-import type { Alert } from '@/types';
+import type { Alert, HealthPoint } from '@/types';
 
 const alertTypeLabels: Record<string, string> = {
   temp_high: 'High Temperature',
@@ -32,6 +32,18 @@ const alertTypeLabels: Record<string, string> = {
   pressure_change: 'Pressure Change',
   low_battery: 'Low Battery',
   motion: 'Motion Detected',
+};
+
+const healthMethodLabels: Record<string, string> = {
+  dfu: 'Firmware Update',
+  boot: 'Device Boot',
+  reboot: 'Device Reboot',
+  reset: 'Device Reset',
+  usb: 'USB Connected',
+  battery: 'Battery Status',
+  sync: 'Sync Event',
+  connected: 'Connected',
+  disconnected: 'Disconnected',
 };
 
 interface DeviceDetailProps {
@@ -51,6 +63,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   );
   const { data: locationData } = useLocationHistory(deviceUid!, timeRange);
   const { data: powerData, isLoading: powerLoading } = usePowerHistory(deviceUid!, timeRange);
+  const { data: healthData, isLoading: healthLoading } = useHealthHistory(deviceUid!, Math.max(timeRange, 168)); // At least 7 days for health
   const { data: commandsData } = useCommands(deviceUid!);
   const { data: alertsData } = useDeviceAlerts(deviceUid!);
   const acknowledgeMutation = useAcknowledgeAlert();
@@ -60,6 +73,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const activeAlerts = alerts.filter((a: Alert) => a.acknowledged === 'false' || a.acknowledged === false);
   const locations = locationData?.locations || [];
   const power = powerData?.power || [];
+  const health = healthData?.health || [];
   const lastCommand = commandsData?.commands?.[0];
 
   // Get latest values and sparkline data
@@ -201,6 +215,10 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                       <Zap className="h-3 w-3 mr-1" />
                       Power
                     </TabsTrigger>
+                    <TabsTrigger value="health">
+                      <Activity className="h-3 w-3 mr-1" />
+                      Health
+                    </TabsTrigger>
                   </TabsList>
                 </Tabs>
                 <Tabs value={String(timeRange)} onValueChange={(v) => setTimeRange(Number(v))}>
@@ -250,6 +268,59 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                   ) : (
                     <div className="h-[300px] flex items-center justify-center">
                       <span className="text-muted-foreground">No power data available (Mojo required)</span>
+                    </div>
+                  )}
+                </>
+              )}
+              {chartTab === 'health' && (
+                <>
+                  {healthLoading ? (
+                    <div className="h-[300px] flex items-center justify-center">
+                      <span className="text-muted-foreground">Loading health events...</span>
+                    </div>
+                  ) : health.length > 0 ? (
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                      {health.map((event: HealthPoint, index: number) => (
+                        <div
+                          key={`${event.time}-${index}`}
+                          className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30"
+                        >
+                          <Activity className="h-4 w-4 mt-0.5 text-blue-500 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className="text-xs">
+                                {healthMethodLabels[event.method || ''] || event.method || 'Unknown'}
+                              </Badge>
+                              {event.voltage_mode && (
+                                <Badge variant="outline" className="text-xs">
+                                  {event.voltage_mode}
+                                </Badge>
+                              )}
+                            </div>
+                            {event.text && (
+                              <p className="text-sm mt-1 break-words text-muted-foreground">
+                                {event.text}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {formatRelativeTime(new Date(event.time))}
+                              </span>
+                              {event.voltage !== undefined && (
+                                <span>{event.voltage.toFixed(2)}V</span>
+                              )}
+                              {event.milliamp_hours !== undefined && (
+                                <span>{event.milliamp_hours.toFixed(3)} mAh</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="h-[300px] flex items-center justify-center">
+                      <span className="text-muted-foreground">No health events recorded</span>
                     </div>
                   )}
                 </>

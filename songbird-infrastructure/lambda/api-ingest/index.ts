@@ -62,6 +62,10 @@ interface NotehubEvent {
     // Mojo power monitoring fields (_log.qo)
     milliamp_hours?: number;
     temperature?: number;
+    // Health event fields (_health.qo)
+    method?: string;
+    text?: string;
+    voltage_mode?: string;
   };
   best_location_type?: string;
   best_location_when?: number;
@@ -124,6 +128,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       await writePowerTelemetry(songbirdEvent);
     }
 
+    // Write health events to DynamoDB (_health.qo)
+    if (songbirdEvent.event_type === '_health.qo') {
+      await writeHealthEvent(songbirdEvent);
+    }
+
     // Update device metadata in DynamoDB
     await updateDeviceMetadata(songbirdEvent);
 
@@ -179,6 +188,10 @@ interface SongbirdEvent {
     executed_at?: number;
     milliamp_hours?: number;
     temperature?: number;
+    // Health event fields
+    method?: string;
+    text?: string;
+    voltage_mode?: string;
   };
   location?: {
     lat?: number;
@@ -272,6 +285,54 @@ async function writePowerTelemetry(event: SongbirdEvent): Promise<void> {
   } else {
     console.log('No power metrics in _log.qo event, skipping');
   }
+}
+
+async function writeHealthEvent(event: SongbirdEvent): Promise<void> {
+  const timestamp = event.timestamp * 1000; // Convert to milliseconds
+  const ttl = Math.floor(Date.now() / 1000) + TTL_SECONDS;
+
+  const record: Record<string, any> = {
+    device_uid: event.device_uid,
+    timestamp,
+    ttl,
+    data_type: 'health',
+    event_type: event.event_type,
+    event_type_timestamp: `health#${timestamp}`,
+    serial_number: event.serial_number || 'unknown',
+    fleet: event.fleet || 'default',
+  };
+
+  // Add health event fields
+  if (event.body.method !== undefined) {
+    record.method = event.body.method;
+  }
+  if (event.body.text !== undefined) {
+    record.text = event.body.text;
+  }
+  if (event.body.voltage !== undefined) {
+    record.voltage = event.body.voltage;
+  }
+  if (event.body.voltage_mode !== undefined) {
+    record.voltage_mode = event.body.voltage_mode;
+  }
+  if (event.body.milliamp_hours !== undefined) {
+    record.milliamp_hours = event.body.milliamp_hours;
+  }
+
+  // Add location if available
+  if (event.location?.lat !== undefined && event.location?.lon !== undefined) {
+    record.latitude = event.location.lat;
+    record.longitude = event.location.lon;
+    record.location_source = event.location.source || 'tower';
+  }
+
+  const command = new PutCommand({
+    TableName: TELEMETRY_TABLE,
+    Item: record,
+  });
+
+  await docClient.send(command);
+  console.log(`Wrote health event record for ${event.device_uid}: ${event.body.method}`);
 }
 
 async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {

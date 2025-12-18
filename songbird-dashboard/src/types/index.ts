@@ -92,6 +92,18 @@ export interface PowerPoint {
 }
 
 /**
+ * Health event data point (_health.qo)
+ */
+export interface HealthPoint {
+  time: string;
+  method?: string;
+  text?: string;
+  voltage?: number;
+  voltage_mode?: string;
+  milliamp_hours?: number;
+}
+
+/**
  * Alert record
  */
 export interface Alert {
@@ -206,6 +218,13 @@ export interface PowerResponse {
   hours: number;
   count: number;
   power: PowerPoint[];
+}
+
+export interface HealthResponse {
+  device_uid: string;
+  hours: number;
+  count: number;
+  health: HealthPoint[];
 }
 
 export interface ConfigResponse {

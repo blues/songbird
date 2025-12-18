@@ -5,6 +5,7 @@
  * - GET /devices/{device_uid}/telemetry - Get telemetry history
  * - GET /devices/{device_uid}/location - Get location history
  * - GET /devices/{device_uid}/power - Get Mojo power history
+ * - GET /devices/{device_uid}/health - Get health event history
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -55,6 +56,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     if (path.endsWith('/power')) {
       return await getPowerHistory(deviceUid, hours, limit, corsHeaders);
+    }
+
+    if (path.endsWith('/health')) {
+      return await getHealthHistory(deviceUid, hours, limit, corsHeaders);
     }
 
     return await getTelemetryHistory(deviceUid, hours, limit, corsHeaders);
@@ -205,6 +210,54 @@ async function getPowerHistory(
       hours,
       count: power.length,
       power,
+    }),
+  };
+}
+
+async function getHealthHistory(
+  deviceUid: string,
+  hours: number,
+  limit: number,
+  headers: Record<string, string>
+): Promise<APIGatewayProxyResult> {
+  const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
+
+  const command = new QueryCommand({
+    TableName: TELEMETRY_TABLE,
+    KeyConditionExpression: 'device_uid = :device_uid AND #ts > :cutoff',
+    FilterExpression: 'data_type = :data_type',
+    ExpressionAttributeNames: {
+      '#ts': 'timestamp',
+    },
+    ExpressionAttributeValues: {
+      ':device_uid': deviceUid,
+      ':cutoff': cutoffTime,
+      ':data_type': 'health',
+    },
+    ScanIndexForward: false, // Newest first
+    Limit: limit,
+  });
+
+  const result = await docClient.send(command);
+
+  // Transform to API response format
+  const health = (result.Items || []).map((item) => ({
+    time: new Date(item.timestamp).toISOString(),
+    method: item.method,
+    text: item.text,
+    voltage: item.voltage,
+    voltage_mode: item.voltage_mode,
+    milliamp_hours: item.milliamp_hours,
+  }));
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      device_uid: deviceUid,
+      hours,
+      count: health.length,
+      health,
     }),
   };
 }

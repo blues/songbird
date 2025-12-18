@@ -273,6 +273,13 @@ export class ApiConstruct extends Construct {
       authorizer,
     });
 
+    this.api.addRoutes({
+      path: '/v1/devices/{device_uid}/health',
+      methods: [apigateway.HttpMethod.GET],
+      integration: telemetryIntegration,
+      authorizer,
+    });
+
     // Commands endpoints
     const commandsIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
       'CommandsIntegration',
