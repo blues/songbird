@@ -51,6 +51,14 @@ export class ApiConstruct extends Construct {
       timeToLiveAttribute: 'ttl',
     });
 
+    // GSI for querying commands by creation time
+    commandsTable.addGlobalSecondaryIndex({
+      indexName: 'device-created-index',
+      partitionKey: { name: 'device_uid', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'created_at', type: dynamodb.AttributeType.NUMBER },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
     // ==========================================================================
     // Notehub API Token Secret
     // ==========================================================================
@@ -152,6 +160,7 @@ export class ApiConstruct extends Construct {
       environment: {
         TELEMETRY_TABLE: props.telemetryTable.tableName,
         DEVICES_TABLE: props.devicesTable.tableName,
+        COMMANDS_TABLE: commandsTable.tableName,
         ALERT_TOPIC_ARN: props.alertTopic.topicArn,
       },
       bundling: { minify: true, sourceMap: true },
@@ -159,6 +168,7 @@ export class ApiConstruct extends Construct {
     });
     props.telemetryTable.grantReadWriteData(ingestFunction);
     props.devicesTable.grantReadWriteData(ingestFunction);
+    commandsTable.grantReadWriteData(ingestFunction);
     props.alertTopic.grantPublish(ingestFunction);
 
     // ==========================================================================

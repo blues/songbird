@@ -798,7 +798,9 @@ bool notecardEnvGet(const char* name, char* buffer, size_t bufferSize) {
     }
 
     const char* value = JGetString(rsp, "text");
-    if (value) {
+    // Only return true if value exists AND is not empty
+    // Empty string means the env var is not set
+    if (value && value[0] != '\0') {
         strncpy(buffer, value, bufferSize - 1);
         buffer[bufferSize - 1] = '\0';
         s_notecard.deleteResponse(rsp);

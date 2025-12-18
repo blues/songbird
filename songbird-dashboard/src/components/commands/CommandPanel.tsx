@@ -149,12 +149,16 @@ export function CommandPanel({
               Last command:{' '}
               <span className="font-medium">{lastCommand.cmd}</span>
               {' • '}
-              {lastCommand.status === 'acknowledged' ? (
-                <span className="text-green-500">✓ Acknowledged</span>
+              {lastCommand.status === 'ok' ? (
+                <span className="text-green-500">✓ OK</span>
               ) : lastCommand.status === 'queued' ? (
                 <span className="text-yellow-500">⏳ Queued</span>
-              ) : (
+              ) : lastCommand.status === 'ignored' ? (
+                <span className="text-gray-500">⊘ Ignored</span>
+              ) : lastCommand.status === 'error' ? (
                 <span className="text-red-500">✗ Error</span>
+              ) : (
+                <span className="text-yellow-500">⏳ {lastCommand.status}</span>
               )}
               {' • '}
               {formatRelativeTime(lastCommand.created_at)}

@@ -22,6 +22,7 @@ const snsClient = new SNSClient({});
 // Environment variables
 const TELEMETRY_TABLE = process.env.TELEMETRY_TABLE!;
 const DEVICES_TABLE = process.env.DEVICES_TABLE!;
+const COMMANDS_TABLE = process.env.COMMANDS_TABLE!;
 const ALERT_TOPIC_ARN = process.env.ALERT_TOPIC_ARN!;
 
 // TTL: 90 days in seconds
@@ -127,6 +128,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       await publishAlert(songbirdEvent);
     }
 
+    // Process command acknowledgment
+    if (songbirdEvent.event_type === 'command_ack.qo') {
+      await processCommandAck(songbirdEvent);
+    }
+
     console.log('Event processed successfully');
 
     return {
@@ -163,6 +169,7 @@ interface SongbirdEvent {
     threshold?: number;
     message?: string;
     cmd?: string;
+    cmd_id?: string;
     status?: string;
     executed_at?: number;
     milliamp_hours?: number;
@@ -348,6 +355,40 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
 
   await docClient.send(command);
   console.log(`Updated device metadata for ${event.device_uid}`);
+}
+
+async function processCommandAck(event: SongbirdEvent): Promise<void> {
+  const cmdId = event.body.cmd_id;
+  if (!cmdId) {
+    console.log('Command ack missing cmd_id, skipping');
+    return;
+  }
+
+  const now = Date.now();
+
+  const command = new UpdateCommand({
+    TableName: COMMANDS_TABLE,
+    Key: {
+      device_uid: event.device_uid,
+      command_id: cmdId,
+    },
+    UpdateExpression: 'SET #status = :status, #message = :message, #executed_at = :executed_at, #updated_at = :updated_at',
+    ExpressionAttributeNames: {
+      '#status': 'status',
+      '#message': 'message',
+      '#executed_at': 'executed_at',
+      '#updated_at': 'updated_at',
+    },
+    ExpressionAttributeValues: {
+      ':status': event.body.status || 'unknown',
+      ':message': event.body.message || '',
+      ':executed_at': event.body.executed_at ? event.body.executed_at * 1000 : now,
+      ':updated_at': now,
+    },
+  });
+
+  await docClient.send(command);
+  console.log(`Updated command ${cmdId} with status: ${event.body.status}`);
 }
 
 async function publishAlert(event: SongbirdEvent): Promise<void> {

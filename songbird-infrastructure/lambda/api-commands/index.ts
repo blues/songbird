@@ -228,11 +228,12 @@ async function getCommandHistory(
 ): Promise<APIGatewayProxyResult> {
   const command = new QueryCommand({
     TableName: COMMANDS_TABLE,
+    IndexName: 'device-created-index',
     KeyConditionExpression: 'device_uid = :device_uid',
     ExpressionAttributeValues: {
       ':device_uid': deviceUid,
     },
-    ScanIndexForward: false, // Most recent first
+    ScanIndexForward: false, // Most recent first (by created_at)
     Limit: 50,
   });
 

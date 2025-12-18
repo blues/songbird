@@ -25,7 +25,7 @@ export type AlertType =
 export type CommandType = 'ping' | 'locate' | 'play_melody' | 'test_audio' | 'set_volume';
 
 // Command status
-export type CommandStatus = 'queued' | 'sent' | 'acknowledged' | 'error';
+export type CommandStatus = 'queued' | 'sent' | 'ok' | 'error' | 'ignored';
 
 /**
  * Device interface
