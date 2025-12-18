@@ -87,7 +87,6 @@ export interface LocationPoint {
 export interface PowerPoint {
   time: string;
   voltage?: number;
-  temperature?: number;
   milliamp_hours?: number;
 }
 

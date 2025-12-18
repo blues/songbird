@@ -265,9 +265,6 @@ async function writePowerTelemetry(event: SongbirdEvent): Promise<void> {
   if (event.body.voltage !== undefined) {
     record.mojo_voltage = event.body.voltage;
   }
-  if (event.body.temperature !== undefined) {
-    record.mojo_temperature = event.body.temperature;
-  }
   if (event.body.milliamp_hours !== undefined) {
     record.milliamp_hours = event.body.milliamp_hours;
   }

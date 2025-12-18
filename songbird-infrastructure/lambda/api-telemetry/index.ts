@@ -198,7 +198,6 @@ async function getPowerHistory(
   const power = (result.Items || []).map((item) => ({
     time: new Date(item.timestamp).toISOString(),
     voltage: item.mojo_voltage,
-    temperature: item.mojo_temperature,
     milliamp_hours: item.milliamp_hours,
   }));
 

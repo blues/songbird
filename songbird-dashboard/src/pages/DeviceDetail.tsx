@@ -258,13 +258,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                       <span className="text-muted-foreground">Loading chart...</span>
                     </div>
                   ) : power.length > 0 ? (
-                    <PowerChart
-                      data={power}
-                      showVoltage
-                      showTemperature
-                      showMilliampHours
-                      height={300}
-                    />
+                    <PowerChart data={power} height={350} />
                   ) : (
                     <div className="h-[300px] flex items-center justify-center">
                       <span className="text-muted-foreground">No power data available (Mojo required)</span>
