@@ -105,6 +105,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
             <CardContent className="p-0">
               <LocationTrail
                 locations={locations}
+                currentLocation={device.latitude && device.longitude ? { lat: device.latitude, lon: device.longitude } : undefined}
                 mapboxToken={mapboxToken}
                 className="h-[300px] rounded-b-lg overflow-hidden"
               />

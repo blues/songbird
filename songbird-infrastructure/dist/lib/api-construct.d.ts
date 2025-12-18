@@ -16,11 +16,13 @@ export interface ApiConstructProps {
     telemetryTable: dynamodb.Table;
     devicesTable: dynamodb.Table;
     userPool: cognito.UserPool;
+    userPoolClient: cognito.UserPoolClient;
     notehubProjectUid: string;
+    alertTopic: sns.ITopic;
 }
 export declare class ApiConstruct extends Construct {
     readonly api: apigateway.HttpApi;
     readonly apiUrl: string;
-    readonly alertTopic: sns.Topic;
+    readonly ingestUrl: string;
     constructor(scope: Construct, id: string, props: ApiConstructProps);
 }

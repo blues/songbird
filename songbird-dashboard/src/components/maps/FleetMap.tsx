@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import Map, { Marker, Popup, NavigationControl } from 'react-map-gl';
+import type { MapRef } from 'react-map-gl';
 import { MapPin } from 'lucide-react';
 import { DeviceStatus } from '@/components/devices/DeviceStatus';
 import { formatTemperature, formatRelativeTime } from '@/utils/formatters';
@@ -21,25 +22,64 @@ export function FleetMap({
   onDeviceSelect,
   className,
 }: FleetMapProps) {
-  const mapRef = useRef(null);
+  const mapRef = useRef<MapRef>(null);
   const [popupDevice, setPopupDevice] = useState<Device | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   // Filter devices with location
-  const devicesWithLocation = devices.filter(
-    (d) => d.latitude != null && d.longitude != null
+  const devicesWithLocation = useMemo(() =>
+    devices.filter((d) => d.latitude != null && d.longitude != null),
+    [devices]
   );
 
-  // Calculate center based on devices
-  const center = devicesWithLocation.length > 0
-    ? {
-        longitude:
-          devicesWithLocation.reduce((sum, d) => sum + (d.longitude || 0), 0) /
-          devicesWithLocation.length,
-        latitude:
-          devicesWithLocation.reduce((sum, d) => sum + (d.latitude || 0), 0) /
-          devicesWithLocation.length,
-      }
-    : { longitude: -97.7431, latitude: 30.2672 }; // Austin, TX default
+  // Calculate bounds to fit all devices
+  const bounds = useMemo(() => {
+    if (devicesWithLocation.length === 0) return null;
+
+    const lats = devicesWithLocation.map((d) => d.latitude!);
+    const lons = devicesWithLocation.map((d) => d.longitude!);
+
+    return {
+      minLat: Math.min(...lats),
+      maxLat: Math.max(...lats),
+      minLon: Math.min(...lons),
+      maxLon: Math.max(...lons),
+    };
+  }, [devicesWithLocation]);
+
+  // Fit map to bounds when devices load
+  const fitMapToBounds = useCallback(() => {
+    if (!mapRef.current || !bounds) return;
+
+    const padding = 50;
+
+    // For single device, just center on it with good zoom
+    if (devicesWithLocation.length === 1) {
+      mapRef.current.flyTo({
+        center: [devicesWithLocation[0].longitude!, devicesWithLocation[0].latitude!],
+        zoom: 12,
+        duration: 1000,
+      });
+    } else {
+      // For multiple devices, fit bounds
+      mapRef.current.fitBounds(
+        [[bounds.minLon, bounds.minLat], [bounds.maxLon, bounds.maxLat]],
+        { padding, duration: 1000, maxZoom: 14 }
+      );
+    }
+  }, [bounds, devicesWithLocation]);
+
+  // Fit bounds when devices first load
+  useEffect(() => {
+    if (devicesWithLocation.length > 0 && !hasInitialized) {
+      // Small delay to ensure map is ready
+      const timer = setTimeout(() => {
+        fitMapToBounds();
+        setHasInitialized(true);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [devicesWithLocation, hasInitialized, fitMapToBounds]);
 
   // Highlight selected device
   useEffect(() => {
@@ -53,13 +93,16 @@ export function FleetMap({
     }
   }, [selectedDeviceId, devicesWithLocation]);
 
+  // Default center (Austin, TX)
+  const defaultCenter = { longitude: -97.7431, latitude: 30.2672 };
+
   return (
     <div className={className}>
       <Map
         ref={mapRef}
         initialViewState={{
-          ...center,
-          zoom: 10,
+          ...defaultCenter,
+          zoom: 4,
         }}
         style={{ width: '100%', height: '100%' }}
         mapStyle="mapbox://styles/mapbox/light-v11"

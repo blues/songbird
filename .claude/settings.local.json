@@ -10,7 +10,8 @@
       "Bash(aws cloudformation describe-stacks:*)",
       "Bash(aws cognito-idp admin-create-user:*)",
       "Bash(aws logs tail:*)",
-      "Bash(cdk deploy:*)"
+      "Bash(cdk deploy:*)",
+      "Bash(aws dynamodb scan:*)"
     ],
     "deny": [],
     "ask": []

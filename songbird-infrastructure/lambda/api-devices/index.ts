@@ -32,7 +32,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   };
 
   try {
-    const method = event.httpMethod;
+    // HTTP API v2 uses requestContext.http.method, REST API v1 uses httpMethod
+    const method = (event.requestContext as any)?.http?.method || event.httpMethod;
     const deviceUid = event.pathParameters?.device_uid;
 
     if (method === 'OPTIONS') {
@@ -119,15 +120,16 @@ async function listDevices(
     items = result.Items || [];
   }
 
-  // Calculate fleet stats
+  // Transform and calculate fleet stats
+  const transformedDevices = items.map(transformDevice);
   const stats = calculateStats(items);
 
   return {
     statusCode: 200,
     headers,
     body: JSON.stringify({
-      devices: items,
-      count: items.length,
+      devices: transformedDevices,
+      count: transformedDevices.length,
       stats,
     }),
   };
@@ -155,7 +157,7 @@ async function getDevice(
   return {
     statusCode: 200,
     headers,
-    body: JSON.stringify(result.Item),
+    body: JSON.stringify(transformDevice(result.Item)),
   };
 }
 
@@ -219,6 +221,50 @@ async function updateDevice(
     headers,
     body: JSON.stringify(result.Attributes),
   };
+}
+
+/**
+ * Transform DynamoDB device record to frontend format
+ * Flattens nested objects like last_location and last_telemetry
+ */
+function transformDevice(item: any): any {
+  const device: any = {
+    device_uid: item.device_uid,
+    serial_number: item.serial_number,
+    name: item.name,
+    fleet: item.fleet,
+    status: item.status,
+    last_seen: item.last_seen,
+    mode: item.current_mode,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+  };
+
+  // Flatten last_location
+  if (item.last_location) {
+    device.latitude = item.last_location.lat;
+    device.longitude = item.last_location.lon;
+    device.location_time = item.last_location.time;
+    device.location_source = item.last_location.source;
+  }
+
+  // Flatten last_telemetry
+  if (item.last_telemetry) {
+    device.temperature = item.last_telemetry.temp;
+    device.humidity = item.last_telemetry.humidity;
+    device.pressure = item.last_telemetry.pressure;
+    device.voltage = item.last_telemetry.voltage;
+    device.motion = item.last_telemetry.motion;
+  }
+
+  // Flatten last_power (Mojo data)
+  if (item.last_power) {
+    device.mojo_voltage = item.last_power.voltage;
+    device.mojo_temperature = item.last_power.temperature;
+    device.milliamp_hours = item.last_power.milliamp_hours;
+  }
+
+  return device;
 }
 
 function calculateStats(devices: any[]): Record<string, any> {

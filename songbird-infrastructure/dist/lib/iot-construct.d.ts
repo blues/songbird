@@ -12,7 +12,7 @@ import { Construct } from 'constructs';
 export interface IotConstructProps {
     telemetryTable: dynamodb.Table;
     devicesTable: dynamodb.Table;
-    alertTopic: sns.Topic;
+    alertTopic: sns.ITopic;
 }
 export declare class IotConstruct extends Construct {
     readonly eventProcessingRule: iot.CfnTopicRule;

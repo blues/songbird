@@ -26,7 +26,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   };
 
   try {
-    if (event.httpMethod === 'OPTIONS') {
+    // HTTP API v2 uses requestContext.http.method, REST API v1 uses httpMethod
+    const method = (event.requestContext as any)?.http?.method || event.httpMethod;
+    const path = (event.requestContext as any)?.http?.path || event.path;
+
+    if (method === 'OPTIONS') {
       return { statusCode: 200, headers: corsHeaders, body: '' };
     }
 
@@ -39,7 +43,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    const path = event.path;
     const queryParams = event.queryStringParameters || {};
 
     // Parse time range

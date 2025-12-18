@@ -1,20 +1,26 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl';
+import type { MapRef } from 'react-map-gl';
 import { MapPin } from 'lucide-react';
 import type { LocationPoint } from '@/types';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 interface LocationTrailProps {
   locations: LocationPoint[];
+  currentLocation?: { lat: number; lon: number };
   mapboxToken: string;
   className?: string;
 }
 
 export function LocationTrail({
   locations,
+  currentLocation: deviceLocation,
   mapboxToken,
   className,
 }: LocationTrailProps) {
+  const mapRef = useRef<MapRef>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
+
   // Create GeoJSON for the trail line
   const trailGeoJson = useMemo(() => {
     if (locations.length < 2) return null;
@@ -31,10 +37,16 @@ export function LocationTrail({
 
   // Calculate bounds for the view
   const bounds = useMemo(() => {
-    if (locations.length === 0) return null;
+    if (locations.length === 0 && !deviceLocation) return null;
 
-    const lats = locations.map((l) => l.lat);
-    const lons = locations.map((l) => l.lon);
+    const allPoints = deviceLocation
+      ? [{ lat: deviceLocation.lat, lon: deviceLocation.lon }, ...locations]
+      : locations;
+
+    if (allPoints.length === 0) return null;
+
+    const lats = allPoints.map((l) => l.lat);
+    const lons = allPoints.map((l) => l.lon);
 
     return {
       minLat: Math.min(...lats),
@@ -42,44 +54,68 @@ export function LocationTrail({
       minLon: Math.min(...lons),
       maxLon: Math.max(...lons),
     };
-  }, [locations]);
+  }, [locations, deviceLocation]);
 
-  // Calculate center
-  const center = bounds
-    ? {
-        latitude: (bounds.minLat + bounds.maxLat) / 2,
-        longitude: (bounds.minLon + bounds.maxLon) / 2,
+  // Fit map to location when data loads
+  const fitMapToLocation = useCallback(() => {
+    if (!mapRef.current) return;
+
+    // If we have a device location but no trail, center on device
+    if (deviceLocation && locations.length === 0) {
+      mapRef.current.flyTo({
+        center: [deviceLocation.lon, deviceLocation.lat],
+        zoom: 12,
+        duration: 1000,
+      });
+      return;
+    }
+
+    // If we have trail locations, fit bounds
+    if (bounds) {
+      const hasSpread = (bounds.maxLat - bounds.minLat > 0.001) ||
+                        (bounds.maxLon - bounds.minLon > 0.001);
+
+      if (hasSpread) {
+        mapRef.current.fitBounds(
+          [[bounds.minLon, bounds.minLat], [bounds.maxLon, bounds.maxLat]],
+          { padding: 50, duration: 1000, maxZoom: 14 }
+        );
+      } else {
+        // All points are basically the same, just center
+        mapRef.current.flyTo({
+          center: [bounds.minLon, bounds.minLat],
+          zoom: 12,
+          duration: 1000,
+        });
       }
-    : { latitude: 30.2672, longitude: -97.7431 };
+    }
+  }, [bounds, deviceLocation, locations.length]);
 
-  // Calculate zoom based on bounds
-  const zoom = bounds
-    ? Math.min(
-        14,
-        Math.max(
-          6,
-          Math.floor(
-            14 -
-              Math.log2(
-                Math.max(
-                  bounds.maxLat - bounds.minLat,
-                  bounds.maxLon - bounds.minLon
-                ) * 100
-              )
-          )
-        )
-      )
-    : 12;
+  // Fit to location when data first loads
+  useEffect(() => {
+    const hasData = locations.length > 0 || deviceLocation;
+    if (hasData && !hasInitialized) {
+      const timer = setTimeout(() => {
+        fitMapToLocation();
+        setHasInitialized(true);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [locations, deviceLocation, hasInitialized, fitMapToLocation]);
 
-  const currentLocation = locations[0];
+  const currentLocation = locations[0] || (deviceLocation ? { lat: deviceLocation.lat, lon: deviceLocation.lon, time: '' } : null);
   const trailPoints = locations.slice(1);
+
+  // Default center (Austin, TX)
+  const defaultCenter = { latitude: 30.2672, longitude: -97.7431 };
 
   return (
     <div className={className}>
       <Map
+        ref={mapRef}
         initialViewState={{
-          ...center,
-          zoom,
+          ...defaultCenter,
+          zoom: 4,
         }}
         style={{ width: '100%', height: '100%' }}
         mapStyle="mapbox://styles/mapbox/light-v11"

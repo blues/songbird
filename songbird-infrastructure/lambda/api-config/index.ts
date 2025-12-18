@@ -46,22 +46,25 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   };
 
   try {
-    if (event.httpMethod === 'OPTIONS') {
+    // HTTP API v2 uses requestContext.http.method, REST API v1 uses httpMethod
+    const method = (event.requestContext as any)?.http?.method || event.httpMethod;
+
+    if (method === 'OPTIONS') {
       return { statusCode: 200, headers: corsHeaders, body: '' };
     }
 
     const deviceUid = event.pathParameters?.device_uid;
     const fleetUid = event.pathParameters?.fleet_uid;
 
-    if (event.httpMethod === 'GET' && deviceUid) {
+    if (method === 'GET' && deviceUid) {
       return await getDeviceConfig(deviceUid, corsHeaders);
     }
 
-    if (event.httpMethod === 'PUT' && deviceUid) {
+    if (method === 'PUT' && deviceUid) {
       return await updateDeviceConfig(deviceUid, event.body, corsHeaders);
     }
 
-    if (event.httpMethod === 'PUT' && fleetUid) {
+    if (method === 'PUT' && fleetUid) {
       return await updateFleetConfig(fleetUid, event.body, corsHeaders);
     }
 

@@ -26,6 +26,7 @@ export interface ApiConstructProps {
   telemetryTable: dynamodb.Table;
   devicesTable: dynamodb.Table;
   userPool: cognito.UserPool;
+  userPoolClient: cognito.UserPoolClient;
   notehubProjectUid: string;
   alertTopic: sns.ITopic;
 }
@@ -184,6 +185,7 @@ export class ApiConstruct extends Construct {
       'CognitoAuthorizer',
       props.userPool,
       {
+        userPoolClients: [props.userPoolClient],
         identitySource: ['$request.header.Authorization'],
       }
     );

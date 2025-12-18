@@ -106,7 +106,7 @@ export function Dashboard({ mapboxToken, selectedFleet }: DashboardProps) {
                         {item.message}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {item.data?.mode && `Mode: ${item.data.mode} • `}
+                        {(item.data as { mode?: string })?.mode && `Mode: ${(item.data as { mode?: string }).mode} • `}
                         {formatRelativeTime(item.timestamp)}
                       </p>
                     </div>
