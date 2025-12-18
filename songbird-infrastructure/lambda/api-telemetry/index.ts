@@ -221,26 +221,40 @@ async function getHealthHistory(
 ): Promise<APIGatewayProxyResult> {
   const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
 
-  const command = new QueryCommand({
-    TableName: TELEMETRY_TABLE,
-    KeyConditionExpression: 'device_uid = :device_uid AND #ts > :cutoff',
-    FilterExpression: 'data_type = :data_type',
-    ExpressionAttributeNames: {
-      '#ts': 'timestamp',
-    },
-    ExpressionAttributeValues: {
-      ':device_uid': deviceUid,
-      ':cutoff': cutoffTime,
-      ':data_type': 'health',
-    },
-    ScanIndexForward: false, // Newest first
-    Limit: limit,
-  });
+  // Health events are sparse, so we need to paginate to find them all
+  // since FilterExpression is applied after Limit
+  const healthItems: any[] = [];
+  let lastEvaluatedKey: Record<string, any> | undefined;
 
-  const result = await docClient.send(command);
+  do {
+    const command = new QueryCommand({
+      TableName: TELEMETRY_TABLE,
+      KeyConditionExpression: 'device_uid = :device_uid AND #ts > :cutoff',
+      FilterExpression: 'data_type = :data_type',
+      ExpressionAttributeNames: {
+        '#ts': 'timestamp',
+      },
+      ExpressionAttributeValues: {
+        ':device_uid': deviceUid,
+        ':cutoff': cutoffTime,
+        ':data_type': 'health',
+      },
+      ScanIndexForward: false, // Newest first
+      ExclusiveStartKey: lastEvaluatedKey,
+    });
 
-  // Transform to API response format
-  const health = (result.Items || []).map((item) => ({
+    const result = await docClient.send(command);
+    healthItems.push(...(result.Items || []));
+    lastEvaluatedKey = result.LastEvaluatedKey;
+
+    // Stop if we have enough items
+    if (healthItems.length >= limit) {
+      break;
+    }
+  } while (lastEvaluatedKey);
+
+  // Transform to API response format (take only up to limit)
+  const health = healthItems.slice(0, limit).map((item) => ({
     time: new Date(item.timestamp).toISOString(),
     method: item.method,
     text: item.text,
