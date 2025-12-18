@@ -255,7 +255,7 @@ export interface User {
  */
 export interface ActivityItem {
   id: string;
-  type: 'location' | 'telemetry' | 'alert' | 'command' | 'status';
+  type: 'location' | 'alert' | 'command' | 'status' | 'health';
   device_uid: string;
   device_name?: string;
   message: string;

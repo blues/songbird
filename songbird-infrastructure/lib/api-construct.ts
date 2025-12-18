@@ -166,6 +166,27 @@ export class ApiConstruct extends Construct {
     });
     props.alertsTable.grantReadWriteData(alertsFunction);
 
+    // Activity Feed API
+    const activityFunction = new NodejsFunction(this, 'ActivityFunction', {
+      functionName: 'songbird-api-activity',
+      description: 'Songbird Activity Feed API',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/api-activity/index.ts'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        TELEMETRY_TABLE: props.telemetryTable.tableName,
+        ALERTS_TABLE: props.alertsTable.tableName,
+        DEVICES_TABLE: props.devicesTable.tableName,
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+    props.telemetryTable.grantReadData(activityFunction);
+    props.alertsTable.grantReadData(activityFunction);
+    props.devicesTable.grantReadData(activityFunction);
+
     // Event Ingest API (for Notehub HTTP route - no authentication)
     const ingestFunction = new NodejsFunction(this, 'IngestFunction', {
       functionName: 'songbird-api-ingest',
@@ -337,6 +358,19 @@ export class ApiConstruct extends Construct {
       path: '/v1/alerts/{alert_id}/acknowledge',
       methods: [apigateway.HttpMethod.POST],
       integration: alertsIntegration,
+      authorizer,
+    });
+
+    // Activity feed endpoint
+    const activityIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+      'ActivityIntegration',
+      activityFunction
+    );
+
+    this.api.addRoutes({
+      path: '/v1/activity',
+      methods: [apigateway.HttpMethod.GET],
+      integration: activityIntegration,
       authorizer,
     });
 

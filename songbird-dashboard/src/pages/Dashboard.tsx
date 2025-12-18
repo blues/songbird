@@ -6,8 +6,9 @@ import { DeviceList } from '@/components/devices/DeviceList';
 import { FleetMap } from '@/components/maps/FleetMap';
 import { useDevices } from '@/hooks/useDevices';
 import { useActiveAlerts } from '@/hooks/useAlerts';
+import { useActivity } from '@/hooks/useActivity';
 import { formatRelativeTime } from '@/utils/formatters';
-import type { DashboardStats, ActivityItem } from '@/types';
+import type { DashboardStats } from '@/types';
 
 interface DashboardProps {
   mapboxToken: string;
@@ -20,10 +21,12 @@ export function Dashboard({ mapboxToken, selectedFleet }: DashboardProps) {
     selectedFleet === 'all' ? undefined : selectedFleet
   );
   const { data: alertsData } = useActiveAlerts();
+  const { data: activityData, isLoading: activityLoading } = useActivity(24, 20);
 
   const devices = devicesData?.devices || [];
   const activeAlerts = alertsData?.alerts || [];
   const activeAlertCount = alertsData?.active_count || 0;
+  const recentActivity = activityData?.activities || [];
 
   // Build a map of device_uid -> alert count for device cards
   const alertsByDevice = useMemo(() => {
@@ -49,22 +52,6 @@ export function Dashboard({ mapboxToken, selectedFleet }: DashboardProps) {
       low_battery_count: lowBatteryCount,
     };
   }, [devices, activeAlertCount]);
-
-  // Mock recent activity (would come from API)
-  const recentActivity: ActivityItem[] = useMemo(() => {
-    return devices
-      .filter((d) => d.last_seen)
-      .slice(0, 5)
-      .map((d) => ({
-        id: d.device_uid,
-        type: 'telemetry' as const,
-        device_uid: d.device_uid,
-        device_name: d.name || d.serial_number,
-        message: `${d.name || d.serial_number} check-in`,
-        timestamp: d.last_seen!,
-        data: { mode: d.mode },
-      }));
-  }, [devices]);
 
   const handleDeviceSelect = (deviceUid: string) => {
     navigate(`/devices/${deviceUid}`);
@@ -100,8 +87,12 @@ export function Dashboard({ mapboxToken, selectedFleet }: DashboardProps) {
             <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
           <CardContent>
-            {recentActivity.length > 0 ? (
-              <div className="space-y-4">
+            {activityLoading ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Loading activity...
+              </p>
+            ) : recentActivity.length > 0 ? (
+              <div className="space-y-3 max-h-[350px] overflow-y-auto">
                 {recentActivity.map((item) => (
                   <div
                     key={item.id}
@@ -110,16 +101,19 @@ export function Dashboard({ mapboxToken, selectedFleet }: DashboardProps) {
                   >
                     <div className="text-lg">
                       {item.type === 'location' && '📍'}
-                      {item.type === 'telemetry' && '✅'}
                       {item.type === 'alert' && '⚠️'}
                       {item.type === 'command' && '📡'}
+                      {item.type === 'health' && '💓'}
+                      {item.type === 'status' && '🔄'}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">
+                        {item.device_name || item.device_uid}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
                         {item.message}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {(item.data as { mode?: string })?.mode && `Mode: ${(item.data as { mode?: string }).mode} • `}
                         {formatRelativeTime(item.timestamp)}
                       </p>
                     </div>
