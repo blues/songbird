@@ -8,7 +8,9 @@
       "Bash(npx:*)",
       "Bash(npm install)",
       "Bash(aws cloudformation describe-stacks:*)",
-      "Bash(aws cognito-idp admin-create-user:*)"
+      "Bash(aws cognito-idp admin-create-user:*)",
+      "Bash(aws logs tail:*)",
+      "Bash(cdk deploy:*)"
     ],
     "deny": [],
     "ask": []

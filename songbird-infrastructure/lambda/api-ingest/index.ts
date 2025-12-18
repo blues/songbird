@@ -12,7 +12,11 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 // Initialize clients
 const ddbClient = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(ddbClient);
+const docClient = DynamoDBDocumentClient.from(ddbClient, {
+  marshallOptions: {
+    removeUndefinedValues: true,
+  },
+});
 const snsClient = new SNSClient({});
 
 // Environment variables
