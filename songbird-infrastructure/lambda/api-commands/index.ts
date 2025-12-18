@@ -12,15 +12,42 @@ import {
   PutCommand,
   QueryCommand,
 } from '@aws-sdk/lib-dynamodb';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { randomUUID } from 'crypto';
 
 const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient);
+const secretsClient = new SecretsManagerClient({});
 
 const COMMANDS_TABLE = process.env.COMMANDS_TABLE!;
 const NOTEHUB_PROJECT_UID = process.env.NOTEHUB_PROJECT_UID!;
-const NOTEHUB_API_TOKEN = process.env.NOTEHUB_API_TOKEN!;
+const NOTEHUB_SECRET_ARN = process.env.NOTEHUB_SECRET_ARN!;
+
+// Cache the token to avoid fetching on every request
+let cachedToken: string | null = null;
+
+async function getNotehubToken(): Promise<string> {
+  if (cachedToken) {
+    return cachedToken;
+  }
+
+  const command = new GetSecretValueCommand({ SecretId: NOTEHUB_SECRET_ARN });
+  const response = await secretsClient.send(command);
+
+  if (!response.SecretString) {
+    throw new Error('Notehub API token not found in secret');
+  }
+
+  const secret = JSON.parse(response.SecretString);
+  cachedToken = secret.token;
+
+  if (!cachedToken) {
+    throw new Error('Token field not found in secret');
+  }
+
+  return cachedToken;
+}
 
 // Supported commands
 const VALID_COMMANDS = ['ping', 'locate', 'play_melody', 'test_audio', 'set_volume'];
@@ -116,12 +143,13 @@ async function sendCommand(
 
   // Send to Notehub API
   try {
+    const notehubToken = await getNotehubToken();
     const notehubResponse = await fetch(
       `https://api.notefile.net/v1/projects/${NOTEHUB_PROJECT_UID}/devices/${deviceUid}/notes/command.qi`,
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${NOTEHUB_API_TOKEN}`,
+          'Authorization': `Bearer ${notehubToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ body: noteBody }),

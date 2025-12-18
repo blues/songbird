@@ -114,12 +114,13 @@ export class ApiConstruct extends Construct {
       environment: {
         COMMANDS_TABLE: commandsTable.tableName,
         NOTEHUB_PROJECT_UID: props.notehubProjectUid,
-        NOTEHUB_API_TOKEN: notehubSecret.secretValueFromJson('token').unsafeUnwrap(),
+        NOTEHUB_SECRET_ARN: notehubSecret.secretArn,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
     });
     commandsTable.grantReadWriteData(commandsFunction);
+    notehubSecret.grantRead(commandsFunction);
 
     // Config API
     const configFunction = new NodejsFunction(this, 'ConfigFunction', {
@@ -132,11 +133,12 @@ export class ApiConstruct extends Construct {
       memorySize: 256,
       environment: {
         NOTEHUB_PROJECT_UID: props.notehubProjectUid,
-        NOTEHUB_API_TOKEN: notehubSecret.secretValueFromJson('token').unsafeUnwrap(),
+        NOTEHUB_SECRET_ARN: notehubSecret.secretArn,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
     });
+    notehubSecret.grantRead(configFunction);
 
     // Event Ingest API (for Notehub HTTP route - no authentication)
     const ingestFunction = new NodejsFunction(this, 'IngestFunction', {

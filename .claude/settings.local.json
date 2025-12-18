@@ -11,7 +11,9 @@
       "Bash(aws cognito-idp admin-create-user:*)",
       "Bash(aws logs tail:*)",
       "Bash(cdk deploy:*)",
-      "Bash(aws dynamodb scan:*)"
+      "Bash(aws dynamodb scan:*)",
+      "Bash(aws secretsmanager get-secret-value:*)",
+      "Bash(aws lambda get-function-configuration:*)"
     ],
     "deny": [],
     "ask": []

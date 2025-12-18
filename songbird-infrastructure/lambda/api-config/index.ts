@@ -8,9 +8,37 @@
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+
+const secretsClient = new SecretsManagerClient({});
 
 const NOTEHUB_PROJECT_UID = process.env.NOTEHUB_PROJECT_UID!;
-const NOTEHUB_API_TOKEN = process.env.NOTEHUB_API_TOKEN!;
+const NOTEHUB_SECRET_ARN = process.env.NOTEHUB_SECRET_ARN!;
+
+// Cache the token to avoid fetching on every request
+let cachedToken: string | null = null;
+
+async function getNotehubToken(): Promise<string> {
+  if (cachedToken) {
+    return cachedToken;
+  }
+
+  const command = new GetSecretValueCommand({ SecretId: NOTEHUB_SECRET_ARN });
+  const response = await secretsClient.send(command);
+
+  if (!response.SecretString) {
+    throw new Error('Notehub API token not found in secret');
+  }
+
+  const secret = JSON.parse(response.SecretString);
+  cachedToken = secret.token;
+
+  if (!cachedToken) {
+    throw new Error('Token field not found in secret');
+  }
+
+  return cachedToken;
+}
 
 // Valid configuration keys and their types
 const CONFIG_SCHEMA: Record<string, { type: string; min?: number; max?: number; values?: string[] }> = {
@@ -89,12 +117,13 @@ async function getDeviceConfig(
 ): Promise<APIGatewayProxyResult> {
   try {
     // Get environment variables from Notehub
+    const notehubToken = await getNotehubToken();
     const response = await fetch(
       `https://api.notefile.net/v1/projects/${NOTEHUB_PROJECT_UID}/devices/${deviceUid}/environment_variables`,
       {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${NOTEHUB_API_TOKEN}`,
+          'Authorization': `Bearer ${notehubToken}`,
         },
       }
     );
@@ -158,12 +187,13 @@ async function updateDeviceConfig(
 
   try {
     // Update environment variables in Notehub
+    const notehubToken = await getNotehubToken();
     const response = await fetch(
       `https://api.notefile.net/v1/projects/${NOTEHUB_PROJECT_UID}/devices/${deviceUid}/environment_variables`,
       {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${NOTEHUB_API_TOKEN}`,
+          'Authorization': `Bearer ${notehubToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ environment_variables: stringifyValues(updates) }),
@@ -227,12 +257,13 @@ async function updateFleetConfig(
 
   try {
     // Update fleet environment variables in Notehub
+    const notehubToken = await getNotehubToken();
     const response = await fetch(
       `https://api.notefile.net/v1/projects/${NOTEHUB_PROJECT_UID}/fleets/${fleetUid}/environment_variables`,
       {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${NOTEHUB_API_TOKEN}`,
+          'Authorization': `Bearer ${notehubToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ environment_variables: stringifyValues(updates) }),
