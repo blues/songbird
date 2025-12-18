@@ -81,17 +81,19 @@ async function getTelemetryHistory(
 ): Promise<APIGatewayProxyResult> {
   const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
 
+  // Use the event-type-index GSI to efficiently query by data_type
+  // The sort key is formatted as {data_type}#{timestamp}
+  const cutoffKey = `telemetry#${cutoffTime}`;
+  const endKey = `telemetry#${Date.now() + 1000}`; // Slightly in future to include latest
+
   const command = new QueryCommand({
     TableName: TELEMETRY_TABLE,
-    KeyConditionExpression: 'device_uid = :device_uid AND #ts > :cutoff',
-    FilterExpression: 'data_type = :data_type',
-    ExpressionAttributeNames: {
-      '#ts': 'timestamp',
-    },
+    IndexName: 'event-type-index',
+    KeyConditionExpression: 'device_uid = :device_uid AND event_type_timestamp BETWEEN :start AND :end',
     ExpressionAttributeValues: {
       ':device_uid': deviceUid,
-      ':cutoff': cutoffTime,
-      ':data_type': 'telemetry',
+      ':start': cutoffKey,
+      ':end': endKey,
     },
     ScanIndexForward: false, // Newest first
     Limit: limit,
@@ -129,17 +131,19 @@ async function getLocationHistory(
 ): Promise<APIGatewayProxyResult> {
   const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
 
+  // Use the event-type-index GSI to efficiently query telemetry records
+  const cutoffKey = `telemetry#${cutoffTime}`;
+  const endKey = `telemetry#${Date.now() + 1000}`;
+
   const command = new QueryCommand({
     TableName: TELEMETRY_TABLE,
-    KeyConditionExpression: 'device_uid = :device_uid AND #ts > :cutoff',
-    FilterExpression: 'data_type = :data_type AND attribute_exists(latitude)',
-    ExpressionAttributeNames: {
-      '#ts': 'timestamp',
-    },
+    IndexName: 'event-type-index',
+    KeyConditionExpression: 'device_uid = :device_uid AND event_type_timestamp BETWEEN :start AND :end',
+    FilterExpression: 'attribute_exists(latitude)',
     ExpressionAttributeValues: {
       ':device_uid': deviceUid,
-      ':cutoff': cutoffTime,
-      ':data_type': 'telemetry',
+      ':start': cutoffKey,
+      ':end': endKey,
     },
     ScanIndexForward: false, // Newest first
     Limit: limit,
@@ -176,17 +180,18 @@ async function getPowerHistory(
 ): Promise<APIGatewayProxyResult> {
   const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
 
+  // Use the event-type-index GSI to efficiently query power records
+  const cutoffKey = `power#${cutoffTime}`;
+  const endKey = `power#${Date.now() + 1000}`;
+
   const command = new QueryCommand({
     TableName: TELEMETRY_TABLE,
-    KeyConditionExpression: 'device_uid = :device_uid AND #ts > :cutoff',
-    FilterExpression: 'data_type = :data_type',
-    ExpressionAttributeNames: {
-      '#ts': 'timestamp',
-    },
+    IndexName: 'event-type-index',
+    KeyConditionExpression: 'device_uid = :device_uid AND event_type_timestamp BETWEEN :start AND :end',
     ExpressionAttributeValues: {
       ':device_uid': deviceUid,
-      ':cutoff': cutoffTime,
-      ':data_type': 'power',
+      ':start': cutoffKey,
+      ':end': endKey,
     },
     ScanIndexForward: false, // Newest first
     Limit: limit,
@@ -221,40 +226,27 @@ async function getHealthHistory(
 ): Promise<APIGatewayProxyResult> {
   const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
 
-  // Health events are sparse, so we need to paginate to find them all
-  // since FilterExpression is applied after Limit
-  const healthItems: any[] = [];
-  let lastEvaluatedKey: Record<string, any> | undefined;
+  // Use the event-type-index GSI to efficiently query health records
+  const cutoffKey = `health#${cutoffTime}`;
+  const endKey = `health#${Date.now() + 1000}`;
 
-  do {
-    const command = new QueryCommand({
-      TableName: TELEMETRY_TABLE,
-      KeyConditionExpression: 'device_uid = :device_uid AND #ts > :cutoff',
-      FilterExpression: 'data_type = :data_type',
-      ExpressionAttributeNames: {
-        '#ts': 'timestamp',
-      },
-      ExpressionAttributeValues: {
-        ':device_uid': deviceUid,
-        ':cutoff': cutoffTime,
-        ':data_type': 'health',
-      },
-      ScanIndexForward: false, // Newest first
-      ExclusiveStartKey: lastEvaluatedKey,
-    });
+  const command = new QueryCommand({
+    TableName: TELEMETRY_TABLE,
+    IndexName: 'event-type-index',
+    KeyConditionExpression: 'device_uid = :device_uid AND event_type_timestamp BETWEEN :start AND :end',
+    ExpressionAttributeValues: {
+      ':device_uid': deviceUid,
+      ':start': cutoffKey,
+      ':end': endKey,
+    },
+    ScanIndexForward: false, // Newest first
+    Limit: limit,
+  });
 
-    const result = await docClient.send(command);
-    healthItems.push(...(result.Items || []));
-    lastEvaluatedKey = result.LastEvaluatedKey;
+  const result = await docClient.send(command);
 
-    // Stop if we have enough items
-    if (healthItems.length >= limit) {
-      break;
-    }
-  } while (lastEvaluatedKey);
-
-  // Transform to API response format (take only up to limit)
-  const health = healthItems.slice(0, limit).map((item) => ({
+  // Transform to API response format
+  const health = (result.Items || []).map((item) => ({
     time: new Date(item.timestamp).toISOString(),
     method: item.method,
     text: item.text,

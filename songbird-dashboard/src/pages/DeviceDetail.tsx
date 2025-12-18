@@ -223,6 +223,9 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                 </Tabs>
                 <Tabs value={String(timeRange)} onValueChange={(v) => setTimeRange(Number(v))}>
                   <TabsList>
+                    <TabsTrigger value="1">1h</TabsTrigger>
+                    <TabsTrigger value="4">4h</TabsTrigger>
+                    <TabsTrigger value="8">8h</TabsTrigger>
                     <TabsTrigger value="24">24h</TabsTrigger>
                     <TabsTrigger value="168">7d</TabsTrigger>
                     <TabsTrigger value="720">30d</TabsTrigger>

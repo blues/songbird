@@ -27,7 +27,13 @@
       "Bash(aws s3api get-bucket-website:*)",
       "Bash(aws s3api get-public-access-block:*)",
       "Bash(cdk diff:*)",
-      "Bash(cdk synth:*)"
+      "Bash(cdk synth:*)",
+      "Bash(node:*)",
+      "Bash(aws dynamodb query:*)",
+      "Bash(aws dynamodb describe-table:*)",
+      "Bash(aws lambda invoke:*)",
+      "Bash(cat:*)",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []
