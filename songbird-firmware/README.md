@@ -277,6 +277,7 @@ The device accepts commands via the `command.qi` notefile in the format `{"cmd":
 | `alert.qo` | Outbound | Alert notifications (threshold violations) |
 | `command_ack.qo` | Outbound | Command acknowledgments |
 | `health.qo` | Outbound | Device health/status reports |
+| `_log.qo` | Outbound | Mojo power monitoring (via Notecard) |
 | `command.qi` | Inbound | Cloud-to-device commands |
 
 ## Over-the-Air (OTA) Firmware Updates
@@ -378,3 +379,5 @@ If OTA update fails and the device is unresponsive:
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.
+
+Copyright (c) 2025 Blues Inc.

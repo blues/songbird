@@ -25,25 +25,33 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
                            ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                               NOTEHUB                                        │
-│         Routes events to AWS via HTTPS                                       │
+│                    Routes events to AWS via HTTP                             │
 └──────────────────────────────────────────────────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              AWS CLOUD                                      │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
-│  │  IoT Core   │─▶│   Lambda    │─▶│ Timestream  │◀─│ API Gateway │         │
-│  └─────────────┘  └─────────────┘  │  DynamoDB   │  └──────┬──────┘         │
-│                                    └─────────────┘         │                │
-│  ┌─────────────┐  ┌─────────────┐                          │                │
-│  │ CloudFront  │◀─│     S3      │                          │                │
-│  └──────┬──────┘  └─────────────┘                          │                │
-│         │                                                  │                │
-│         └──────────────────┬───────────────────────────────┘                │
-│                            │                                                │
-│                   ┌────────┴────────┐                                       │
-│                   │     Cognito     │                                       │
-│                   └─────────────────┘                                       │
+│                                                                             │
+│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐                    │
+│  │ API Gateway │────▶│   Lambda    │────▶│  DynamoDB   │                    │
+│  │  (Ingest)   │     │  (Ingest)   │     │  (Storage)  │                    │
+│  └─────────────┘     └──────┬──────┘     └──────┬──────┘                    │
+│                             │                   │                           │
+│                             ▼                   │                           │
+│                      ┌─────────────┐            │                           │
+│                      │     SNS     │            │                           │
+│                      │  (Alerts)   │            │                           │
+│                      └─────────────┘            │                           │
+│                                                 │                           │
+│  ┌─────────────┐     ┌─────────────┐     ┌──────┴──────┐                    │
+│  │ CloudFront  │────▶│     S3      │     │   Lambda    │                    │
+│  │   (CDN)     │     │ (Dashboard) │     │   (APIs)    │                    │
+│  └──────┬──────┘     └─────────────┘     └──────┬──────┘                    │
+│         │                                       │                           │
+│         │            ┌─────────────┐     ┌──────┴──────┐                    │
+│         └───────────▶│   Cognito   │◀────│ API Gateway │                    │
+│                      │   (Auth)    │     │ (HTTP API)  │                    │
+│                      └─────────────┘     └─────────────┘                    │
 └─────────────────────────────────────────────────────────────────────────────┘
                            │
                            ▼
@@ -197,6 +205,7 @@ See [songbird-dashboard/README.md](songbird-dashboard/README.md) for details.
 | `alert.qo` | Outbound | Alert notifications |
 | `command_ack.qo` | Outbound | Command acknowledgments |
 | `health.qo` | Outbound | Device health reports |
+| `_log.qo` | Outbound | Mojo power monitoring data |
 | `command.qi` | Inbound | Cloud-to-device commands |
 
 ## Demo Scenarios

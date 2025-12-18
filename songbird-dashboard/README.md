@@ -161,6 +161,7 @@ Individual device view includes:
 - Location trail map (24h history)
 - Real-time gauges (temperature, humidity, pressure, battery)
 - Historical telemetry charts (24h, 7d, 30d)
+- Power monitoring charts (Mojo voltage, temperature, mAh)
 - Command panel (ping, locate, play melody)
 - Configuration panel (mode, thresholds, audio settings)
 - Device information
@@ -183,10 +184,14 @@ The dashboard communicates with the Songbird API via:
 - `GET /v1/devices/{uid}/location` - Get location history
 - `GET /v1/devices/{uid}/config` - Get device config
 - `PUT /v1/devices/{uid}/config` - Update device config
+- `GET /v1/devices/{uid}/commands` - Get command history
 - `POST /v1/devices/{uid}/commands` - Send command
+- `GET /v1/devices/{uid}/power` - Get Mojo power monitoring history
 
 All API calls include the Cognito JWT token for authorization.
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.
+
+Copyright (c) 2025 Blues Inc.
