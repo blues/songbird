@@ -181,6 +181,34 @@ The firmware uses FreeRTOS with 6 tasks:
 | `storage` | Hourly sync, minimal power consumption |
 | `sleep` | Deep sleep with wake triggers |
 
+## Location Tracking
+
+Songbird supports multiple methods for determining device location:
+
+### GPS
+
+GPS is configured via `card.location.mode` based on the operating mode:
+
+| Mode | GPS Setting | Interval |
+|------|-------------|----------|
+| Demo | Off | - |
+| Transit | Periodic | Every 5 minutes |
+| Storage | Periodic | Every hour |
+| Sleep | Off | - |
+
+### Cell Tower & Wi-Fi Triangulation
+
+Songbird automatically enables cell tower and Wi-Fi triangulation via `card.triangulate`. This provides location data when GPS is disabled or unavailable, with the following benefits:
+
+- **Faster location acquisition**: Triangulation returns results in seconds vs minutes for GPS
+- **Indoor location**: Works where GPS signals don't penetrate
+- **Lower power consumption**: Wi-Fi scanning uses less power than GPS
+- **Demo mode location**: Provides location even when GPS is off
+
+Triangulation uses the Cell+WiFi Notecard's ability to scan nearby cell towers and Wi-Fi access points. Notehub processes this data to calculate an approximate location (typically 50-200m accuracy vs 5-10m for GPS).
+
+The location source (GPS, cell, wifi, triangulation) is included with each location data point so the dashboard can indicate the accuracy level.
+
 ## Blues Mojo Power Monitor
 
 [Blues Mojo](https://dev.blues.io/quickstart/mojo-quickstart/) is an optional power monitoring accessory that provides detailed battery telemetry including voltage, current draw, and cumulative energy consumption (mAh).

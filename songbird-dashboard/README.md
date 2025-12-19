@@ -162,7 +162,7 @@ The main dashboard shows:
 ### Device Detail
 
 Individual device view includes:
-- Location trail map (24h history)
+- Location trail map (24h history) with location source indicator (GPS/Cell/Wi-Fi/Triangulated)
 - Real-time gauges (temperature, humidity, pressure, battery)
 - Historical telemetry charts (24h, 7d, 30d)
 - Power monitoring charts (Mojo voltage, temperature, mAh)

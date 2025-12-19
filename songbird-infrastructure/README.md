@@ -190,10 +190,13 @@ Create an HTTP route in Notehub to send events to the API Gateway ingest endpoin
    - `command_ack.qo` - Command acknowledgments
    - `health.qo` - Device health
    - `_log.qo` - Mojo power monitoring data
+   - `_geolocate.qo` - Triangulation location data
 5. Under **Data**, leave as **All Data** (no JSONata transform needed - the Lambda handles the Notehub event format directly)
 6. Click **Create Route**
 
 **Note**: The `_log.qo` Notefile contains Mojo power monitoring data (voltage, temperature, milliamp_hours) when enabled via the `_log` environment variable set to `power`.
+
+**Note**: The `_geolocate.qo` Notefile contains cell tower and Wi-Fi triangulation results when triangulation is enabled via `card.triangulate`. This provides location data even when GPS is disabled.
 
 **Testing the Route**: After creating the route, you can test it by clicking the route and selecting **Test Route**. Send a sample event and verify it returns a 200 status.
 

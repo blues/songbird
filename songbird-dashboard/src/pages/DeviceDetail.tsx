@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, Zap, AlertTriangle, Check, Clock, Activity } from 'lucide-react';
+import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, Zap, AlertTriangle, Check, Clock, Activity, MapPin, Satellite, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +22,7 @@ import {
   formatRelativeTime,
   truncateDeviceUid,
 } from '@/utils/formatters';
-import type { Alert, HealthPoint } from '@/types';
+import type { Alert, HealthPoint, LocationSource } from '@/types';
 
 const alertTypeLabels: Record<string, string> = {
   temp_high: 'High Temperature',
@@ -45,6 +45,23 @@ const healthMethodLabels: Record<string, string> = {
   connected: 'Connected',
   disconnected: 'Disconnected',
 };
+
+// Location source display configuration
+function getLocationSourceInfo(source?: LocationSource | string) {
+  switch (source) {
+    case 'gps':
+      return { label: 'GPS', icon: Satellite, color: 'text-green-600', bgColor: 'bg-green-100' };
+    case 'cell':
+    case 'tower':
+      return { label: 'Cell Tower', icon: Radio, color: 'text-blue-600', bgColor: 'bg-blue-100' };
+    case 'wifi':
+      return { label: 'Wi-Fi', icon: Radio, color: 'text-purple-600', bgColor: 'bg-purple-100' };
+    case 'triangulation':
+      return { label: 'Triangulated', icon: Radio, color: 'text-orange-600', bgColor: 'bg-orange-100' };
+    default:
+      return { label: 'Unknown', icon: MapPin, color: 'text-gray-600', bgColor: 'bg-gray-100' };
+  }
+}
 
 interface DeviceDetailProps {
   mapboxToken: string;
@@ -135,8 +152,20 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
         <div className={showConfig ? 'lg:col-span-2' : 'lg:col-span-3'}>
           {/* Location Map */}
           <Card className="mb-6">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Location Trail ({timeRange}h)</CardTitle>
+              {device.location_source && (
+                (() => {
+                  const sourceInfo = getLocationSourceInfo(device.location_source);
+                  const SourceIcon = sourceInfo.icon;
+                  return (
+                    <Badge variant="outline" className={`gap-1 ${sourceInfo.bgColor} border-0`}>
+                      <SourceIcon className={`h-3 w-3 ${sourceInfo.color}`} />
+                      <span className={sourceInfo.color}>{sourceInfo.label}</span>
+                    </Badge>
+                  );
+                })()
+              )}
             </CardHeader>
             <CardContent className="p-0">
               <LocationTrail

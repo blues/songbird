@@ -76,6 +76,14 @@ interface NotehubEvent {
   tower_lat?: number;
   tower_lon?: number;
   tower_when?: number;
+  // Triangulation fields (from _geolocate.qo or enriched events)
+  tri_when?: number;
+  tri_lat?: number;
+  tri_lon?: number;
+  tri_location?: string;
+  tri_country?: string;
+  tri_timezone?: string;
+  tri_points?: number;  // Number of reference points used for triangulation
   fleets?: string[];
 }
 
@@ -102,6 +110,9 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Use 'when' if available, otherwise fall back to 'received' (as integer seconds)
     const eventTimestamp = notehubEvent.when || Math.floor(notehubEvent.received);
 
+    // Extract location - prefer GPS (best_lat/best_lon), fall back to triangulation
+    const location = extractLocation(notehubEvent);
+
     const songbirdEvent = {
       device_uid: notehubEvent.device,
       serial_number: notehubEvent.sn,
@@ -110,12 +121,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       timestamp: eventTimestamp,
       received: notehubEvent.received,
       body: notehubEvent.body || {},
-      location: notehubEvent.best_lat !== undefined ? {
-        lat: notehubEvent.best_lat,
-        lon: notehubEvent.best_lon,
-        time: notehubEvent.best_location_when,
-        source: notehubEvent.best_location_type,
-      } : undefined,
+      location,
     };
 
     // Write telemetry to DynamoDB (for track.qo events)
@@ -131,6 +137,12 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Write health events to DynamoDB (_health.qo)
     if (songbirdEvent.event_type === '_health.qo') {
       await writeHealthEvent(songbirdEvent);
+    }
+
+    // Handle triangulation results (_geolocate.qo)
+    // This updates device location when triangulation data arrives
+    if (songbirdEvent.event_type === '_geolocate.qo') {
+      console.log(`Processing triangulation event for ${songbirdEvent.device_uid}`);
     }
 
     // Update device metadata in DynamoDB
@@ -163,6 +175,43 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     };
   }
 };
+
+/**
+ * Extract location from Notehub event, preferring GPS but falling back to triangulation
+ */
+function extractLocation(event: NotehubEvent): { lat: number; lon: number; time?: number; source: string } | undefined {
+  // Prefer GPS location (best_lat/best_lon with type 'gps')
+  if (event.best_lat !== undefined && event.best_lon !== undefined) {
+    return {
+      lat: event.best_lat,
+      lon: event.best_lon,
+      time: event.best_location_when,
+      source: event.best_location_type || 'gps',
+    };
+  }
+
+  // Fall back to triangulation data
+  if (event.tri_lat !== undefined && event.tri_lon !== undefined) {
+    return {
+      lat: event.tri_lat,
+      lon: event.tri_lon,
+      time: event.tri_when,
+      source: 'triangulation',
+    };
+  }
+
+  // Fall back to tower location
+  if (event.tower_lat !== undefined && event.tower_lon !== undefined) {
+    return {
+      lat: event.tower_lat,
+      lon: event.tower_lon,
+      time: event.tower_when,
+      source: 'tower',
+    };
+  }
+
+  return undefined;
+}
 
 interface SongbirdEvent {
   device_uid: string;

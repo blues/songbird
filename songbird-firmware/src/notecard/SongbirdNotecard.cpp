@@ -178,6 +178,15 @@ bool notecardConfigure(OperatingMode mode) {
         // Continue anyway
     }
 
+    // Enable cell tower and Wi-Fi triangulation for location
+    // This provides location even when GPS is off (demo mode) or unavailable
+    if (!notecardConfigureTriangulation()) {
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.println("[Notecard] Warning: Triangulation setup failed");
+        #endif
+        // Continue anyway - triangulation is optional but improves location coverage
+    }
+
     return true;
 }
 
@@ -753,6 +762,42 @@ bool notecardConfigureGPS(OperatingMode mode) {
     }
 
     s_notecard.deleteResponse(rsp);
+    return true;
+}
+
+bool notecardConfigureTriangulation(void) {
+    if (!s_initialized) {
+        return false;
+    }
+
+    // Enable cell tower and Wi-Fi triangulation for location
+    // This provides location data when GPS is off or unavailable
+    J* req = s_notecard.newRequest("card.triangulate");
+
+    // Enable both wifi and cell triangulation (Cell+WiFi Notecard)
+    JAddStringToObject(req, "mode", "wifi,cell");
+
+    // Always triangulate regardless of motion state
+    // This ensures we get location even when device is stationary
+    JAddBoolToObject(req, "set", true);
+    JAddBoolToObject(req, "on", true);
+
+    J* rsp = s_notecard.requestAndResponse(req);
+    if (rsp == NULL || s_notecard.responseError(rsp)) {
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.println("[Notecard] card.triangulate failed");
+        #endif
+        if (rsp) s_notecard.deleteResponse(rsp);
+        NC_ERROR();
+        return false;
+    }
+
+    s_notecard.deleteResponse(rsp);
+
+    #ifdef DEBUG_MODE
+    DEBUG_SERIAL.println("[Notecard] Triangulation enabled (wifi,cell)");
+    #endif
+
     return true;
 }
 

@@ -224,6 +224,22 @@ bool notecardGetSerial(char* buffer, size_t bufferSize);
 bool notecardConfigureGPS(OperatingMode mode);
 
 /**
+ * @brief Configure cell tower and Wi-Fi triangulation
+ *
+ * Enables location triangulation using cell towers and Wi-Fi access points.
+ * This provides location data when GPS is disabled or unavailable,
+ * with lower power consumption and faster time-to-fix than GPS.
+ *
+ * On Cell+WiFi Notecards, both wifi and cell triangulation are enabled.
+ * Triangulation data is processed by Notehub and included in event metadata.
+ *
+ * Caller must hold I2C mutex.
+ *
+ * @return true if configured successfully
+ */
+bool notecardConfigureTriangulation(void);
+
+/**
  * @brief Get current GPS status
  *
  * Caller must hold I2C mutex.

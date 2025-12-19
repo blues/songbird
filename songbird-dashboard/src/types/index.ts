@@ -27,6 +27,9 @@ export type CommandType = 'ping' | 'locate' | 'play_melody' | 'test_audio' | 'se
 // Command status
 export type CommandStatus = 'queued' | 'sent' | 'ok' | 'error' | 'ignored';
 
+// Location source (how location was determined)
+export type LocationSource = 'gps' | 'cell' | 'wifi' | 'triangulation' | 'tower';
+
 /**
  * Device interface
  */
@@ -51,6 +54,7 @@ export interface Device {
   latitude?: number;
   longitude?: number;
   location_time?: string;
+  location_source?: LocationSource;
   // Configuration
   audio_enabled?: boolean;
   audio_volume?: number;
@@ -79,6 +83,7 @@ export interface LocationPoint {
   time: string;
   lat: number;
   lon: number;
+  source?: LocationSource;
 }
 
 /**
