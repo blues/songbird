@@ -140,13 +140,15 @@ async function getDeviceConfig(
     }
 
     const data = await response.json();
+    const rawConfig = data.environment_variables || {};
+    const parsedConfig = parseConfigValues(rawConfig);
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         device_uid: deviceUid,
-        config: data.environment_variables || {},
+        config: parsedConfig,
         schema: CONFIG_SCHEMA,
       }),
     };
@@ -306,8 +308,8 @@ function validateConfig(config: Record<string, any>): string[] {
   for (const [key, value] of Object.entries(config)) {
     const schema = CONFIG_SCHEMA[key];
 
+    // Skip unknown keys - they will be filtered out in stringifyValues
     if (!schema) {
-      errors.push(`Unknown configuration key: ${key}`);
       continue;
     }
 
@@ -346,7 +348,36 @@ function stringifyValues(config: Record<string, any>): Record<string, string> {
   const result: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(config)) {
-    result[key] = String(value);
+    // Only include keys that are in our schema
+    if (CONFIG_SCHEMA[key]) {
+      result[key] = String(value);
+    }
+  }
+
+  return result;
+}
+
+function parseConfigValues(config: Record<string, string>): Record<string, any> {
+  const result: Record<string, any> = {};
+
+  for (const [key, value] of Object.entries(config)) {
+    const schema = CONFIG_SCHEMA[key];
+
+    if (!schema) {
+      // Keep unknown keys as-is
+      result[key] = value;
+      continue;
+    }
+
+    // Parse based on expected type
+    if (schema.type === 'boolean') {
+      result[key] = value === 'true';
+    } else if (schema.type === 'number') {
+      const numValue = parseFloat(value);
+      result[key] = isNaN(numValue) ? value : numValue;
+    } else {
+      result[key] = value;
+    }
   }
 
   return result;
