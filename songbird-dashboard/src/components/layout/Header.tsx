@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, User, LogOut } from 'lucide-react';
+import { Bell, User, LogOut, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -8,6 +9,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ProfileDialog } from '@/components/profile/ProfileDialog';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 interface HeaderProps {
   user?: { username: string; email: string };
@@ -26,6 +37,12 @@ export function Header({
   onFleetChange,
   onSignOut,
 }: HeaderProps) {
+  const [profileOpen, setProfileOpen] = useState(false);
+  const { data: profile } = useUserProfile();
+
+  // Use display name from profile if set, otherwise fall back to username
+  const displayName = profile?.name || user?.username || '';
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center">
@@ -70,23 +87,46 @@ export function Header({
             </Button>
           </Link>
 
-          {/* User */}
+          {/* User Menu */}
           {user && (
             <div className="flex items-center gap-2 ml-2">
               <div className="hidden md:flex flex-col items-end">
-                <span className="text-sm font-medium">{user.username}</span>
+                <span className="text-sm font-medium">{displayName}</span>
                 <span className="text-xs text-muted-foreground">{user.email}</span>
               </div>
-              <Button variant="ghost" size="icon">
-                <User className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={onSignOut}>
-                <LogOut className="h-5 w-5" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <User className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>
+                    <div className="flex flex-col">
+                      <span>{displayName}</span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {user.email}
+                      </span>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setProfileOpen(true)}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Edit Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onSignOut}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
         </div>
       </div>
+
+      <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
     </header>
   );
 }

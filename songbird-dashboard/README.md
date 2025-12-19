@@ -10,6 +10,7 @@ React-based fleet management dashboard for the Songbird sales demo platform.
 - Remote device configuration
 - Cloud-to-device command sending
 - Cognito-based authentication
+- User profile management with editable display name
 
 ## Technology Stack
 
@@ -46,12 +47,14 @@ songbird-dashboard/
 │   │   ├── devices/          # Device cards and lists
 │   │   ├── layout/           # Header, sidebar, layout
 │   │   ├── maps/             # Fleet map, location trail
+│   │   ├── profile/          # User profile components
 │   │   └── ui/               # Base UI components (shadcn/ui)
 │   ├── hooks/                # React Query hooks
 │   │   ├── useCommands.ts
 │   │   ├── useConfig.ts
 │   │   ├── useDevices.ts
-│   │   └── useTelemetry.ts
+│   │   ├── useTelemetry.ts
+│   │   └── useUserProfile.ts
 │   ├── lib/                  # Utility libraries
 │   ├── pages/                # Page components
 │   │   ├── Commands.tsx
@@ -183,6 +186,16 @@ The dashboard uses AWS Cognito for authentication:
 - Users must sign in before accessing the dashboard
 - User pools are created by the infrastructure stack
 - Groups: Admin, Sales, FieldEngineering, Viewer
+
+### User Profile
+
+Users can customize their display name via the profile menu:
+
+1. Click the user icon in the header
+2. Select "Edit Profile" from the dropdown
+3. Enter a display name and save
+
+The display name is stored in the Cognito `name` attribute and shown in the header instead of the username/ID.
 
 ## API Integration
 
