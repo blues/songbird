@@ -161,7 +161,11 @@ export function CommandPanel({
                 <span className="text-yellow-500">⏳ {lastCommand.status}</span>
               )}
               {' • '}
-              {formatRelativeTime(lastCommand.created_at)}
+              {formatRelativeTime(
+                typeof lastCommand.created_at === 'number'
+                  ? new Date(lastCommand.created_at)
+                  : lastCommand.created_at
+              )}
             </p>
           </div>
         )}

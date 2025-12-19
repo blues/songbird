@@ -2,7 +2,7 @@
  * Commands API
  */
 
-import { apiGet, apiPost } from './client';
+import { apiGet, apiPost, apiDelete } from './client';
 import type { Command, CommandResponse, CommandType } from '@/types';
 
 interface CommandsResponse {
@@ -90,4 +90,14 @@ export async function sendSetVolume(
   volume: number
 ): Promise<CommandResponse> {
   return sendCommand(deviceUid, 'set_volume', { volume });
+}
+
+/**
+ * Delete a command from history
+ */
+export async function deleteCommand(
+  commandId: string,
+  deviceUid: string
+): Promise<{ message: string; command_id: string }> {
+  return apiDelete(`/v1/commands/${commandId}?device_uid=${encodeURIComponent(deviceUid)}`);
 }

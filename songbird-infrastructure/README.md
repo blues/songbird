@@ -245,8 +245,10 @@ Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com`
 | GET | `/v1/devices/{device_uid}/telemetry` | Get telemetry history |
 | GET | `/v1/devices/{device_uid}/location` | Get location history |
 | GET | `/v1/devices/{device_uid}/power` | Get Mojo power monitoring history |
-| GET | `/v1/devices/{device_uid}/commands` | Get command history |
+| GET | `/v1/devices/{device_uid}/commands` | Get command history for device |
 | POST | `/v1/devices/{device_uid}/commands` | Send command to device |
+| GET | `/v1/commands` | Get all commands across devices (optional `device_uid` query param) |
+| DELETE | `/v1/commands/{command_id}` | Delete a command (requires `device_uid` query param) |
 | GET | `/v1/devices/{device_uid}/config` | Get device configuration |
 | PUT | `/v1/devices/{device_uid}/config` | Update device configuration |
 | PUT | `/v1/fleets/{fleet_uid}/config` | Update fleet configuration |

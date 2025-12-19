@@ -54,6 +54,7 @@ songbird-dashboard/
 │   │   └── useTelemetry.ts
 │   ├── lib/                  # Utility libraries
 │   ├── pages/                # Page components
+│   │   ├── Commands.tsx
 │   │   ├── Dashboard.tsx
 │   │   └── DeviceDetail.tsx
 │   ├── types/                # TypeScript interfaces
@@ -166,6 +167,15 @@ Individual device view includes:
 - Configuration panel (mode, thresholds, audio settings)
 - Device information
 
+### Commands
+
+Fleet-wide command management:
+- Summary statistics (total, successful, pending, failed)
+- Send commands to individual or all devices
+- Command history table with status badges
+- Filter commands by device
+- Delete old commands from history
+
 ## Authentication
 
 The dashboard uses AWS Cognito for authentication:
@@ -182,11 +192,13 @@ The dashboard communicates with the Songbird API via:
 - `GET /v1/devices/{uid}` - Get device details
 - `GET /v1/devices/{uid}/telemetry` - Get telemetry history
 - `GET /v1/devices/{uid}/location` - Get location history
+- `GET /v1/devices/{uid}/power` - Get Mojo power monitoring history
 - `GET /v1/devices/{uid}/config` - Get device config
 - `PUT /v1/devices/{uid}/config` - Update device config
-- `GET /v1/devices/{uid}/commands` - Get command history
-- `POST /v1/devices/{uid}/commands` - Send command
-- `GET /v1/devices/{uid}/power` - Get Mojo power monitoring history
+- `GET /v1/devices/{uid}/commands` - Get command history for device
+- `POST /v1/devices/{uid}/commands` - Send command to device
+- `GET /v1/commands` - Get all commands across devices
+- `DELETE /v1/commands/{command_id}` - Delete a command
 
 All API calls include the Cognito JWT token for authorization.
 

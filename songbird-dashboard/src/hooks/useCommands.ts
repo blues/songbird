@@ -11,6 +11,7 @@ import {
   sendPlayMelody,
   sendTestAudio,
   sendSetVolume,
+  deleteCommand,
 } from '@/api/commands';
 
 /**
@@ -117,6 +118,22 @@ export function useSendSetVolume() {
   return useMutation({
     mutationFn: ({ deviceUid, volume }: { deviceUid: string; volume: number }) =>
       sendSetVolume(deviceUid, volume),
+    onSuccess: (_, { deviceUid }) => {
+      queryClient.invalidateQueries({ queryKey: ['commands', deviceUid] });
+      queryClient.invalidateQueries({ queryKey: ['allCommands'] });
+    },
+  });
+}
+
+/**
+ * Hook to delete a command
+ */
+export function useDeleteCommand() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ commandId, deviceUid }: { commandId: string; deviceUid: string }) =>
+      deleteCommand(commandId, deviceUid),
     onSuccess: (_, { deviceUid }) => {
       queryClient.invalidateQueries({ queryKey: ['commands', deviceUid] });
       queryClient.invalidateQueries({ queryKey: ['allCommands'] });

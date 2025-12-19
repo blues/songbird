@@ -315,6 +315,14 @@ export class ApiConstruct extends Construct {
       authorizer,
     });
 
+    // Delete command endpoint
+    this.api.addRoutes({
+      path: '/v1/commands/{command_id}',
+      methods: [apigateway.HttpMethod.DELETE],
+      integration: commandsIntegration,
+      authorizer,
+    });
+
     // Device-specific commands
     this.api.addRoutes({
       path: '/v1/devices/{device_uid}/commands',

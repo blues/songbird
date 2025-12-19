@@ -11,6 +11,7 @@ import {
   Bell,
   MapPin,
   Music,
+  Trash2,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,7 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useAllCommands, useSendPing, useSendLocate, useSendPlayMelody } from '@/hooks/useCommands';
+import { useAllCommands, useSendPing, useSendLocate, useSendPlayMelody, useDeleteCommand } from '@/hooks/useCommands';
 import { useDevices } from '@/hooks/useDevices';
 import { formatRelativeTime } from '@/utils/formatters';
 import type { Command, CommandStatus, CommandType, Device } from '@/types';
@@ -97,9 +98,11 @@ interface CommandRowProps {
   command: Command;
   deviceName?: string;
   onDeviceClick: (deviceUid: string) => void;
+  onDelete: (commandId: string, deviceUid: string) => void;
+  isDeleting: boolean;
 }
 
-function CommandRow({ command, deviceName, onDeviceClick }: CommandRowProps) {
+function CommandRow({ command, deviceName, onDeviceClick, onDelete, isDeleting }: CommandRowProps) {
   return (
     <TableRow>
       <TableCell>
@@ -129,6 +132,17 @@ function CommandRow({ command, deviceName, onDeviceClick }: CommandRowProps) {
             : command.created_at
         )}
       </TableCell>
+      <TableCell>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onDelete(command.command_id, command.device_uid)}
+          disabled={isDeleting}
+          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </TableCell>
     </TableRow>
   );
 }
@@ -155,9 +169,14 @@ export function Commands() {
   const pingMutation = useSendPing();
   const locateMutation = useSendLocate();
   const melodyMutation = useSendPlayMelody();
+  const deleteMutation = useDeleteCommand();
 
   const devices = devicesData?.devices || [];
   const commands = commandsData?.commands || [];
+
+  const handleDeleteCommand = (commandId: string, deviceUid: string) => {
+    deleteMutation.mutate({ commandId, deviceUid });
+  };
 
   // Create a map for device names
   const deviceNameMap = new Map<string, string>();
@@ -390,6 +409,7 @@ export function Commands() {
                   <TableHead>Status</TableHead>
                   <TableHead>Message</TableHead>
                   <TableHead>Time</TableHead>
+                  <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -399,6 +419,8 @@ export function Commands() {
                     command={command}
                     deviceName={deviceNameMap.get(command.device_uid)}
                     onDeviceClick={handleDeviceClick}
+                    onDelete={handleDeleteCommand}
+                    isDeleting={deleteMutation.isPending}
                   />
                 ))}
               </TableBody>

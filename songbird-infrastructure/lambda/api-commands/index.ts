@@ -3,6 +3,7 @@
  *
  * Sends commands to devices via Notehub API:
  * - GET /v1/commands - Get all commands across devices
+ * - DELETE /v1/commands/{command_id} - Delete a command
  * - POST /devices/{device_uid}/commands - Send command to device
  * - GET /devices/{device_uid}/commands - Get command history for a device
  */
@@ -13,6 +14,8 @@ import {
   PutCommand,
   QueryCommand,
   ScanCommand,
+  DeleteCommand,
+  GetCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
@@ -60,7 +63,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
   };
 
   try {
@@ -76,6 +79,20 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     if (path === '/v1/commands' && method === 'GET') {
       const deviceUid = event.queryStringParameters?.device_uid;
       return await getAllCommands(deviceUid, corsHeaders);
+    }
+
+    // Handle DELETE /v1/commands/{command_id}
+    const commandId = event.pathParameters?.command_id;
+    if (commandId && method === 'DELETE') {
+      const deviceUid = event.queryStringParameters?.device_uid;
+      if (!deviceUid) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: 'device_uid query parameter required' }),
+        };
+      }
+      return await deleteCommand(deviceUid, commandId, corsHeaders);
     }
 
     // Handle device-specific commands endpoints
@@ -308,6 +325,50 @@ async function getAllCommands(
     body: JSON.stringify({
       commands: sortedCommands,
       total: sortedCommands.length,
+    }),
+  };
+}
+
+async function deleteCommand(
+  deviceUid: string,
+  commandId: string,
+  headers: Record<string, string>
+): Promise<APIGatewayProxyResult> {
+  // First verify the command exists
+  const getCmd = new GetCommand({
+    TableName: COMMANDS_TABLE,
+    Key: {
+      device_uid: deviceUid,
+      command_id: commandId,
+    },
+  });
+
+  const existing = await docClient.send(getCmd);
+  if (!existing.Item) {
+    return {
+      statusCode: 404,
+      headers,
+      body: JSON.stringify({ error: 'Command not found' }),
+    };
+  }
+
+  // Delete the command
+  const deleteCmd = new DeleteCommand({
+    TableName: COMMANDS_TABLE,
+    Key: {
+      device_uid: deviceUid,
+      command_id: commandId,
+    },
+  });
+
+  await docClient.send(deleteCmd);
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      message: 'Command deleted',
+      command_id: commandId,
     }),
   };
 }
