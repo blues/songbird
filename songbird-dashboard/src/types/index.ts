@@ -45,6 +45,7 @@ export interface Device {
   mode: OperatingMode;
   firmware_version?: string;
   notecard_version?: string;
+  notecard_sku?: string;
   // Latest telemetry
   temperature?: number;
   humidity?: number;

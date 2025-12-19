@@ -264,6 +264,17 @@ function transformDevice(item: any): any {
     device.milliamp_hours = item.last_power.milliamp_hours;
   }
 
+  // Firmware versions (from _session.qo events)
+  if (item.firmware_version) {
+    device.firmware_version = item.firmware_version;
+  }
+  if (item.notecard_version) {
+    device.notecard_version = item.notecard_version;
+  }
+  if (item.notecard_sku) {
+    device.notecard_sku = item.notecard_sku;
+  }
+
   return device;
 }
 

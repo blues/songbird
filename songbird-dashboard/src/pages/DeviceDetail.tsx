@@ -457,7 +457,10 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Notecard</dt>
-                  <dd>{device.notecard_version || '--'}</dd>
+                  <dd>
+                    {device.notecard_version || '--'}
+                    {device.notecard_sku && <span className="text-muted-foreground ml-1">({device.notecard_sku})</span>}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Battery</dt>

@@ -85,6 +85,10 @@ interface NotehubEvent {
   tri_timezone?: string;
   tri_points?: number;  // Number of reference points used for triangulation
   fleets?: string[];
+  // Session fields (_session.qo)
+  firmware_host?: string;     // JSON string with host firmware info
+  firmware_notecard?: string; // JSON string with Notecard firmware info
+  sku?: string;               // Notecard SKU (e.g., "NOTE-WBGLW")
 }
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -113,6 +117,9 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Extract location - prefer GPS (best_lat/best_lon), fall back to triangulation
     const location = extractLocation(notehubEvent);
 
+    // Extract session info (firmware versions, SKU) from _session.qo events
+    const sessionInfo = extractSessionInfo(notehubEvent);
+
     const songbirdEvent = {
       device_uid: notehubEvent.device,
       serial_number: notehubEvent.sn,
@@ -122,6 +129,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       received: notehubEvent.received,
       body: notehubEvent.body || {},
       location,
+      session: sessionInfo,
     };
 
     // Write telemetry to DynamoDB (for track.qo events)
@@ -176,6 +184,51 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   }
 };
 
+interface SessionInfo {
+  firmware_version?: string;
+  notecard_version?: string;
+  notecard_sku?: string;
+}
+
+/**
+ * Extract session info (firmware versions, SKU) from Notehub event
+ * This info is available in _session.qo events
+ */
+function extractSessionInfo(event: NotehubEvent): SessionInfo | undefined {
+  if (!event.firmware_host && !event.firmware_notecard && !event.sku) {
+    return undefined;
+  }
+
+  const sessionInfo: SessionInfo = {};
+
+  // Parse host firmware version
+  if (event.firmware_host) {
+    try {
+      const hostFirmware = JSON.parse(event.firmware_host);
+      sessionInfo.firmware_version = hostFirmware.version;
+    } catch (e) {
+      console.error('Failed to parse firmware_host:', e);
+    }
+  }
+
+  // Parse Notecard firmware version
+  if (event.firmware_notecard) {
+    try {
+      const notecardFirmware = JSON.parse(event.firmware_notecard);
+      sessionInfo.notecard_version = notecardFirmware.version;
+    } catch (e) {
+      console.error('Failed to parse firmware_notecard:', e);
+    }
+  }
+
+  // SKU
+  if (event.sku) {
+    sessionInfo.notecard_sku = event.sku;
+  }
+
+  return Object.keys(sessionInfo).length > 0 ? sessionInfo : undefined;
+}
+
 /**
  * Extract location from Notehub event, preferring GPS but falling back to triangulation
  */
@@ -220,6 +273,7 @@ interface SongbirdEvent {
   event_type: string;
   timestamp: number;
   received: number;
+  session?: SessionInfo;
   body: {
     temp?: number;
     humidity?: number;
@@ -451,6 +505,25 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
       milliamp_hours: event.body.milliamp_hours,
       timestamp: event.timestamp,
     };
+  }
+
+  // Update firmware versions from _session.qo events
+  if (event.session?.firmware_version) {
+    updateExpressions.push('#fw_version = :fw_version');
+    expressionAttributeNames['#fw_version'] = 'firmware_version';
+    expressionAttributeValues[':fw_version'] = event.session.firmware_version;
+  }
+
+  if (event.session?.notecard_version) {
+    updateExpressions.push('#nc_version = :nc_version');
+    expressionAttributeNames['#nc_version'] = 'notecard_version';
+    expressionAttributeValues[':nc_version'] = event.session.notecard_version;
+  }
+
+  if (event.session?.notecard_sku) {
+    updateExpressions.push('#nc_sku = :nc_sku');
+    expressionAttributeNames['#nc_sku'] = 'notecard_sku';
+    expressionAttributeValues[':nc_sku'] = event.session.notecard_sku;
   }
 
   updateExpressions.push('#created_at = if_not_exists(#created_at, :created_at)');
