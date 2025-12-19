@@ -134,7 +134,7 @@ export interface Command {
   cmd: CommandType;
   params?: Record<string, unknown>;
   status: CommandStatus;
-  created_at: string;
+  created_at: string | number;
   sent_at?: string;
   acknowledged_at?: string;
   ack_status?: 'ok' | 'error' | 'ignored';

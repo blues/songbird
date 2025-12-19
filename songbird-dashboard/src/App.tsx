@@ -9,6 +9,7 @@ import { Layout } from '@/components/layout/Layout';
 import { Dashboard } from '@/pages/Dashboard';
 import { DeviceDetail } from '@/pages/DeviceDetail';
 import { Alerts } from '@/pages/Alerts';
+import { Commands } from '@/pages/Commands';
 import { initializeApi } from '@/api/client';
 import { useActiveAlerts } from '@/hooks/useAlerts';
 
@@ -166,6 +167,10 @@ function App() {
                 <Route
                   path="/alerts"
                   element={<Alerts />}
+                />
+                <Route
+                  path="/commands"
+                  element={<Commands />}
                 />
                 <Route
                   path="/settings"

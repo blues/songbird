@@ -2,8 +2,9 @@
  * Commands API Lambda
  *
  * Sends commands to devices via Notehub API:
+ * - GET /v1/commands - Get all commands across devices
  * - POST /devices/{device_uid}/commands - Send command to device
- * - GET /devices/{device_uid}/commands - Get command history
+ * - GET /devices/{device_uid}/commands - Get command history for a device
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -11,6 +12,7 @@ import {
   DynamoDBDocumentClient,
   PutCommand,
   QueryCommand,
+  ScanCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
@@ -64,11 +66,19 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   try {
     // HTTP API v2 uses requestContext.http.method, REST API v1 uses httpMethod
     const method = (event.requestContext as any)?.http?.method || event.httpMethod;
+    const path = (event.requestContext as any)?.http?.path || event.path;
 
     if (method === 'OPTIONS') {
       return { statusCode: 200, headers: corsHeaders, body: '' };
     }
 
+    // Handle /v1/commands endpoint (all commands across devices)
+    if (path === '/v1/commands' && method === 'GET') {
+      const deviceUid = event.queryStringParameters?.device_uid;
+      return await getAllCommands(deviceUid, corsHeaders);
+    }
+
+    // Handle device-specific commands endpoints
     const deviceUid = event.pathParameters?.device_uid;
     if (!deviceUid) {
       return {
@@ -245,6 +255,59 @@ async function getCommandHistory(
     body: JSON.stringify({
       device_uid: deviceUid,
       commands: result.Items || [],
+    }),
+  };
+}
+
+async function getAllCommands(
+  deviceUid: string | undefined,
+  headers: Record<string, string>
+): Promise<APIGatewayProxyResult> {
+  // If device_uid is provided, use the existing query
+  if (deviceUid) {
+    const command = new QueryCommand({
+      TableName: COMMANDS_TABLE,
+      IndexName: 'device-created-index',
+      KeyConditionExpression: 'device_uid = :device_uid',
+      ExpressionAttributeValues: {
+        ':device_uid': deviceUid,
+      },
+      ScanIndexForward: false,
+      Limit: 100,
+    });
+
+    const result = await docClient.send(command);
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        commands: result.Items || [],
+        total: result.Items?.length || 0,
+      }),
+    };
+  }
+
+  // Otherwise, scan for all commands (limited to 100 most recent)
+  const command = new ScanCommand({
+    TableName: COMMANDS_TABLE,
+    Limit: 200, // Fetch more to allow sorting
+  });
+
+  const result = await docClient.send(command);
+
+  // Sort by created_at descending and take the first 100
+  const sortedCommands = (result.Items || [])
+    .sort((a: Record<string, unknown>, b: Record<string, unknown>) =>
+      ((b.created_at as number) || 0) - ((a.created_at as number) || 0))
+    .slice(0, 100);
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      commands: sortedCommands,
+      total: sortedCommands.length,
     }),
   };
 }

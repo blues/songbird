@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Settings,
   Map,
+  Terminal,
 } from 'lucide-react';
 
 const navItems = [
@@ -13,6 +14,7 @@ const navItems = [
   { to: '/devices', icon: Cpu, label: 'Devices' },
   { to: '/map', icon: Map, label: 'Fleet Map' },
   { to: '/alerts', icon: AlertTriangle, label: 'Alerts' },
+  { to: '/commands', icon: Terminal, label: 'Commands' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 

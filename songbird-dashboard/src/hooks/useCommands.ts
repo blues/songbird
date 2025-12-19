@@ -4,6 +4,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+  getAllCommands,
   getCommands,
   sendPing,
   sendLocate,
@@ -13,7 +14,19 @@ import {
 } from '@/api/commands';
 
 /**
- * Hook to fetch command history
+ * Hook to fetch all commands across devices (optionally filtered by device)
+ */
+export function useAllCommands(deviceUid?: string) {
+  return useQuery({
+    queryKey: ['allCommands', deviceUid],
+    queryFn: () => getAllCommands(deviceUid),
+    refetchInterval: 10_000, // Poll frequently for command updates
+    staleTime: 5_000,
+  });
+}
+
+/**
+ * Hook to fetch command history for a specific device
  */
 export function useCommands(deviceUid: string) {
   return useQuery({
@@ -35,6 +48,7 @@ export function useSendPing() {
     mutationFn: (deviceUid: string) => sendPing(deviceUid),
     onSuccess: (_, deviceUid) => {
       queryClient.invalidateQueries({ queryKey: ['commands', deviceUid] });
+      queryClient.invalidateQueries({ queryKey: ['allCommands'] });
     },
   });
 }
@@ -50,6 +64,7 @@ export function useSendLocate() {
       sendLocate(deviceUid, durationSec),
     onSuccess: (_, { deviceUid }) => {
       queryClient.invalidateQueries({ queryKey: ['commands', deviceUid] });
+      queryClient.invalidateQueries({ queryKey: ['allCommands'] });
     },
   });
 }
@@ -65,6 +80,7 @@ export function useSendPlayMelody() {
       sendPlayMelody(deviceUid, melody),
     onSuccess: (_, { deviceUid }) => {
       queryClient.invalidateQueries({ queryKey: ['commands', deviceUid] });
+      queryClient.invalidateQueries({ queryKey: ['allCommands'] });
     },
   });
 }
@@ -87,6 +103,7 @@ export function useSendTestAudio() {
     }) => sendTestAudio(deviceUid, frequency, durationMs),
     onSuccess: (_, { deviceUid }) => {
       queryClient.invalidateQueries({ queryKey: ['commands', deviceUid] });
+      queryClient.invalidateQueries({ queryKey: ['allCommands'] });
     },
   });
 }
@@ -102,6 +119,7 @@ export function useSendSetVolume() {
       sendSetVolume(deviceUid, volume),
     onSuccess: (_, { deviceUid }) => {
       queryClient.invalidateQueries({ queryKey: ['commands', deviceUid] });
+      queryClient.invalidateQueries({ queryKey: ['allCommands'] });
     },
   });
 }

@@ -10,6 +10,19 @@ interface CommandsResponse {
   commands: Command[];
 }
 
+interface AllCommandsResponse {
+  commands: Command[];
+  total: number;
+}
+
+/**
+ * Get all commands across all devices (optionally filtered by device)
+ */
+export async function getAllCommands(deviceUid?: string): Promise<AllCommandsResponse> {
+  const params = deviceUid ? { device_uid: deviceUid } : undefined;
+  return apiGet<AllCommandsResponse>('/v1/commands', params);
+}
+
 /**
  * Get command history for a device
  */

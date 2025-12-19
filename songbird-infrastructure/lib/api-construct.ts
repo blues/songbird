@@ -307,6 +307,15 @@ export class ApiConstruct extends Construct {
       commandsFunction
     );
 
+    // All commands endpoint (fleet-wide)
+    this.api.addRoutes({
+      path: '/v1/commands',
+      methods: [apigateway.HttpMethod.GET],
+      integration: commandsIntegration,
+      authorizer,
+    });
+
+    // Device-specific commands
     this.api.addRoutes({
       path: '/v1/devices/{device_uid}/commands',
       methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
