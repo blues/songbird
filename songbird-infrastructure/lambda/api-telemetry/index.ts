@@ -158,6 +158,7 @@ async function getLocationHistory(
       time: new Date(item.timestamp).toISOString(),
       lat: item.latitude,
       lon: item.longitude,
+      source: item.location_source,
     }));
 
   return {

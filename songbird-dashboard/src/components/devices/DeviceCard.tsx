@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Thermometer, Droplets, Gauge, Battery, MapPin, AlertTriangle } from 'lucide-react';
+import { Thermometer, Droplets, Gauge, Battery, MapPin, AlertTriangle, Satellite, Radio } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { DeviceStatus } from './DeviceStatus';
@@ -10,7 +10,25 @@ import {
   formatMode,
   formatRelativeTime,
 } from '@/utils/formatters';
-import type { Device } from '@/types';
+import type { Device, LocationSource } from '@/types';
+
+// Location source display configuration
+function getLocationSourceInfo(source?: LocationSource | string) {
+  switch (source) {
+    case 'gps':
+      return { label: 'GPS', icon: Satellite, color: 'text-green-600' };
+    case 'cell':
+    case 'tower':
+      return { label: 'Cell', icon: Radio, color: 'text-blue-600' };
+    case 'wifi':
+      return { label: 'Wi-Fi', icon: Radio, color: 'text-purple-600' };
+    case 'triangulation':
+    case 'triangulated':
+      return { label: 'Tri', icon: Radio, color: 'text-orange-600' };
+    default:
+      return null;
+  }
+}
 
 interface DeviceCardProps {
   device: Device;
@@ -88,12 +106,25 @@ export function DeviceCard({ device, alertCount = 0 }: DeviceCardProps) {
 
           {/* Location & Last seen */}
           <div className="mt-4 pt-4 border-t flex items-center justify-between text-sm text-muted-foreground">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <MapPin className="h-3 w-3" />
               {device.latitude && device.longitude ? (
-                <span>
-                  {device.latitude.toFixed(3)}, {device.longitude.toFixed(3)}
-                </span>
+                <>
+                  <span>
+                    {device.latitude.toFixed(3)}, {device.longitude.toFixed(3)}
+                  </span>
+                  {(() => {
+                    const sourceInfo = getLocationSourceInfo(device.location_source);
+                    if (!sourceInfo) return null;
+                    const SourceIcon = sourceInfo.icon;
+                    return (
+                      <span className={`flex items-center gap-0.5 ${sourceInfo.color}`}>
+                        <SourceIcon className="h-3 w-3" />
+                        <span className="text-xs">{sourceInfo.label}</span>
+                      </span>
+                    );
+                  })()}
+                </>
               ) : (
                 <span>No location</span>
               )}

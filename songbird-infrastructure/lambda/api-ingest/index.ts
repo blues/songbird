@@ -148,9 +148,9 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     // Handle triangulation results (_geolocate.qo)
-    // This updates device location when triangulation data arrives
-    if (songbirdEvent.event_type === '_geolocate.qo') {
-      console.log(`Processing triangulation event for ${songbirdEvent.device_uid}`);
+    // Write location to telemetry table for location history trail
+    if (songbirdEvent.event_type === '_geolocate.qo' && songbirdEvent.location) {
+      await writeLocationEvent(songbirdEvent);
     }
 
     // Update device metadata in DynamoDB
@@ -230,6 +230,17 @@ function extractSessionInfo(event: NotehubEvent): SessionInfo | undefined {
 }
 
 /**
+ * Normalize location source type from Notehub to our standard values
+ */
+function normalizeLocationSource(source?: string): string {
+  if (!source) return 'gps';
+  const normalized = source.toLowerCase();
+  // Notehub uses 'triangulated' but we use 'triangulation' for consistency
+  if (normalized === 'triangulated') return 'triangulation';
+  return normalized;
+}
+
+/**
  * Extract location from Notehub event, preferring GPS but falling back to triangulation
  */
 function extractLocation(event: NotehubEvent): { lat: number; lon: number; time?: number; source: string } | undefined {
@@ -239,7 +250,7 @@ function extractLocation(event: NotehubEvent): { lat: number; lon: number; time?
       lat: event.best_lat,
       lon: event.best_lon,
       time: event.best_location_when,
-      source: event.best_location_type || 'gps',
+      source: normalizeLocationSource(event.best_location_type),
     };
   }
 
@@ -433,6 +444,38 @@ async function writeHealthEvent(event: SongbirdEvent): Promise<void> {
 
   await docClient.send(command);
   console.log(`Wrote health event record for ${event.device_uid}: ${event.body.method}`);
+}
+
+async function writeLocationEvent(event: SongbirdEvent): Promise<void> {
+  if (!event.location?.lat || !event.location?.lon) {
+    console.log('No location data in event, skipping');
+    return;
+  }
+
+  const timestamp = event.timestamp * 1000; // Convert to milliseconds
+  const ttl = Math.floor(Date.now() / 1000) + TTL_SECONDS;
+
+  const record: Record<string, any> = {
+    device_uid: event.device_uid,
+    timestamp,
+    ttl,
+    data_type: 'telemetry', // Use telemetry so it's picked up by location query
+    event_type: event.event_type,
+    event_type_timestamp: `telemetry#${timestamp}`,
+    serial_number: event.serial_number || 'unknown',
+    fleet: event.fleet || 'default',
+    latitude: event.location.lat,
+    longitude: event.location.lon,
+    location_source: event.location.source || 'triangulation',
+  };
+
+  const command = new PutCommand({
+    TableName: TELEMETRY_TABLE,
+    Item: record,
+  });
+
+  await docClient.send(command);
+  console.log(`Wrote location event for ${event.device_uid}: ${event.location.source} (${event.location.lat}, ${event.location.lon})`);
 }
 
 async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {

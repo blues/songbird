@@ -15,6 +15,7 @@ import { Construct } from 'constructs';
 export interface ApiConstructProps {
     telemetryTable: dynamodb.Table;
     devicesTable: dynamodb.Table;
+    alertsTable: dynamodb.Table;
     userPool: cognito.UserPool;
     userPoolClient: cognito.UserPoolClient;
     notehubProjectUid: string;

@@ -33,7 +33,8 @@
       "Bash(aws dynamodb describe-table:*)",
       "Bash(aws lambda invoke:*)",
       "Bash(cat:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(npx cdk:*)"
     ],
     "deny": [],
     "ask": []

@@ -57,6 +57,7 @@ function getLocationSourceInfo(source?: LocationSource | string) {
     case 'wifi':
       return { label: 'Wi-Fi', icon: Radio, color: 'text-purple-600', bgColor: 'bg-purple-100' };
     case 'triangulation':
+    case 'triangulated': // Handle raw Notehub value
       return { label: 'Triangulated', icon: Radio, color: 'text-orange-600', bgColor: 'bg-orange-100' };
     default:
       return { label: 'Unknown', icon: MapPin, color: 'text-gray-600', bgColor: 'bg-gray-100' };

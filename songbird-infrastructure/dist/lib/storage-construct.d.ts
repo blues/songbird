@@ -13,5 +13,6 @@ export interface StorageConstructProps {
 export declare class StorageConstruct extends Construct {
     readonly devicesTable: dynamodb.Table;
     readonly telemetryTable: dynamodb.Table;
+    readonly alertsTable: dynamodb.Table;
     constructor(scope: Construct, id: string, props: StorageConstructProps);
 }
