@@ -40,6 +40,7 @@ export interface Device {
   fleet_uid?: string;
   fleet_name?: string;
   assigned_to?: string;
+  assigned_to_name?: string;
   status: DeviceStatus;
   last_seen?: string;
   mode: OperatingMode;

@@ -238,6 +238,8 @@ function transformDevice(item: any): any {
     mode: item.current_mode,
     created_at: item.created_at,
     updated_at: item.updated_at,
+    assigned_to: item.assigned_to,
+    assigned_to_name: item.assigned_to_name,
   };
 
   // Flatten last_location

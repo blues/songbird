@@ -110,22 +110,32 @@ async function getDevicesAssignedToUser(userEmail: string): Promise<string[]> {
   return (result.Items || []).map(item => item.device_uid);
 }
 
-async function assignDeviceToUser(deviceUid: string, userEmail: string): Promise<void> {
+async function assignDeviceToUser(deviceUid: string, userEmail: string, userName?: string): Promise<void> {
   // First, unassign any device currently assigned to this user (single device per user)
   const currentDevices = await getDevicesAssignedToUser(userEmail);
   if (currentDevices.length > 0) {
     await unassignDevicesFromUser(currentDevices);
   }
 
-  // Now assign the new device
+  // Now assign the new device with both email and name
+  const updateExpression = userName
+    ? 'SET assigned_to = :email, assigned_to_name = :name, updated_at = :now'
+    : 'SET assigned_to = :email, updated_at = :now';
+
+  const expressionValues: Record<string, any> = {
+    ':email': userEmail,
+    ':now': Date.now(),
+  };
+
+  if (userName) {
+    expressionValues[':name'] = userName;
+  }
+
   await docClient.send(new UpdateCommand({
     TableName: DEVICES_TABLE,
     Key: { device_uid: deviceUid },
-    UpdateExpression: 'SET assigned_to = :email, updated_at = :now',
-    ExpressionAttributeValues: {
-      ':email': userEmail,
-      ':now': Date.now(),
-    },
+    UpdateExpression: updateExpression,
+    ExpressionAttributeValues: expressionValues,
   }));
 }
 
@@ -154,7 +164,7 @@ async function unassignDevicesFromUser(deviceUids: string[]): Promise<void> {
     await docClient.send(new UpdateCommand({
       TableName: DEVICES_TABLE,
       Key: { device_uid: deviceUid },
-      UpdateExpression: 'REMOVE assigned_to SET updated_at = :now',
+      UpdateExpression: 'REMOVE assigned_to, assigned_to_name SET updated_at = :now',
       ExpressionAttributeValues: {
         ':now': Date.now(),
       },
@@ -321,7 +331,7 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
       // Assign device if provided (only one device per user)
       if (body.device_uids && body.device_uids.length > 0) {
         // Only assign the first device (single device per user)
-        await assignDeviceToUser(body.device_uids[0], body.email);
+        await assignDeviceToUser(body.device_uids[0], body.email, body.name);
       }
 
       return {
@@ -440,13 +450,15 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
         };
       }
 
-      // Get user's email
+      // Get user's email and name
       const userResult = await cognitoClient.send(new AdminGetUserCommand({
         UserPoolId: USER_POOL_ID,
         Username: userId,
       }));
       const emailAttr = userResult.UserAttributes?.find(a => a.Name === 'email');
+      const nameAttr = userResult.UserAttributes?.find(a => a.Name === 'name');
       const userEmail = emailAttr?.Value || '';
+      const userName = nameAttr?.Value;
 
       if (!userEmail) {
         return {
@@ -466,7 +478,7 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
 
       // Assign new device if provided
       if (body.device_uid) {
-        await assignDeviceToUser(body.device_uid, userEmail);
+        await assignDeviceToUser(body.device_uid, userEmail, userName);
       }
 
       return {

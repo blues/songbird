@@ -40,7 +40,8 @@
       "Bash(aws logs describe-log-groups:*)",
       "Bash(npx cdk deploy --require-approval never)",
       "Bash(npm run deploy:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(aws dynamodb update-item:*)"
     ],
     "deny": [],
     "ask": []

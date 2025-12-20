@@ -149,7 +149,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
           </div>
           <p className="text-muted-foreground">
             {device.fleet_name && `Fleet: ${device.fleet_name} • `}
-            {device.assigned_to && `Assigned: ${device.assigned_to} • `}
+            {(device.assigned_to_name || device.assigned_to) && `Assigned: ${device.assigned_to_name || device.assigned_to} • `}
             <Badge variant="secondary">{formatMode(device.mode)}</Badge>
             {device.last_seen && ` • Last seen: ${formatRelativeTime(device.last_seen)}`}
           </p>
@@ -468,7 +468,12 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Serial Number</dt>
-                  <dd>{device.serial_number || '--'}</dd>
+                  <dd>
+                    {device.serial_number || '--'}
+                    {device.assigned_to_name && (
+                      <span className="text-muted-foreground ml-1">({device.assigned_to_name})</span>
+                    )}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Firmware</dt>

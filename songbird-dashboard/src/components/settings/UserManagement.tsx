@@ -21,6 +21,7 @@ import { useUsers } from '@/hooks/useUsers';
 import { useDevices } from '@/hooks/useDevices';
 import { InviteUserDialog } from './InviteUserDialog';
 import { AssignDeviceDialog } from './AssignDeviceDialog';
+import { EditGroupsDialog } from './EditGroupsDialog';
 import { formatRelativeTime } from '@/utils/formatters';
 import type { UserGroup, UserInfo } from '@/types';
 
@@ -42,6 +43,7 @@ export function UserManagement() {
   const { data: devicesData } = useDevices();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [assignDeviceUser, setAssignDeviceUser] = useState<UserInfo | null>(null);
+  const [editGroupsUser, setEditGroupsUser] = useState<UserInfo | null>(null);
 
   // Create a map of device_uid -> serial_number for quick lookup
   const deviceSerialMap = new Map(
@@ -161,16 +163,24 @@ export function UserManagement() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {user.groups.map(group => (
-                          <Badge key={group} className={groupColors[group]}>
-                            {group}
-                          </Badge>
-                        ))}
-                        {user.groups.length === 0 && (
-                          <span className="text-sm text-muted-foreground">No groups</span>
-                        )}
-                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto py-1 px-2 -ml-2"
+                        onClick={() => setEditGroupsUser(user)}
+                      >
+                        <div className="flex flex-wrap items-center gap-1">
+                          {user.groups.map(group => (
+                            <Badge key={group} className={groupColors[group]}>
+                              {group}
+                            </Badge>
+                          ))}
+                          {user.groups.length === 0 && (
+                            <span className="text-sm text-muted-foreground">No groups</span>
+                          )}
+                          <Pencil className="h-3 w-3 text-muted-foreground ml-1" />
+                        </div>
+                      </Button>
                     </TableCell>
                     <TableCell>
                       <Button
@@ -221,6 +231,17 @@ export function UserManagement() {
           userName={assignDeviceUser.name || assignDeviceUser.email}
           currentDeviceUid={assignDeviceUser.assigned_devices?.[0]}
           currentDeviceLabel={assignDeviceUser.assigned_devices?.[0] ? deviceSerialMap.get(assignDeviceUser.assigned_devices[0]) : undefined}
+        />
+      )}
+
+      {/* Edit Groups Dialog */}
+      {editGroupsUser && (
+        <EditGroupsDialog
+          open={!!editGroupsUser}
+          onOpenChange={(open) => !open && setEditGroupsUser(null)}
+          userId={editGroupsUser.username}
+          userName={editGroupsUser.name || editGroupsUser.email}
+          currentGroups={editGroupsUser.groups}
         />
       )}
     </div>

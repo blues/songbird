@@ -50,8 +50,8 @@ export function DeviceCard({ device, alertCount = 0 }: DeviceCardProps) {
               <h3 className="font-semibold">
                 {device.name || device.serial_number || device.device_uid}
               </h3>
-              {device.assigned_to && (
-                <p className="text-sm text-muted-foreground">{device.assigned_to}</p>
+              {(device.assigned_to_name || device.assigned_to) && (
+                <p className="text-sm text-muted-foreground">{device.assigned_to_name || device.assigned_to}</p>
               )}
             </div>
             <div className="flex items-center gap-2">
