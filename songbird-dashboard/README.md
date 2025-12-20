@@ -6,11 +6,14 @@ React-based fleet management dashboard for the Songbird sales demo platform.
 
 - Fleet overview with device map
 - Real-time device telemetry monitoring
-- Historical data visualization
+- Historical data visualization with customizable time ranges
 - Remote device configuration
 - Cloud-to-device command sending
-- Cognito-based authentication
+- Alert management with acknowledgment workflows
+- Cognito-based authentication with role-based access
+- User management (Admin only): invite users, assign groups, assign devices
 - User profile management with editable display name
+- User preferences (temperature units, map style, default time range)
 
 ## Technology Stack
 
@@ -50,16 +53,23 @@ songbird-dashboard/
 │   │   ├── profile/          # User profile components
 │   │   └── ui/               # Base UI components (shadcn/ui)
 │   ├── hooks/                # React Query hooks
+│   │   ├── useAlerts.ts
 │   │   ├── useCommands.ts
 │   │   ├── useConfig.ts
 │   │   ├── useDevices.ts
+│   │   ├── useSettings.ts
 │   │   ├── useTelemetry.ts
-│   │   └── useUserProfile.ts
+│   │   ├── useUserProfile.ts
+│   │   └── useUsers.ts
 │   ├── lib/                  # Utility libraries
 │   ├── pages/                # Page components
+│   │   ├── Alerts.tsx
 │   │   ├── Commands.tsx
 │   │   ├── Dashboard.tsx
-│   │   └── DeviceDetail.tsx
+│   │   ├── DeviceDetail.tsx
+│   │   └── Settings.tsx
+│   ├── contexts/             # React contexts
+│   │   └── PreferencesContext.tsx
 │   ├── types/                # TypeScript interfaces
 │   ├── utils/                # Formatters and helpers
 │   ├── App.tsx               # Main app with routing
@@ -179,6 +189,22 @@ Fleet-wide command management:
 - Filter commands by device
 - Delete old commands from history
 
+### Alerts
+
+Alert management dashboard:
+- Summary statistics (active, acknowledged, resolved)
+- Alert list with severity badges (critical, warning, info)
+- Alert acknowledgment workflow
+- Filter by status, severity, and device
+- Alert details with timestamp and source
+
+### Settings
+
+Application and user settings (Admin users see additional options):
+- **Preferences**: Temperature units (Celsius/Fahrenheit), map style, default time range
+- **Notehub Status**: Connection status and route configuration
+- **User Management** (Admin only): Invite new users, manage group assignments, assign devices to users
+
 ## Authentication
 
 The dashboard uses AWS Cognito for authentication:
@@ -201,17 +227,41 @@ The display name is stored in the Cognito `name` attribute and shown in the head
 
 The dashboard communicates with the Songbird API via:
 
+### Devices
 - `GET /v1/devices` - List all devices
 - `GET /v1/devices/{uid}` - Get device details
+- `PATCH /v1/devices/{uid}` - Update device metadata
 - `GET /v1/devices/{uid}/telemetry` - Get telemetry history
 - `GET /v1/devices/{uid}/location` - Get location history
 - `GET /v1/devices/{uid}/power` - Get Mojo power monitoring history
 - `GET /v1/devices/{uid}/config` - Get device config
 - `PUT /v1/devices/{uid}/config` - Update device config
+- `GET /v1/devices/unassigned` - Get devices not assigned to any user
+
+### Commands
 - `GET /v1/devices/{uid}/commands` - Get command history for device
 - `POST /v1/devices/{uid}/commands` - Send command to device
 - `GET /v1/commands` - Get all commands across devices
 - `DELETE /v1/commands/{command_id}` - Delete a command
+
+### Alerts
+- `GET /v1/alerts` - List all alerts (with optional filters)
+- `GET /v1/devices/{uid}/alerts` - Get alerts for specific device
+- `POST /v1/alerts/{alert_id}/acknowledge` - Acknowledge an alert
+
+### Settings & Activity
+- `GET /v1/settings` - Get user settings/preferences
+- `PUT /v1/settings` - Update user settings/preferences
+- `GET /v1/activity` - Get recent activity feed
+- `GET /v1/notehub/status` - Get Notehub connection status
+
+### User Management (Admin only)
+- `GET /v1/users` - List all users
+- `GET /v1/users/{userId}` - Get user details
+- `POST /v1/users` - Invite new user
+- `GET /v1/users/groups` - List available groups
+- `PUT /v1/users/{userId}/groups` - Update user group memberships
+- `PUT /v1/users/{userId}/device` - Assign device to user
 
 All API calls include the Cognito JWT token for authorization.
 

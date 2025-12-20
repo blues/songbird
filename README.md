@@ -57,7 +57,7 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
                            ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                          SONGBIRD DASHBOARD                                  │
-│    Fleet Map  │  Device Detail  │  Charts  │  Config  │  Commands            │
+│  Fleet Map │ Device Detail │ Charts │ Config │ Commands │ Alerts │ Settings │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -73,6 +73,9 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
 | **Command & Control** | Send commands from cloud, device responds instantly |
 | **Low Power Operation** | Weeks of battery life with ATTN-based sleep |
 | **Fleet Management** | Dashboard showing all demo units across teams |
+| **Alert Management** | Temperature threshold alerts with acknowledgment workflow |
+| **User Management** | Role-based access with Admin, Sales, Field Engineering, Viewer groups |
+| **Device Assignment** | Assign devices to users for accountability tracking |
 
 ## Project Structure
 

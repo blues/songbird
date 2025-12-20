@@ -65,7 +65,12 @@ songbird-infrastructure/
 │   ├── api-devices/             # Devices API
 │   ├── api-telemetry/           # Telemetry queries API
 │   ├── api-commands/            # Commands API
-│   └── api-config/              # Configuration API
+│   ├── api-config/              # Configuration API
+│   ├── api-alerts/              # Alerts API
+│   ├── api-activity/            # Activity feed API
+│   ├── api-settings/            # User settings/preferences API
+│   ├── api-users/               # User management API (Admin)
+│   └── api-notehub/             # Notehub status API
 ├── cdk.json                     # CDK configuration
 ├── package.json
 └── tsconfig.json
@@ -243,6 +248,7 @@ Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com`
 
 ### Dashboard APIs (Cognito Auth Required)
 
+#### Devices
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/v1/devices` | List all devices |
@@ -251,13 +257,47 @@ Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com`
 | GET | `/v1/devices/{device_uid}/telemetry` | Get telemetry history |
 | GET | `/v1/devices/{device_uid}/location` | Get location history |
 | GET | `/v1/devices/{device_uid}/power` | Get Mojo power monitoring history |
+| GET | `/v1/devices/unassigned` | Get devices not assigned to any user |
+
+#### Commands
+| Method | Path | Description |
+|--------|------|-------------|
 | GET | `/v1/devices/{device_uid}/commands` | Get command history for device |
 | POST | `/v1/devices/{device_uid}/commands` | Send command to device |
 | GET | `/v1/commands` | Get all commands across devices (optional `device_uid` query param) |
 | DELETE | `/v1/commands/{command_id}` | Delete a command (requires `device_uid` query param) |
+
+#### Configuration
+| Method | Path | Description |
+|--------|------|-------------|
 | GET | `/v1/devices/{device_uid}/config` | Get device configuration |
 | PUT | `/v1/devices/{device_uid}/config` | Update device configuration |
 | PUT | `/v1/fleets/{fleet_uid}/config` | Update fleet configuration |
+
+#### Alerts
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/v1/alerts` | List all alerts (with optional filters) |
+| GET | `/v1/devices/{device_uid}/alerts` | Get alerts for specific device |
+| POST | `/v1/alerts/{alert_id}/acknowledge` | Acknowledge an alert |
+
+#### Settings & Activity
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/v1/settings` | Get user settings/preferences |
+| PUT | `/v1/settings` | Update user settings/preferences |
+| GET | `/v1/activity` | Get recent activity feed |
+| GET | `/v1/notehub/status` | Get Notehub connection status |
+
+#### User Management (Admin only)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/v1/users` | List all users |
+| GET | `/v1/users/{userId}` | Get user details |
+| POST | `/v1/users` | Invite new user (creates Cognito user, sends invite email) |
+| GET | `/v1/users/groups` | List available Cognito groups |
+| PUT | `/v1/users/{userId}/groups` | Update user group memberships |
+| PUT | `/v1/users/{userId}/device` | Assign device to user (one device per user) |
 
 Dashboard API endpoints require a valid Cognito JWT token in the `Authorization` header.
 
@@ -279,10 +319,15 @@ Dashboard API endpoints require a valid Cognito JWT token in the `Authorization`
 Lambda function logs are available in CloudWatch Logs:
 
 - `/aws/lambda/songbird-api-ingest` - Event ingestion from Notehub
-- `/aws/lambda/songbird-api-devices`
-- `/aws/lambda/songbird-api-telemetry`
-- `/aws/lambda/songbird-api-commands`
-- `/aws/lambda/songbird-api-config`
+- `/aws/lambda/songbird-api-devices` - Device CRUD operations
+- `/aws/lambda/songbird-api-telemetry` - Telemetry queries
+- `/aws/lambda/songbird-api-commands` - Command operations
+- `/aws/lambda/songbird-api-config` - Configuration management
+- `/aws/lambda/songbird-api-alerts` - Alert management
+- `/aws/lambda/songbird-api-activity` - Activity feed
+- `/aws/lambda/songbird-api-settings` - User preferences
+- `/aws/lambda/songbird-api-users` - User management (Admin)
+- `/aws/lambda/songbird-api-notehub` - Notehub status
 
 ### DynamoDB Queries
 
