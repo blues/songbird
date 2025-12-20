@@ -507,6 +507,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
           <div className="lg:col-span-1">
             <ConfigPanel
               deviceUid={device.device_uid}
+              assignedTo={device.assigned_to}
               onClose={() => setShowConfig(false)}
             />
           </div>

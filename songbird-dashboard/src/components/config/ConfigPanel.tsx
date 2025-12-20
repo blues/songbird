@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -11,16 +12,24 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useDeviceConfig, useUpdateDeviceConfig } from '@/hooks/useConfig';
+import { useIsAdmin } from '@/hooks/useAuth';
+import { useUserProfile } from '@/hooks/useUserProfile';
 import type { DeviceConfig, OperatingMode, MotionSensitivity } from '@/types';
 
 interface ConfigPanelProps {
   deviceUid: string;
+  assignedTo?: string; // Email of the user the device is assigned to
   onClose?: () => void;
 }
 
-export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
+export function ConfigPanel({ deviceUid, assignedTo, onClose }: ConfigPanelProps) {
   const { data: configData, isLoading } = useDeviceConfig(deviceUid);
   const updateConfig = useUpdateDeviceConfig();
+  const { isAdmin } = useIsAdmin();
+  const { data: userProfile } = useUserProfile();
+
+  // Check if user can edit: Admin OR device is assigned to them
+  const canEdit = isAdmin || (userProfile?.email && assignedTo === userProfile.email);
 
   const [localConfig, setLocalConfig] = useState<Partial<DeviceConfig>>({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -78,6 +87,14 @@ export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
         )}
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Read-only notice */}
+        {!canEdit && (
+          <div className="flex items-center gap-2 p-3 bg-muted rounded-lg text-sm text-muted-foreground">
+            <Lock className="h-4 w-4" />
+            <span>You can view this configuration but only the device owner or an admin can make changes.</span>
+          </div>
+        )}
+
         {/* Operating Mode */}
         <div className="space-y-2">
           <label className="text-sm font-medium">Operating Mode</label>
@@ -86,6 +103,7 @@ export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
             onValueChange={(value) =>
               updateLocalConfig('mode', value as OperatingMode)
             }
+            disabled={!canEdit}
           >
             <SelectTrigger>
               <SelectValue />
@@ -116,6 +134,7 @@ export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
               min={1}
               max={60}
               step={1}
+              disabled={!canEdit}
             />
           </div>
 
@@ -132,6 +151,7 @@ export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
               min={1}
               max={60}
               step={1}
+              disabled={!canEdit}
             />
           </div>
         </div>
@@ -151,6 +171,7 @@ export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
                 min={20}
                 max={60}
                 step={1}
+                disabled={!canEdit}
               />
               <span className="text-xs">{localConfig.temp_alert_high_c || 35}°C</span>
             </div>
@@ -165,6 +186,7 @@ export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
                 min={-20}
                 max={20}
                 step={1}
+                disabled={!canEdit}
               />
               <span className="text-xs">{localConfig.temp_alert_low_c || 0}°C</span>
             </div>
@@ -179,6 +201,7 @@ export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
                 min={50}
                 max={100}
                 step={5}
+                disabled={!canEdit}
               />
               <span className="text-xs">{localConfig.humidity_alert_high || 80}%</span>
             </div>
@@ -193,6 +216,7 @@ export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
                 min={0}
                 max={50}
                 step={5}
+                disabled={!canEdit}
               />
               <span className="text-xs">{localConfig.humidity_alert_low || 20}%</span>
             </div>
@@ -210,6 +234,7 @@ export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
               onCheckedChange={(checked) =>
                 updateLocalConfig('audio_enabled', checked)
               }
+              disabled={!canEdit}
             />
           </div>
 
@@ -226,7 +251,7 @@ export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
               min={0}
               max={100}
               step={10}
-              disabled={localConfig.audio_enabled === false}
+              disabled={!canEdit || localConfig.audio_enabled === false}
             />
           </div>
 
@@ -237,7 +262,7 @@ export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
               onCheckedChange={(checked) =>
                 updateLocalConfig('audio_alerts_only', checked)
               }
-              disabled={localConfig.audio_enabled === false}
+              disabled={!canEdit || localConfig.audio_enabled === false}
             />
           </div>
         </div>
@@ -253,6 +278,7 @@ export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
               onValueChange={(value) =>
                 updateLocalConfig('motion_sensitivity', value as MotionSensitivity)
               }
+              disabled={!canEdit}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -272,6 +298,7 @@ export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
               onCheckedChange={(checked) =>
                 updateLocalConfig('motion_wake_enabled', checked)
               }
+              disabled={!canEdit}
             />
           </div>
         </div>
@@ -287,6 +314,7 @@ export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
               onCheckedChange={(checked) =>
                 updateLocalConfig('led_enabled', checked)
               }
+              disabled={!canEdit}
             />
           </div>
 
@@ -297,25 +325,28 @@ export function ConfigPanel({ deviceUid, onClose }: ConfigPanelProps) {
               onCheckedChange={(checked) =>
                 updateLocalConfig('debug_mode', checked)
               }
+              disabled={!canEdit}
             />
           </div>
         </div>
 
         {/* Apply Button */}
-        <div className="border-t pt-4">
-          <Button
-            onClick={handleApply}
-            disabled={!hasChanges || updateConfig.isPending}
-            className="w-full"
-          >
-            {updateConfig.isPending ? 'Applying...' : 'Apply Changes'}
-          </Button>
-          {hasChanges && (
-            <p className="text-xs text-muted-foreground text-center mt-2">
-              Changes will take effect on next device sync
-            </p>
-          )}
-        </div>
+        {canEdit && (
+          <div className="border-t pt-4">
+            <Button
+              onClick={handleApply}
+              disabled={!hasChanges || updateConfig.isPending}
+              className="w-full"
+            >
+              {updateConfig.isPending ? 'Applying...' : 'Apply Changes'}
+            </Button>
+            {hasChanges && (
+              <p className="text-xs text-muted-foreground text-center mt-2">
+                Changes will take effect on next device sync
+              </p>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
