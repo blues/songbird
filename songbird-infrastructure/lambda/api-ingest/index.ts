@@ -243,7 +243,7 @@ function normalizeLocationSource(source?: string): string {
 /**
  * Extract location from Notehub event, preferring GPS but falling back to triangulation
  */
-function extractLocation(event: NotehubEvent): { lat: number; lon: number; time?: number; source: string } | undefined {
+function extractLocation(event: NotehubEvent): { lat: number; lon: number; time?: number; source: string; name?: string } | undefined {
   // Prefer GPS location (best_lat/best_lon with type 'gps')
   if (event.best_lat !== undefined && event.best_lon !== undefined) {
     return {
@@ -251,6 +251,7 @@ function extractLocation(event: NotehubEvent): { lat: number; lon: number; time?
       lon: event.best_lon,
       time: event.best_location_when,
       source: normalizeLocationSource(event.best_location_type),
+      name: event.best_location,
     };
   }
 
@@ -261,6 +262,7 @@ function extractLocation(event: NotehubEvent): { lat: number; lon: number; time?
       lon: event.tri_lon,
       time: event.tri_when,
       source: 'triangulation',
+      name: event.tower_location,
     };
   }
 
@@ -271,6 +273,7 @@ function extractLocation(event: NotehubEvent): { lat: number; lon: number; time?
       lon: event.tower_lon,
       time: event.tower_when,
       source: 'tower',
+      name: event.tower_location,
     };
   }
 
@@ -312,6 +315,7 @@ interface SongbirdEvent {
     lon?: number;
     time?: number;
     source?: string;
+    name?: string;
   };
 }
 
@@ -523,6 +527,7 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
       lon: event.location.lon,
       time: event.location.time || event.timestamp,
       source: event.location.source || 'gps',
+      name: event.location.name,
     };
   }
 

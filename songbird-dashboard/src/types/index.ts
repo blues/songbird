@@ -57,6 +57,7 @@ export interface Device {
   longitude?: number;
   location_time?: string;
   location_source?: LocationSource;
+  location_name?: string;
   // Configuration
   audio_enabled?: boolean;
   audio_volume?: number;

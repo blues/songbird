@@ -1,12 +1,30 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import Map, { Marker, Popup, NavigationControl } from 'react-map-gl';
 import type { MapRef } from 'react-map-gl';
-import { MapPin } from 'lucide-react';
+import { MapPin, Satellite, Radio } from 'lucide-react';
 import { DeviceStatus } from '@/components/devices/DeviceStatus';
-import { formatTemperature, formatRelativeTime } from '@/utils/formatters';
+import { formatRelativeTime } from '@/utils/formatters';
 import { usePreferences } from '@/contexts/PreferencesContext';
-import type { Device } from '@/types';
+import type { Device, LocationSource } from '@/types';
 import 'mapbox-gl/dist/mapbox-gl.css';
+
+// Location source display configuration
+function getLocationSourceInfo(source?: LocationSource | string) {
+  switch (source) {
+    case 'gps':
+      return { label: 'GPS', icon: Satellite, color: 'text-green-600' };
+    case 'cell':
+    case 'tower':
+      return { label: 'Cell Tower', icon: Radio, color: 'text-blue-600' };
+    case 'wifi':
+      return { label: 'Wi-Fi', icon: Radio, color: 'text-purple-600' };
+    case 'triangulation':
+    case 'triangulated':
+      return { label: 'Triangulation', icon: Radio, color: 'text-orange-600' };
+    default:
+      return null;
+  }
+}
 
 // Map style URLs
 const MAP_STYLES = {
@@ -30,11 +48,10 @@ export function FleetMap({
   className,
 }: FleetMapProps) {
   const { preferences } = usePreferences();
-  const tempUnit = preferences.temp_unit === 'fahrenheit' ? 'F' : 'C';
   const mapStyle = MAP_STYLES[preferences.map_style] || MAP_STYLES.street;
 
   const mapRef = useRef<MapRef>(null);
-  const [popupDevice, setPopupDevice] = useState<Device | null>(null);
+  const [hoveredDevice, setHoveredDevice] = useState<Device | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
 
   // Filter devices with location
@@ -92,17 +109,7 @@ export function FleetMap({
     }
   }, [devicesWithLocation, hasInitialized, fitMapToBounds]);
 
-  // Highlight selected device
-  useEffect(() => {
-    if (selectedDeviceId) {
-      const device = devicesWithLocation.find(
-        (d) => d.device_uid === selectedDeviceId
-      );
-      if (device) {
-        setPopupDevice(device);
-      }
-    }
-  }, [selectedDeviceId, devicesWithLocation]);
+  // No longer auto-show popup for selected device - hover handles it
 
   // Default center (Austin, TX)
   const defaultCenter = { longitude: -97.7431, latitude: 30.2672 };
@@ -129,7 +136,6 @@ export function FleetMap({
             anchor="bottom"
             onClick={(e) => {
               e.originalEvent.stopPropagation();
-              setPopupDevice(device);
               onDeviceSelect?.(device.device_uid);
             }}
           >
@@ -137,6 +143,8 @@ export function FleetMap({
               className={`cursor-pointer transition-transform hover:scale-110 ${
                 device.device_uid === selectedDeviceId ? 'scale-125' : ''
               }`}
+              onMouseEnter={() => setHoveredDevice(device)}
+              onMouseLeave={() => setHoveredDevice(null)}
             >
               <MapPin
                 className={`h-8 w-8 ${
@@ -154,46 +162,44 @@ export function FleetMap({
           </Marker>
         ))}
 
-        {popupDevice && popupDevice.latitude && popupDevice.longitude && (
+        {hoveredDevice && hoveredDevice.latitude && hoveredDevice.longitude && (
           <Popup
-            longitude={popupDevice.longitude}
-            latitude={popupDevice.latitude}
+            longitude={hoveredDevice.longitude}
+            latitude={hoveredDevice.latitude}
             anchor="top"
-            onClose={() => setPopupDevice(null)}
-            closeButton={true}
+            closeButton={false}
             closeOnClick={false}
           >
             <div className="p-2 min-w-[200px]">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold">
-                  {popupDevice.name || popupDevice.serial_number}
+                <h4 className="font-semibold text-sm">
+                  {hoveredDevice.name || hoveredDevice.serial_number}
                 </h4>
-                <DeviceStatus status={popupDevice.status} showLabel={false} />
+                <DeviceStatus status={hoveredDevice.status} showLabel={false} />
               </div>
 
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Temperature:</span>
-                  <span>{formatTemperature(popupDevice.temperature, tempUnit)}</span>
+              {/* Location Details */}
+              <div className="space-y-1">
+                <div className="text-sm">
+                  {hoveredDevice.location_name || `${hoveredDevice.latitude.toFixed(4)}, ${hoveredDevice.longitude.toFixed(4)}`}
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Mode:</span>
-                  <span className="capitalize">{popupDevice.mode}</span>
-                </div>
-                {popupDevice.last_seen && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Last seen:</span>
-                    <span>{formatRelativeTime(popupDevice.last_seen)}</span>
+                {(() => {
+                  const sourceInfo = getLocationSourceInfo(hoveredDevice.location_source);
+                  if (!sourceInfo) return null;
+                  const SourceIcon = sourceInfo.icon;
+                  return (
+                    <div className={`flex items-center gap-1.5 ${sourceInfo.color}`}>
+                      <SourceIcon className="h-3.5 w-3.5" />
+                      <span className="text-xs">{sourceInfo.label}</span>
+                    </div>
+                  );
+                })()}
+                {hoveredDevice.location_time && (
+                  <div className="text-xs text-muted-foreground">
+                    Updated {formatRelativeTime(hoveredDevice.location_time)}
                   </div>
                 )}
               </div>
-
-              <button
-                className="mt-3 w-full text-sm text-primary hover:underline"
-                onClick={() => onDeviceSelect?.(popupDevice.device_uid)}
-              >
-                View Details →
-              </button>
             </div>
           </Popup>
         )}

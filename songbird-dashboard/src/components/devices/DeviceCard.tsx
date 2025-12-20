@@ -108,32 +108,32 @@ export function DeviceCard({ device, alertCount = 0 }: DeviceCardProps) {
           </div>
 
           {/* Location & Last seen */}
-          <div className="mt-4 pt-4 border-t flex items-center justify-between text-sm text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <MapPin className="h-3 w-3" />
-              {device.latitude && device.longitude ? (
-                <>
-                  <span>
-                    {device.latitude.toFixed(3)}, {device.longitude.toFixed(3)}
+          <div className="mt-4 pt-4 border-t flex items-start justify-between gap-2 text-sm text-muted-foreground">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <MapPin className="h-3 w-3 flex-shrink-0" />
+                {device.latitude && device.longitude ? (
+                  <span className="truncate">
+                    {device.location_name || `${device.latitude.toFixed(3)}, ${device.longitude.toFixed(3)}`}
                   </span>
-                  {(() => {
-                    const sourceInfo = getLocationSourceInfo(device.location_source);
-                    if (!sourceInfo) return null;
-                    const SourceIcon = sourceInfo.icon;
-                    return (
-                      <span className={`flex items-center gap-0.5 ${sourceInfo.color}`}>
-                        <SourceIcon className="h-3 w-3" />
-                        <span className="text-xs">{sourceInfo.label}</span>
-                      </span>
-                    );
-                  })()}
-                </>
-              ) : (
-                <span>No location</span>
-              )}
+                ) : (
+                  <span>No location</span>
+                )}
+              </div>
+              {device.latitude && device.longitude && (() => {
+                const sourceInfo = getLocationSourceInfo(device.location_source);
+                if (!sourceInfo) return null;
+                const SourceIcon = sourceInfo.icon;
+                return (
+                  <div className={`flex items-center gap-1 mt-0.5 ml-[18px] ${sourceInfo.color}`}>
+                    <SourceIcon className="h-3 w-3" />
+                    <span className="text-xs">{sourceInfo.label}</span>
+                  </div>
+                );
+              })()}
             </div>
             {device.last_seen && (
-              <span>{formatRelativeTime(device.last_seen)}</span>
+              <span className="flex-shrink-0">{formatRelativeTime(device.last_seen)}</span>
             )}
           </div>
         </CardContent>

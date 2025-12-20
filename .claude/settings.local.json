@@ -41,7 +41,8 @@
       "Bash(npx cdk deploy --require-approval never)",
       "Bash(npm run deploy:*)",
       "Bash(npm run:*)",
-      "Bash(aws dynamodb update-item:*)"
+      "Bash(aws dynamodb update-item:*)",
+      "Bash(npm run build:lambdas:*)"
     ],
     "deny": [],
     "ask": []

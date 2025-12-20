@@ -234,10 +234,11 @@ function transformDevice(item: any): any {
     name: item.name,
     fleet: item.fleet,
     status: item.status,
-    last_seen: item.last_seen,
+    // Convert millisecond timestamp to ISO string for frontend
+    last_seen: item.last_seen ? new Date(item.last_seen).toISOString() : undefined,
     mode: item.current_mode,
-    created_at: item.created_at,
-    updated_at: item.updated_at,
+    created_at: item.created_at ? new Date(item.created_at).toISOString() : undefined,
+    updated_at: item.updated_at ? new Date(item.updated_at).toISOString() : undefined,
     assigned_to: item.assigned_to,
     assigned_to_name: item.assigned_to_name,
   };
@@ -246,8 +247,14 @@ function transformDevice(item: any): any {
   if (item.last_location) {
     device.latitude = item.last_location.lat;
     device.longitude = item.last_location.lon;
-    device.location_time = item.last_location.time;
+    // Convert Unix timestamp (seconds) to ISO string for frontend
+    if (item.last_location.time) {
+      // Notehub timestamps are in seconds, convert to milliseconds for Date
+      const timeMs = item.last_location.time * 1000;
+      device.location_time = new Date(timeMs).toISOString();
+    }
     device.location_source = item.last_location.source;
+    device.location_name = item.last_location.name;
   }
 
   // Flatten last_telemetry
