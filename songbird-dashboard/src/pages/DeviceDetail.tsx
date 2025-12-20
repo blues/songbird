@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, Zap, AlertTriangle, Check, Clock, Activity, MapPin, Satellite, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,11 +16,14 @@ import { useDevice } from '@/hooks/useDevices';
 import { useTelemetry, useLocationHistory, usePowerHistory, useHealthHistory } from '@/hooks/useTelemetry';
 import { useCommands } from '@/hooks/useCommands';
 import { useDeviceAlerts, useAcknowledgeAlert } from '@/hooks/useAlerts';
+import { usePreferences } from '@/contexts/PreferencesContext';
 import {
   formatBattery,
   formatMode,
   formatRelativeTime,
   truncateDeviceUid,
+  convertTemperature,
+  getTemperatureUnit,
 } from '@/utils/formatters';
 import type { Alert, HealthPoint, LocationSource } from '@/types';
 
@@ -70,18 +73,31 @@ interface DeviceDetailProps {
 
 export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const { deviceUid } = useParams<{ deviceUid: string }>();
+  const { preferences } = usePreferences();
+  const tempUnit = preferences.temp_unit === 'fahrenheit' ? 'F' : 'C';
+
   const [showConfig, setShowConfig] = useState(false);
-  const [timeRange, setTimeRange] = useState(24);
+  const [timeRange, setTimeRange] = useState<number | null>(null);
   const [chartTab, setChartTab] = useState('telemetry');
+
+  // Set default time range from preferences once loaded
+  useEffect(() => {
+    if (timeRange === null && preferences.default_time_range) {
+      setTimeRange(Number(preferences.default_time_range));
+    }
+  }, [preferences.default_time_range, timeRange]);
+
+  // Use 24h as fallback until preferences are loaded
+  const effectiveTimeRange = timeRange ?? 24;
 
   const { data: device, isLoading: deviceLoading } = useDevice(deviceUid!);
   const { data: telemetryData, isLoading: telemetryLoading } = useTelemetry(
     deviceUid!,
-    timeRange
+    effectiveTimeRange
   );
-  const { data: locationData } = useLocationHistory(deviceUid!, timeRange);
-  const { data: powerData, isLoading: powerLoading } = usePowerHistory(deviceUid!, timeRange);
-  const { data: healthData, isLoading: healthLoading } = useHealthHistory(deviceUid!, Math.max(timeRange, 168)); // At least 7 days for health
+  const { data: locationData } = useLocationHistory(deviceUid!, effectiveTimeRange);
+  const { data: powerData, isLoading: powerLoading } = usePowerHistory(deviceUid!, effectiveTimeRange);
+  const { data: healthData, isLoading: healthLoading } = useHealthHistory(deviceUid!, Math.max(effectiveTimeRange, 168)); // At least 7 days for health
   const { data: commandsData } = useCommands(deviceUid!);
   const { data: alertsData } = useDeviceAlerts(deviceUid!);
   const acknowledgeMutation = useAcknowledgeAlert();
@@ -96,7 +112,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
 
   // Get latest values and sparkline data
   const latestTelemetry = telemetry[0];
-  const sparklineTemp = telemetry.slice(0, 20).map((t) => t.temperature || 0);
+  const sparklineTemp = telemetry.slice(0, 20).map((t) => convertTemperature(t.temperature, tempUnit) || 0);
   const sparklineHumidity = telemetry.slice(0, 20).map((t) => t.humidity || 0);
 
   const battery = formatBattery(device?.voltage);
@@ -154,7 +170,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
           {/* Location Map */}
           <Card className="mb-6">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Location Trail ({timeRange}h)</CardTitle>
+              <CardTitle>Location Trail ({effectiveTimeRange}h)</CardTitle>
               {device.location_source && (
                 (() => {
                   const sourceInfo = getLocationSourceInfo(device.location_source);
@@ -182,8 +198,8 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
           <div className="grid gap-4 md:grid-cols-4 mb-6">
             <GaugeCard
               title="Temperature"
-              value={latestTelemetry?.temperature?.toFixed(1) || '--'}
-              unit="°C"
+              value={convertTemperature(latestTelemetry?.temperature, tempUnit)?.toFixed(1) || '--'}
+              unit={getTemperatureUnit(tempUnit)}
               icon={<Thermometer className="h-4 w-4 text-orange-500" />}
               sparklineData={sparklineTemp}
               status={
@@ -251,14 +267,15 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
-                <Tabs value={String(timeRange)} onValueChange={(v) => setTimeRange(Number(v))}>
+                <Tabs value={String(effectiveTimeRange)} onValueChange={(v) => setTimeRange(Number(v))}>
                   <TabsList>
                     <TabsTrigger value="1">1h</TabsTrigger>
                     <TabsTrigger value="4">4h</TabsTrigger>
                     <TabsTrigger value="8">8h</TabsTrigger>
+                    <TabsTrigger value="12">12h</TabsTrigger>
                     <TabsTrigger value="24">24h</TabsTrigger>
+                    <TabsTrigger value="48">48h</TabsTrigger>
                     <TabsTrigger value="168">7d</TabsTrigger>
-                    <TabsTrigger value="720">30d</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
@@ -276,6 +293,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                       showTemperature
                       showHumidity
                       height={300}
+                      tempUnit={tempUnit}
                     />
                   ) : (
                     <div className="h-[300px] flex items-center justify-center">

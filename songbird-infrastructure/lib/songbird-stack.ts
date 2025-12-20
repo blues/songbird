@@ -51,6 +51,7 @@ export class SongbirdStack extends cdk.Stack {
       telemetryTable: storage.telemetryTable,
       devicesTable: storage.devicesTable,
       alertsTable: storage.alertsTable,
+      settingsTable: storage.settingsTable,
       userPool: auth.userPool,
       userPoolClient: auth.userPoolClient,
       notehubProjectUid: props.notehubProjectUid,

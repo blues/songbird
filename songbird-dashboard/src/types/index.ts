@@ -268,3 +268,90 @@ export interface ActivityItem {
   timestamp: string;
   data?: Record<string, unknown>;
 }
+
+/**
+ * User group types
+ */
+export type UserGroup = 'Admin' | 'Sales' | 'FieldEngineering' | 'Viewer';
+
+/**
+ * User info from Cognito (for admin user management)
+ */
+export interface UserInfo {
+  username: string;
+  email: string;
+  name: string;
+  status: string;
+  created_at: string;
+  groups: UserGroup[];
+  assigned_devices?: string[];
+}
+
+/**
+ * Display preferences (stored in Cognito user attributes)
+ */
+export interface DisplayPreferences {
+  temp_unit: 'celsius' | 'fahrenheit';
+  time_format: '12h' | '24h';
+  default_time_range: '1' | '4' | '8' | '12' | '24' | '48' | '168';
+  map_style: 'street' | 'satellite';
+}
+
+/**
+ * Fleet defaults configuration
+ */
+export interface FleetDefaults {
+  fleet_uid: string;
+  mode?: OperatingMode;
+  gps_interval_min?: number;
+  sync_interval_min?: number;
+  heartbeat_hours?: number;
+  temp_alert_high_c?: number;
+  temp_alert_low_c?: number;
+  humidity_alert_high?: number;
+  humidity_alert_low?: number;
+  voltage_alert_low?: number;
+  motion_sensitivity?: MotionSensitivity;
+  audio_enabled?: boolean;
+  led_enabled?: boolean;
+  updated_at?: number;
+  updated_by?: string;
+}
+
+/**
+ * Notehub route info
+ */
+export interface NotehubRoute {
+  uid: string;
+  name: string;
+  type: string;
+  url?: string;
+  enabled: boolean;
+  modified: string;
+}
+
+/**
+ * Notehub fleet info
+ */
+export interface NotehubFleet {
+  uid: string;
+  name: string;
+  created: string;
+}
+
+/**
+ * Notehub connection status
+ */
+export interface NotehubStatus {
+  project: {
+    uid: string;
+    name: string;
+    created?: string;
+  };
+  routes: NotehubRoute[];
+  fleets: NotehubFleet[];
+  device_count: number;
+  health: 'healthy' | 'warning' | 'error';
+  error?: string;
+  last_checked: string;
+}

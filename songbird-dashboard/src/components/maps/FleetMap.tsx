@@ -4,8 +4,15 @@ import type { MapRef } from 'react-map-gl';
 import { MapPin } from 'lucide-react';
 import { DeviceStatus } from '@/components/devices/DeviceStatus';
 import { formatTemperature, formatRelativeTime } from '@/utils/formatters';
+import { usePreferences } from '@/contexts/PreferencesContext';
 import type { Device } from '@/types';
 import 'mapbox-gl/dist/mapbox-gl.css';
+
+// Map style URLs
+const MAP_STYLES = {
+  street: 'mapbox://styles/mapbox/light-v11',
+  satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
+};
 
 interface FleetMapProps {
   devices: Device[];
@@ -22,6 +29,10 @@ export function FleetMap({
   onDeviceSelect,
   className,
 }: FleetMapProps) {
+  const { preferences } = usePreferences();
+  const tempUnit = preferences.temp_unit === 'fahrenheit' ? 'F' : 'C';
+  const mapStyle = MAP_STYLES[preferences.map_style] || MAP_STYLES.street;
+
   const mapRef = useRef<MapRef>(null);
   const [popupDevice, setPopupDevice] = useState<Device | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -105,7 +116,7 @@ export function FleetMap({
           zoom: 4,
         }}
         style={{ width: '100%', height: '100%' }}
-        mapStyle="mapbox://styles/mapbox/light-v11"
+        mapStyle={mapStyle}
         mapboxAccessToken={mapboxToken}
       >
         <NavigationControl position="top-right" />
@@ -163,7 +174,7 @@ export function FleetMap({
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Temperature:</span>
-                  <span>{formatTemperature(popupDevice.temperature)}</span>
+                  <span>{formatTemperature(popupDevice.temperature, tempUnit)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Mode:</span>

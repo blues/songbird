@@ -18,6 +18,7 @@ export class StorageConstruct extends Construct {
   public readonly devicesTable: dynamodb.Table;
   public readonly telemetryTable: dynamodb.Table;
   public readonly alertsTable: dynamodb.Table;
+  public readonly settingsTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: StorageConstructProps) {
     super(scope, id);
@@ -163,6 +164,30 @@ export class StorageConstruct extends Construct {
         type: dynamodb.AttributeType.NUMBER,
       },
       projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // ==========================================================================
+    // DynamoDB Table for Settings (Fleet Defaults)
+    // ==========================================================================
+    this.settingsTable = new dynamodb.Table(this, 'SettingsTable', {
+      tableName: 'songbird-settings',
+
+      // Composite primary key: setting_type + setting_id
+      // e.g., setting_type="fleet_defaults", setting_id=<fleet_uid>
+      partitionKey: {
+        name: 'setting_type',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'setting_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+
+      // Billing mode - on-demand for unpredictable usage
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+
+      // Remove table on stack deletion (demo environment)
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
   }
 }

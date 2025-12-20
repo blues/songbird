@@ -75,6 +75,11 @@ export class AuthConstruct extends Construct {
       customAttributes: {
         team: new cognito.StringAttribute({ mutable: true }),
         role: new cognito.StringAttribute({ mutable: true }),
+        // Display preferences
+        temp_unit: new cognito.StringAttribute({ mutable: true }), // 'celsius' | 'fahrenheit'
+        time_format: new cognito.StringAttribute({ mutable: true }), // '12h' | '24h'
+        default_time_range: new cognito.StringAttribute({ mutable: true }), // '1' | '12' | '24' | '48' | '168'
+        map_style: new cognito.StringAttribute({ mutable: true }), // 'street' | 'satellite'
       },
 
       // Email configuration (use Cognito default for demo)

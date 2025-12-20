@@ -9,6 +9,7 @@ import {
   Legend,
 } from 'recharts';
 import { format, parseISO } from 'date-fns';
+import { celsiusToFahrenheit } from '@/utils/formatters';
 import type { TelemetryPoint } from '@/types';
 
 interface TelemetryChartProps {
@@ -18,6 +19,7 @@ interface TelemetryChartProps {
   showPressure?: boolean;
   showVoltage?: boolean;
   height?: number;
+  tempUnit?: 'C' | 'F';
 }
 
 export function TelemetryChart({
@@ -27,11 +29,16 @@ export function TelemetryChart({
   showPressure = false,
   showVoltage = false,
   height = 300,
+  tempUnit = 'C',
 }: TelemetryChartProps) {
   // Transform data for chart - reverse to show chronological order
+  // Convert temperature to preferred unit
   const chartData = [...data].reverse().map((point) => ({
     ...point,
     timestamp: parseISO(point.time).getTime(),
+    temperature: point.temperature !== undefined
+      ? (tempUnit === 'F' ? celsiusToFahrenheit(point.temperature) : point.temperature)
+      : undefined,
   }));
 
   const formatXAxis = (timestamp: number) => {
@@ -101,7 +108,7 @@ export function TelemetryChart({
             yAxisId="temp"
             type="monotone"
             dataKey="temperature"
-            name="Temperature (°C)"
+            name={`Temperature (°${tempUnit})`}
             stroke="#f97316"
             strokeWidth={2}
             dot={false}

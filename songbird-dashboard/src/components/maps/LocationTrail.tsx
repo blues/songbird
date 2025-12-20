@@ -2,8 +2,15 @@ import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl';
 import type { MapRef } from 'react-map-gl';
 import { MapPin } from 'lucide-react';
+import { usePreferences } from '@/contexts/PreferencesContext';
 import type { LocationPoint } from '@/types';
 import 'mapbox-gl/dist/mapbox-gl.css';
+
+// Map style URLs
+const MAP_STYLES = {
+  street: 'mapbox://styles/mapbox/light-v11',
+  satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
+};
 
 interface LocationTrailProps {
   locations: LocationPoint[];
@@ -18,6 +25,9 @@ export function LocationTrail({
   mapboxToken,
   className,
 }: LocationTrailProps) {
+  const { preferences } = usePreferences();
+  const mapStyle = MAP_STYLES[preferences.map_style] || MAP_STYLES.street;
+
   const mapRef = useRef<MapRef>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
 
@@ -118,7 +128,7 @@ export function LocationTrail({
           zoom: 4,
         }}
         style={{ width: '100%', height: '100%' }}
-        mapStyle="mapbox://styles/mapbox/light-v11"
+        mapStyle={mapStyle}
         mapboxAccessToken={mapboxToken}
       >
         <NavigationControl position="top-right" />

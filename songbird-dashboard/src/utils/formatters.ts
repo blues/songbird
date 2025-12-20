@@ -37,12 +37,38 @@ export function formatDateTime(timestamp: string | Date): string {
 }
 
 /**
+ * Convert Celsius to Fahrenheit
+ */
+export function celsiusToFahrenheit(celsius: number): number {
+  return (celsius * 9) / 5 + 32;
+}
+
+/**
  * Format temperature with unit
+ * @param value - Temperature in Celsius
+ * @param unit - 'C' for Celsius, 'F' for Fahrenheit
  */
 export function formatTemperature(value: number | undefined, unit: 'C' | 'F' = 'C'): string {
   if (value === undefined) return '--';
-  const formatted = unit === 'F' ? (value * 9) / 5 + 32 : value;
+  const formatted = unit === 'F' ? celsiusToFahrenheit(value) : value;
   return `${formatted.toFixed(1)}°${unit}`;
+}
+
+/**
+ * Get temperature value in preferred unit (for charts/gauges)
+ * @param value - Temperature in Celsius
+ * @param unit - 'C' for Celsius, 'F' for Fahrenheit
+ */
+export function convertTemperature(value: number | undefined, unit: 'C' | 'F' = 'C'): number | undefined {
+  if (value === undefined) return undefined;
+  return unit === 'F' ? celsiusToFahrenheit(value) : value;
+}
+
+/**
+ * Get temperature unit label
+ */
+export function getTemperatureUnit(unit: 'C' | 'F'): string {
+  return `°${unit}`;
 }
 
 /**

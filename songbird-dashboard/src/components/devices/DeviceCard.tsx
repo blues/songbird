@@ -10,6 +10,7 @@ import {
   formatMode,
   formatRelativeTime,
 } from '@/utils/formatters';
+import { usePreferences } from '@/contexts/PreferencesContext';
 import type { Device, LocationSource } from '@/types';
 
 // Location source display configuration
@@ -36,6 +37,8 @@ interface DeviceCardProps {
 }
 
 export function DeviceCard({ device, alertCount = 0 }: DeviceCardProps) {
+  const { preferences } = usePreferences();
+  const tempUnit = preferences.temp_unit === 'fahrenheit' ? 'F' : 'C';
   const battery = formatBattery(device.voltage);
 
   return (
@@ -69,7 +72,7 @@ export function DeviceCard({ device, alertCount = 0 }: DeviceCardProps) {
             <div className="flex items-center gap-2">
               <Thermometer className="h-4 w-4 text-orange-500" />
               <span className="text-sm font-medium">
-                {formatTemperature(device.temperature)}
+                {formatTemperature(device.temperature, tempUnit)}
               </span>
             </div>
 

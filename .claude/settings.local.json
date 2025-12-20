@@ -34,7 +34,13 @@
       "Bash(aws lambda invoke:*)",
       "Bash(cat:*)",
       "Bash(echo:*)",
-      "Bash(npx cdk:*)"
+      "Bash(npx cdk:*)",
+      "Bash(find:*)",
+      "Bash(npx cdk synth --quiet)",
+      "Bash(aws logs describe-log-groups:*)",
+      "Bash(npx cdk deploy --require-approval never)",
+      "Bash(npm run deploy:*)",
+      "Bash(npm run:*)"
     ],
     "deny": [],
     "ask": []

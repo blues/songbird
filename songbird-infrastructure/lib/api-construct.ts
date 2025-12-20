@@ -26,6 +26,7 @@ export interface ApiConstructProps {
   telemetryTable: dynamodb.Table;
   devicesTable: dynamodb.Table;
   alertsTable: dynamodb.Table;
+  settingsTable: dynamodb.Table;
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
   notehubProjectUid: string;
@@ -186,6 +187,74 @@ export class ApiConstruct extends Construct {
     props.telemetryTable.grantReadData(activityFunction);
     props.alertsTable.grantReadData(activityFunction);
     props.devicesTable.grantReadData(activityFunction);
+
+    // Settings API
+    const settingsFunction = new NodejsFunction(this, 'SettingsFunction', {
+      functionName: 'songbird-api-settings',
+      description: 'Songbird Settings API',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/api-settings/index.ts'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        SETTINGS_TABLE: props.settingsTable.tableName,
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+    props.settingsTable.grantReadWriteData(settingsFunction);
+
+    // Users API (Admin operations)
+    const usersFunction = new NodejsFunction(this, 'UsersFunction', {
+      functionName: 'songbird-api-users',
+      description: 'Songbird Users API',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/api-users/index.ts'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        USER_POOL_ID: props.userPool.userPoolId,
+        DEVICES_TABLE: props.devicesTable.tableName,
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+    props.devicesTable.grantReadWriteData(usersFunction);
+    // Grant Cognito admin permissions
+    usersFunction.addToRolePolicy(new cdk.aws_iam.PolicyStatement({
+      effect: cdk.aws_iam.Effect.ALLOW,
+      actions: [
+        'cognito-idp:ListUsers',
+        'cognito-idp:AdminCreateUser',
+        'cognito-idp:AdminGetUser',
+        'cognito-idp:AdminUpdateUserAttributes',
+        'cognito-idp:AdminAddUserToGroup',
+        'cognito-idp:AdminRemoveUserFromGroup',
+        'cognito-idp:AdminListGroupsForUser',
+        'cognito-idp:ListGroups',
+      ],
+      resources: [props.userPool.userPoolArn],
+    }));
+
+    // Notehub Status API
+    const notehubFunction = new NodejsFunction(this, 'NotehubFunction', {
+      functionName: 'songbird-api-notehub',
+      description: 'Songbird Notehub Status API',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/api-notehub/index.ts'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        NOTEHUB_PROJECT_UID: props.notehubProjectUid,
+        NOTEHUB_SECRET_ARN: notehubSecret.secretArn,
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+    notehubSecret.grantRead(notehubFunction);
 
     // Event Ingest API (for Notehub HTTP route - no authentication)
     const ingestFunction = new NodejsFunction(this, 'IngestFunction', {
@@ -388,6 +457,103 @@ export class ApiConstruct extends Construct {
       path: '/v1/activity',
       methods: [apigateway.HttpMethod.GET],
       integration: activityIntegration,
+      authorizer,
+    });
+
+    // Settings endpoints
+    const settingsIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+      'SettingsIntegration',
+      settingsFunction
+    );
+
+    this.api.addRoutes({
+      path: '/v1/settings/fleet-defaults',
+      methods: [apigateway.HttpMethod.GET],
+      integration: settingsIntegration,
+      authorizer,
+    });
+
+    this.api.addRoutes({
+      path: '/v1/settings/fleet-defaults/{fleet}',
+      methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.PUT],
+      integration: settingsIntegration,
+      authorizer,
+    });
+
+    // Users endpoints (admin only - enforced in Lambda)
+    const usersIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+      'UsersIntegration',
+      usersFunction
+    );
+
+    this.api.addRoutes({
+      path: '/v1/users',
+      methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
+      integration: usersIntegration,
+      authorizer,
+    });
+
+    this.api.addRoutes({
+      path: '/v1/users/groups',
+      methods: [apigateway.HttpMethod.GET],
+      integration: usersIntegration,
+      authorizer,
+    });
+
+    this.api.addRoutes({
+      path: '/v1/users/{userId}',
+      methods: [apigateway.HttpMethod.GET],
+      integration: usersIntegration,
+      authorizer,
+    });
+
+    this.api.addRoutes({
+      path: '/v1/users/{userId}/groups',
+      methods: [apigateway.HttpMethod.PUT],
+      integration: usersIntegration,
+      authorizer,
+    });
+
+    this.api.addRoutes({
+      path: '/v1/users/{userId}/devices',
+      methods: [apigateway.HttpMethod.PUT],
+      integration: usersIntegration,
+      authorizer,
+    });
+
+    // Single device assignment (each user can only have one device)
+    this.api.addRoutes({
+      path: '/v1/users/{userId}/device',
+      methods: [apigateway.HttpMethod.PUT],
+      integration: usersIntegration,
+      authorizer,
+    });
+
+    // Unassigned devices endpoint (for device assignment dropdown)
+    this.api.addRoutes({
+      path: '/v1/devices/unassigned',
+      methods: [apigateway.HttpMethod.GET],
+      integration: usersIntegration,
+      authorizer,
+    });
+
+    // Notehub status endpoints
+    const notehubIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+      'NotehubIntegration',
+      notehubFunction
+    );
+
+    this.api.addRoutes({
+      path: '/v1/notehub/status',
+      methods: [apigateway.HttpMethod.GET],
+      integration: notehubIntegration,
+      authorizer,
+    });
+
+    this.api.addRoutes({
+      path: '/v1/notehub/fleets',
+      methods: [apigateway.HttpMethod.GET],
+      integration: notehubIntegration,
       authorizer,
     });
 

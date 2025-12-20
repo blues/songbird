@@ -10,6 +10,8 @@ import { Dashboard } from '@/pages/Dashboard';
 import { DeviceDetail } from '@/pages/DeviceDetail';
 import { Alerts } from '@/pages/Alerts';
 import { Commands } from '@/pages/Commands';
+import { Settings } from '@/pages/Settings';
+import { PreferencesProvider } from '@/contexts/PreferencesContext';
 import { initializeApi } from '@/api/client';
 import { useActiveAlerts } from '@/hooks/useAlerts';
 
@@ -123,8 +125,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <Authenticator>
         {({ signOut, user }) => (
-          <BrowserRouter>
-            <Routes>
+          <PreferencesProvider>
+            <BrowserRouter>
+              <Routes>
               <Route
                 element={
                   <AppLayout
@@ -174,15 +177,12 @@ function App() {
                 />
                 <Route
                   path="/settings"
-                  element={
-                    <div className="text-center py-12 text-muted-foreground">
-                      Settings page coming soon
-                    </div>
-                  }
+                  element={<Settings />}
                 />
               </Route>
-            </Routes>
-          </BrowserRouter>
+              </Routes>
+            </BrowserRouter>
+          </PreferencesProvider>
         )}
       </Authenticator>
     </QueryClientProvider>
