@@ -7,6 +7,7 @@ import '@aws-amplify/ui-react/styles.css';
 
 import { Layout } from '@/components/layout/Layout';
 import { Dashboard } from '@/pages/Dashboard';
+import { Devices } from '@/pages/Devices';
 import { DeviceDetail } from '@/pages/DeviceDetail';
 import { Alerts } from '@/pages/Alerts';
 import { Commands } from '@/pages/Commands';
@@ -147,12 +148,7 @@ function App() {
                 />
                 <Route
                   path="/devices"
-                  element={
-                    <Dashboard
-                      mapboxToken={mapboxToken}
-                      selectedFleet={selectedFleet}
-                    />
-                  }
+                  element={<Devices />}
                 />
                 <Route
                   path="/devices/:deviceUid"
