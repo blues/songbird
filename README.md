@@ -183,12 +183,23 @@ See [songbird-dashboard/README.md](songbird-dashboard/README.md) for details.
 
 ## Operating Modes
 
-| Mode | GPS Interval | Sync Interval | Use Case |
-|------|--------------|---------------|----------|
-| **demo** | 1 min | Immediate | Live customer demonstrations |
-| **transit** | 5 min | 15 min | Asset in active transit |
-| **storage** | 60 min | 60 min | Asset at rest, periodic check-in |
+| Mode | Location Source | Sync Interval | Use Case |
+|------|-----------------|---------------|----------|
+| **demo** | Triangulation only | Immediate | Live customer demonstrations |
+| **transit** | GPS tracking (60s) | 15 min | Asset in active transit |
+| **storage** | Triangulation only | 60 min | Asset at rest, periodic check-in |
 | **sleep** | Disabled | On motion | Long-term storage |
+
+### GPS Tracking (Transit Mode Only)
+
+Transit mode enables autonomous GPS tracking via `card.location.track`:
+- **GPS sampling**: Every 60 seconds for accurate track resolution
+- **Automatic tracking**: Notecard records location to `_track.qo` when motion detected
+- **Track data**: Includes velocity (m/s), bearing (degrees), and distance traveled
+- **Heartbeat**: Periodic updates (hourly) even when stationary
+- **Immediate sync**: Track notes sync to cloud as soon as they're created
+
+Other modes use cell tower/Wi-Fi triangulation for location, which is lower power but less precise.
 
 ## Cloud-to-Device Commands
 
@@ -205,6 +216,8 @@ See [songbird-dashboard/README.md](songbird-dashboard/README.md) for details.
 | Notefile | Direction | Description |
 |----------|-----------|-------------|
 | `track.qo` | Outbound | Telemetry (temp, humidity, pressure, voltage) |
+| `_track.qo` | Outbound | GPS tracking data (location, velocity, bearing, distance) |
+| `_geolocate.qo` | Outbound | Triangulated location (cell tower/Wi-Fi) |
 | `alert.qo` | Outbound | Alert notifications |
 | `command_ack.qo` | Outbound | Command acknowledgments |
 | `health.qo` | Outbound | Device health reports |

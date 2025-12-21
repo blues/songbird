@@ -187,6 +187,22 @@ bool notecardConfigure(OperatingMode mode) {
         // Continue anyway - triangulation is optional but improves location coverage
     }
 
+    // Configure GPS mode based on operating mode
+    if (!notecardConfigureGPS(mode)) {
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.println("[Notecard] Warning: GPS configuration failed");
+        #endif
+        // Continue anyway
+    }
+
+    // Configure location tracking (only enabled in transit mode)
+    if (!notecardConfigureTracking(mode)) {
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.println("[Notecard] Warning: Tracking configuration failed");
+        #endif
+        // Continue anyway
+    }
+
     return true;
 }
 
@@ -739,17 +755,20 @@ bool notecardConfigureGPS(OperatingMode mode) {
 
     switch (mode) {
         case MODE_DEMO:
+            // GPS off in demo - rely on triangulation only
             JAddStringToObject(req, "mode", "off");
             break;
         case MODE_TRANSIT:
+            // GPS enabled for tracking - 60 second interval for good track resolution
             JAddStringToObject(req, "mode", "periodic");
-            JAddNumberToObject(req, "seconds", 300);  // Every 5 minutes
+            JAddNumberToObject(req, "seconds", 60);
             break;
         case MODE_STORAGE:
-            JAddStringToObject(req, "mode", "periodic");
-            JAddNumberToObject(req, "seconds", 3600);  // Every hour
+            // GPS off in storage - triangulation provides sufficient location
+            JAddStringToObject(req, "mode", "off");
             break;
         case MODE_SLEEP:
+            // GPS off when sleeping
             JAddStringToObject(req, "mode", "off");
             break;
     }
@@ -762,6 +781,52 @@ bool notecardConfigureGPS(OperatingMode mode) {
     }
 
     s_notecard.deleteResponse(rsp);
+
+    #ifdef DEBUG_MODE
+    DEBUG_SERIAL.print("[Notecard] GPS mode configured for ");
+    DEBUG_SERIAL.println(mode == MODE_TRANSIT ? "transit (periodic 60s)" : "off");
+    #endif
+
+    return true;
+}
+
+bool notecardConfigureTracking(OperatingMode mode) {
+    if (!s_initialized) {
+        return false;
+    }
+
+    J* req = s_notecard.newRequest("card.location.track");
+
+    if (mode == MODE_TRANSIT) {
+        // Enable autonomous GPS tracking in transit mode
+        // The Notecard will automatically record location to _track.qo
+        // when motion is detected, with velocity, bearing, and distance
+        JAddBoolToObject(req, "start", true);
+        JAddBoolToObject(req, "heartbeat", true);  // Send updates even when stationary
+        JAddNumberToObject(req, "hours", 1);       // Heartbeat every hour if no motion
+        JAddBoolToObject(req, "sync", true);       // Sync immediately on each track note
+    } else {
+        // Disable tracking for all other modes to conserve power
+        JAddBoolToObject(req, "stop", true);
+    }
+
+    J* rsp = s_notecard.requestAndResponse(req);
+    if (rsp == NULL || s_notecard.responseError(rsp)) {
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.println("[Notecard] card.location.track failed");
+        #endif
+        if (rsp) s_notecard.deleteResponse(rsp);
+        NC_ERROR();
+        return false;
+    }
+
+    s_notecard.deleteResponse(rsp);
+
+    #ifdef DEBUG_MODE
+    DEBUG_SERIAL.print("[Notecard] Location tracking ");
+    DEBUG_SERIAL.println(mode == MODE_TRANSIT ? "enabled" : "disabled");
+    #endif
+
     return true;
 }
 

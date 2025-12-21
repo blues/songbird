@@ -174,40 +174,55 @@ The firmware uses FreeRTOS with 6 tasks:
 
 ## Operating Modes
 
-| Mode | Description |
-|------|-------------|
-| `demo` | Continuous sync, rapid GPS updates, all features enabled |
-| `transit` | Periodic sync (configurable), motion-triggered tracking |
-| `storage` | Hourly sync, minimal power consumption |
-| `sleep` | Deep sleep with wake triggers |
+| Mode | Location | Description |
+|------|----------|-------------|
+| `demo` | Triangulation only | Continuous sync, all features enabled |
+| `transit` | GPS tracking | Periodic sync, autonomous GPS tracking enabled |
+| `storage` | Triangulation only | Hourly sync, minimal power consumption |
+| `sleep` | Disabled | Deep sleep with wake triggers |
 
 ## Location Tracking
 
 Songbird supports multiple methods for determining device location:
 
-### GPS
+### GPS Tracking (Transit Mode Only)
 
-GPS is configured via `card.location.mode` based on the operating mode:
+In **transit mode**, autonomous GPS tracking is enabled via `card.location.track`:
 
-| Mode | GPS Setting | Interval |
-|------|-------------|----------|
-| Demo | Off | - |
-| Transit | Periodic | Every 5 minutes |
-| Storage | Periodic | Every hour |
-| Sleep | Off | - |
+| Setting | Value | Description |
+|---------|-------|-------------|
+| `card.location.mode` | periodic, 60s | GPS sampling every 60 seconds |
+| `card.location.track` | start, heartbeat, sync | Autonomous tracking with hourly heartbeat |
+
+When tracking is enabled:
+- The Notecard autonomously records location to `_track.qo` when motion is detected
+- Track data includes **velocity** (m/s), **bearing** (degrees), and **distance** traveled
+- A **heartbeat** update is sent every hour even when stationary
+- Track notes are **immediately synced** to the cloud
+
+In all other modes (demo, storage, sleep), GPS is disabled to conserve power.
 
 ### Cell Tower & Wi-Fi Triangulation
 
-Songbird automatically enables cell tower and Wi-Fi triangulation via `card.triangulate`. This provides location data when GPS is disabled or unavailable, with the following benefits:
+All modes (except sleep) enable cell tower and Wi-Fi triangulation via `card.triangulate`. This provides location data when GPS is disabled, with the following benefits:
 
 - **Faster location acquisition**: Triangulation returns results in seconds vs minutes for GPS
 - **Indoor location**: Works where GPS signals don't penetrate
 - **Lower power consumption**: Wi-Fi scanning uses less power than GPS
-- **Demo mode location**: Provides location even when GPS is off
+- **Always-on location**: Provides location even when GPS is off
 
 Triangulation uses the Cell+WiFi Notecard's ability to scan nearby cell towers and Wi-Fi access points. Notehub processes this data to calculate an approximate location (typically 50-200m accuracy vs 5-10m for GPS).
 
-The location source (GPS, cell, wifi, triangulation) is included with each location data point so the dashboard can indicate the accuracy level.
+Triangulated location data is sent via `_geolocate.qo` events. The location source (gps, cell, wifi, triangulation) is included with each location data point so the dashboard can indicate the accuracy level.
+
+### Mode-based Location Summary
+
+| Mode | GPS | Triangulation | Location Source |
+|------|-----|---------------|-----------------|
+| Demo | Off | Enabled | `_geolocate.qo` (triangulation) |
+| Transit | On (60s tracking) | Enabled | `_track.qo` (GPS) + `_geolocate.qo` |
+| Storage | Off | Enabled | `_geolocate.qo` (triangulation) |
+| Sleep | Off | Off | None |
 
 ## Blues Mojo Power Monitor
 
@@ -302,6 +317,8 @@ The device accepts commands via the `command.qi` notefile in the format `{"cmd":
 | Notefile | Direction | Description |
 |----------|-----------|-------------|
 | `track.qo` | Outbound | Telemetry data (temp, humidity, pressure, voltage, motion) |
+| `_track.qo` | Outbound | GPS tracking data (location, velocity, bearing, distance) - Transit mode only |
+| `_geolocate.qo` | Outbound | Triangulated location (cell tower/Wi-Fi) |
 | `alert.qo` | Outbound | Alert notifications (threshold violations) |
 | `command_ack.qo` | Outbound | Command acknowledgments |
 | `health.qo` | Outbound | Device health/status reports |

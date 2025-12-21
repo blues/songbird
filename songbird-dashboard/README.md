@@ -180,6 +180,27 @@ Individual device view includes:
 - Configuration panel (mode, thresholds, audio settings)
 - Device information
 
+## Operating Modes
+
+The dashboard allows configuring devices into different operating modes, each optimized for specific use cases:
+
+| Mode | GPS | Triangulation | Sync | Description |
+|------|-----|---------------|------|-------------|
+| **Demo** | Off | Enabled | Instant | For demonstrations - uses cell/Wi-Fi triangulation for location, syncs immediately |
+| **Transit** | On (60s tracking) | Enabled | 15 min | For shipping/transport - full GPS tracking with velocity and bearing data |
+| **Storage** | Off | Enabled | 60 min | For warehousing - minimal power consumption, hourly syncs |
+| **Sleep** | Off | Off | N/A | Deep sleep with motion wake only |
+
+### Location Tracking
+
+The dashboard displays location data from multiple sources:
+
+- **GPS Tracking (Transit mode only)**: High-precision GPS location with velocity (m/s), bearing (degrees), and distance traveled. Data is recorded when motion is detected and synced immediately via `_track.qo` events.
+
+- **Triangulation (All modes except Sleep)**: Cell tower and Wi-Fi triangulation provides approximate location (50-200m accuracy) with faster time-to-fix and lower power consumption. Data arrives via `_geolocate.qo` events.
+
+The location trail map shows pins with different colors/icons to indicate the location source, so users can understand the accuracy level of each data point.
+
 ### Commands
 
 Fleet-wide command management:

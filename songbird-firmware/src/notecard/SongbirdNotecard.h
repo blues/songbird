@@ -224,6 +224,22 @@ bool notecardGetSerial(char* buffer, size_t bufferSize);
 bool notecardConfigureGPS(OperatingMode mode);
 
 /**
+ * @brief Configure location tracking
+ *
+ * Enables card.location.track for autonomous GPS tracking in transit mode.
+ * In transit mode, the Notecard will automatically record location to _track.qo
+ * when motion is detected, with periodic heartbeat updates.
+ *
+ * For all other modes, tracking is disabled to conserve power.
+ *
+ * Caller must hold I2C mutex.
+ *
+ * @param mode Operating mode (tracking only enabled in transit)
+ * @return true if configured successfully
+ */
+bool notecardConfigureTracking(OperatingMode mode);
+
+/**
  * @brief Configure cell tower and Wi-Fi triangulation
  *
  * Enables location triangulation using cell towers and Wi-Fi access points.

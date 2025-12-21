@@ -191,6 +191,7 @@ Create an HTTP route in Notehub to send events to the API Gateway ingest endpoin
    - **HTTP Headers**: Add `Content-Type: application/json`
 4. Under **Notefiles**, select:
    - `track.qo` - Telemetry data
+   - `_track.qo` - GPS tracking data (location, velocity, bearing) - Transit mode only
    - `alert.qo` - Alert events
    - `command_ack.qo` - Command acknowledgments
    - `health.qo` - Device health

@@ -52,6 +52,11 @@ interface SongbirdEvent {
     // Mojo power monitoring fields (_log.qo)
     milliamp_hours?: number;
     temperature?: number;  // Mojo board temperature
+    // GPS tracking fields (_track.qo)
+    velocity?: number;     // m/s
+    bearing?: number;      // degrees
+    distance?: number;     // meters since last track
+    seconds?: number;      // seconds since last track
   };
   location?: {
     lat?: number;
@@ -77,6 +82,11 @@ export const handler = async (event: SongbirdEvent): Promise<void> => {
     // Write Mojo power data to DynamoDB (_log.qo contains power telemetry)
     if (event.event_type === '_log.qo') {
       await writePowerTelemetry(event);
+    }
+
+    // Write GPS tracking data to DynamoDB (_track.qo from card.location.track)
+    if (event.event_type === '_track.qo') {
+      await writeTrackingTelemetry(event);
     }
 
     // Update device metadata in DynamoDB
@@ -184,6 +194,56 @@ async function writePowerTelemetry(event: SongbirdEvent): Promise<void> {
   } else {
     console.log('No power metrics in _log.qo event, skipping');
   }
+}
+
+async function writeTrackingTelemetry(event: SongbirdEvent): Promise<void> {
+  const timestamp = event.timestamp * 1000; // Convert to milliseconds
+  const ttl = Math.floor(Date.now() / 1000) + TTL_SECONDS;
+
+  // Create GPS tracking record from _track.qo (card.location.track)
+  const record: Record<string, any> = {
+    device_uid: event.device_uid,
+    timestamp,
+    ttl,
+    data_type: 'tracking',
+    event_type: event.event_type,
+    event_type_timestamp: `tracking#${timestamp}`, // For GSI queries
+    serial_number: event.serial_number || 'unknown',
+    fleet: event.fleet || 'default',
+  };
+
+  // Add GPS tracking values
+  if (event.body.velocity !== undefined) {
+    record.velocity = event.body.velocity; // m/s
+  }
+  if (event.body.bearing !== undefined) {
+    record.bearing = event.body.bearing; // degrees
+  }
+  if (event.body.distance !== undefined) {
+    record.distance = event.body.distance; // meters since last track
+  }
+  if (event.body.seconds !== undefined) {
+    record.seconds_since_last = event.body.seconds;
+  }
+  if (event.body.temperature !== undefined) {
+    record.temperature = event.body.temperature;
+  }
+
+  // Location is always included in _track.qo (that's the point!)
+  if (event.location?.lat !== undefined && event.location?.lon !== undefined) {
+    record.latitude = event.location.lat;
+    record.longitude = event.location.lon;
+    record.location_source = 'gps'; // _track.qo is always GPS
+    record.location_time = event.location.time || event.timestamp;
+  }
+
+  const command = new PutCommand({
+    TableName: TELEMETRY_TABLE,
+    Item: record,
+  });
+
+  await docClient.send(command);
+  console.log(`Wrote GPS tracking record for ${event.device_uid}: velocity=${event.body.velocity}m/s, bearing=${event.body.bearing}°`);
 }
 
 async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {

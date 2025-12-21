@@ -109,9 +109,9 @@ export function ConfigPanel({ deviceUid, assignedTo, onClose }: ConfigPanelProps
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="demo">Demo (1 min GPS, instant sync)</SelectItem>
-              <SelectItem value="transit">Transit (5 min GPS, 15 min sync)</SelectItem>
-              <SelectItem value="storage">Storage (60 min GPS, 60 min sync)</SelectItem>
+              <SelectItem value="demo">Demo (triangulation only, instant sync)</SelectItem>
+              <SelectItem value="transit">Transit (GPS tracking enabled, 15 min sync)</SelectItem>
+              <SelectItem value="storage">Storage (triangulation only, 60 min sync)</SelectItem>
               <SelectItem value="sleep">Sleep (motion wake only)</SelectItem>
             </SelectContent>
           </Select>

@@ -199,10 +199,10 @@ void MainTask(void* pvParameters) {
         stateInit();
 
         // Configure Notecard (only on cold boot)
+        // Note: GPS and tracking are configured inside notecardConfigure()
         if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
             notecardConfigure(s_currentConfig.mode);
             notecardSetupTemplates();
-            notecardConfigureGPS(s_currentConfig.mode);
             syncReleaseI2C();
         }
     } else {
@@ -222,7 +222,8 @@ void MainTask(void* pvParameters) {
         audioPlayEvent(AUDIO_EVENT_CONNECTED, s_currentConfig.audioVolume);
     }
 
-    // Fetch initial configuration
+    // Fetch initial configuration from environment variables
+    OperatingMode initialMode = s_currentConfig.mode;
     if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
         SongbirdConfig newConfig;
         envInitDefaults(&newConfig);
@@ -232,6 +233,20 @@ void MainTask(void* pvParameters) {
                 syncReleaseConfig();
             }
         }
+
+        // If mode changed from default after fetching env vars, reconfigure Notecard
+        // This ensures GPS/tracking settings match the actual mode from env vars
+        if (s_currentConfig.mode != initialMode) {
+            #ifdef DEBUG_MODE
+            DEBUG_SERIAL.print("[MainTask] Mode changed from env vars: ");
+            DEBUG_SERIAL.print(envGetModeName(initialMode));
+            DEBUG_SERIAL.print(" -> ");
+            DEBUG_SERIAL.println(envGetModeName(s_currentConfig.mode));
+            #endif
+            stateSetMode(s_currentConfig.mode);
+            notecardConfigure(s_currentConfig.mode);
+        }
+
         syncReleaseI2C();
     }
 
@@ -259,11 +274,11 @@ void MainTask(void* pvParameters) {
                 syncReleaseConfig();
 
                 // If mode changed, reconfigure Notecard
+                // Note: GPS and tracking are configured inside notecardConfigure()
                 if (oldMode != newConfig.mode) {
                     stateSetMode(newConfig.mode);
                     if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
                         notecardConfigure(newConfig.mode);
-                        notecardConfigureGPS(newConfig.mode);
                         syncReleaseI2C();
                     }
                 }
