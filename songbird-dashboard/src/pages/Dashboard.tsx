@@ -92,7 +92,7 @@ export function Dashboard({ mapboxToken, selectedFleet }: DashboardProps) {
                 Loading activity...
               </p>
             ) : recentActivity.length > 0 ? (
-              <div className="space-y-3 max-h-[350px] overflow-y-auto">
+              <div className="space-y-3 max-h-[350px] overflow-y-auto overflow-x-hidden">
                 {recentActivity.map((item) => (
                   <div
                     key={item.id}

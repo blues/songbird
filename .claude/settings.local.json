@@ -42,7 +42,12 @@
       "Bash(npm run deploy:*)",
       "Bash(npm run:*)",
       "Bash(aws dynamodb update-item:*)",
-      "Bash(npm run build:lambdas:*)"
+      "Bash(npm run build:lambdas:*)",
+      "Bash(python3:*)",
+      "Bash(aws dynamodb get-item:*)",
+      "Bash(aws lambda get-function:*)",
+      "Bash(node -e:*)",
+      "Bash(npx cdk deploy:*)"
     ],
     "deny": [],
     "ask": []
