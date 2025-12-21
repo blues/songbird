@@ -38,7 +38,7 @@ interface SongbirdEvent {
     humidity?: number;
     pressure?: number;
     voltage?: number;
-    motion?: boolean;
+    motion?: boolean | number;
     mode?: string;
     // Alert-specific fields
     type?: string;
@@ -57,6 +57,10 @@ interface SongbirdEvent {
     bearing?: number;      // degrees
     distance?: number;     // meters since last track
     seconds?: number;      // seconds since last track
+    // Journey tracking fields (_track.qo)
+    journey?: number;      // Journey ID (UNIX timestamp of journey start)
+    jcount?: number;       // Count of events in this journey
+    time?: number;         // Time the record was captured
   };
   location?: {
     lat?: number;
@@ -228,6 +232,19 @@ async function writeTrackingTelemetry(event: SongbirdEvent): Promise<void> {
   if (event.body.temperature !== undefined) {
     record.temperature = event.body.temperature;
   }
+
+  // Add journey tracking fields
+  if (event.body.journey !== undefined) {
+    record.journey = event.body.journey; // Journey ID (UNIX timestamp of journey start)
+  }
+  if (event.body.jcount !== undefined) {
+    record.jcount = event.body.jcount; // Count of events in this journey
+  }
+  if (event.body.time !== undefined) {
+    record.time = event.body.time; // Time the record was captured
+  }
+  // Motion defaults to 0 if not present
+  record.motion = event.body.motion ?? 0;
 
   // Location is always included in _track.qo (that's the point!)
   if (event.location?.lat !== undefined && event.location?.lon !== undefined) {
