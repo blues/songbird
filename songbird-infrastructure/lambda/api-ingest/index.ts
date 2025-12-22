@@ -140,8 +140,13 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     // Write Mojo power data to DynamoDB (_log.qo contains power telemetry)
+    // Skip if device is USB powered (voltage_mode: "usb") - no battery to monitor
     if (songbirdEvent.event_type === '_log.qo') {
-      await writePowerTelemetry(songbirdEvent);
+      if (songbirdEvent.body.voltage_mode === 'usb') {
+        console.log(`Skipping _log.qo event for ${songbirdEvent.device_uid} - USB powered`);
+      } else {
+        await writePowerTelemetry(songbirdEvent);
+      }
     }
 
     // Write health events to DynamoDB (_health.qo)

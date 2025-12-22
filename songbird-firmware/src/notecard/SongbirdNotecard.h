@@ -171,13 +171,29 @@ bool notecardGetCommand(Command* cmd);
 // =============================================================================
 
 /**
- * @brief Get battery voltage
+ * @brief Get battery voltage and USB power status
  *
  * Caller must hold I2C mutex.
  *
+ * @param usbPowered Output: true if device is USB powered (optional, can be NULL)
  * @return Battery voltage in volts, or 0 on error
  */
-float notecardGetVoltage(void);
+float notecardGetVoltage(bool* usbPowered);
+
+/**
+ * @brief Configure Mojo power monitoring
+ *
+ * Enables or disables periodic Mojo power readings via card.power.
+ * When enabled, readings are logged to _log.qo at mode-appropriate intervals.
+ * Should be disabled when running on USB power (no battery to monitor).
+ *
+ * Caller must hold I2C mutex.
+ *
+ * @param enabled true to enable Mojo monitoring, false to disable
+ * @param mode Current operating mode (affects reading interval when enabled)
+ * @return true if configured successfully
+ */
+bool notecardConfigureMojo(bool enabled, OperatingMode mode);
 
 /**
  * @brief Check for motion since last check

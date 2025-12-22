@@ -131,37 +131,8 @@ bool notecardConfigure(OperatingMode mode) {
 
     // Configure Mojo power monitoring (periodic readings)
     // Mojo is automatically detected if connected before Notecard power-on
-    {
-        J* req = s_notecard.newRequest("card.power");
-        // Set periodic reading interval based on mode
-        switch (mode) {
-            case MODE_DEMO:
-                JAddNumberToObject(req, "minutes", 1);  // Every minute for demo
-                break;
-            case MODE_TRANSIT:
-                JAddNumberToObject(req, "minutes", 5);  // Every 5 minutes
-                break;
-            case MODE_STORAGE:
-                JAddNumberToObject(req, "minutes", 60); // Every hour
-                break;
-            case MODE_SLEEP:
-                JAddNumberToObject(req, "minutes", 0);  // Disable periodic readings
-                break;
-        }
-
-        J* rsp = s_notecard.requestAndResponse(req);
-        if (rsp == NULL || s_notecard.responseError(rsp)) {
-            #ifdef DEBUG_MODE
-            DEBUG_SERIAL.println("[Notecard] card.power config failed (Mojo may not be connected)");
-            #endif
-            // Don't fail overall config - Mojo is optional
-        } else {
-            #ifdef DEBUG_MODE
-            DEBUG_SERIAL.println("[Notecard] Mojo power monitoring configured");
-            #endif
-        }
-        if (rsp) s_notecard.deleteResponse(rsp);
-    }
+    // Note: Mojo monitoring may be disabled later if USB power is detected
+    notecardConfigureMojo(true, mode);
 
     // Enable Outboard DFU and report firmware version
     // These calls enable over-the-air firmware updates via Notehub
@@ -654,8 +625,9 @@ bool notecardGetCommand(Command* cmd) {
 // Device Information
 // =============================================================================
 
-float notecardGetVoltage(void) {
+float notecardGetVoltage(bool* usbPowered) {
     if (!s_initialized) {
+        if (usbPowered) *usbPowered = false;
         return 0.0f;
     }
 
@@ -664,14 +636,67 @@ float notecardGetVoltage(void) {
     J* rsp = s_notecard.requestAndResponse(req);
     if (rsp == NULL || s_notecard.responseError(rsp)) {
         if (rsp) s_notecard.deleteResponse(rsp);
+        if (usbPowered) *usbPowered = false;
         NC_ERROR();
         return 0.0f;
     }
 
     float voltage = JGetNumber(rsp, "value");
+
+    // Check USB power status - "usb":true means device is USB powered
+    if (usbPowered) {
+        *usbPowered = JGetBool(rsp, "usb");
+    }
+
     s_notecard.deleteResponse(rsp);
 
     return voltage;
+}
+
+bool notecardConfigureMojo(bool enabled, OperatingMode mode) {
+    if (!s_initialized) {
+        return false;
+    }
+
+    J* req = s_notecard.newRequest("card.power");
+
+    if (enabled) {
+        // Set periodic reading interval based on mode
+        switch (mode) {
+            case MODE_DEMO:
+                JAddNumberToObject(req, "minutes", 1);  // Every minute for demo
+                break;
+            case MODE_TRANSIT:
+                JAddNumberToObject(req, "minutes", 5);  // Every 5 minutes
+                break;
+            case MODE_STORAGE:
+                JAddNumberToObject(req, "minutes", 60); // Every hour
+                break;
+            case MODE_SLEEP:
+                JAddNumberToObject(req, "minutes", 720);  // 12 hours for max reading time
+                break;
+        }
+    } else {
+        // Disable Mojo power monitoring
+        JAddNumberToObject(req, "minutes", 720);  // 12 hours for max reading time
+    }
+
+    J* rsp = s_notecard.requestAndResponse(req);
+    if (rsp == NULL || s_notecard.responseError(rsp)) {
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.println("[Notecard] card.power config failed");
+        #endif
+        if (rsp) s_notecard.deleteResponse(rsp);
+        return false;
+    }
+
+    #ifdef DEBUG_MODE
+    DEBUG_SERIAL.print("[Notecard] Mojo power monitoring ");
+    DEBUG_SERIAL.println(enabled ? "enabled" : "disabled");
+    #endif
+
+    s_notecard.deleteResponse(rsp);
+    return true;
 }
 
 bool notecardGetMotion(void) {

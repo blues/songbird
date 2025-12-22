@@ -44,6 +44,11 @@ export function PowerChart({ data, height = 300 }: PowerChartProps) {
 
   return (
     <div className="space-y-4">
+      {/* Info note about power monitoring */}
+      <p className="text-xs text-muted-foreground italic">
+        Power monitoring is only performed when the device is battery powered and not plugged in or charging over USB.
+      </p>
+
       {/* Voltage Chart */}
       {hasVoltage && (
         <div>
@@ -82,7 +87,7 @@ export function PowerChart({ data, height = 300 }: PowerChartProps) {
       {/* Energy Chart */}
       {hasMilliampHours && (
         <div>
-          <h4 className="text-sm font-medium mb-2 text-blue-500">Energy Consumption</h4>
+          <h4 className="text-sm font-medium mb-2 text-blue-500">Energy Consumption (mAh)</h4>
           <ResponsiveContainer width="100%" height={chartHeight}>
             <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />

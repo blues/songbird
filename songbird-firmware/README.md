@@ -252,6 +252,12 @@ Mojo readings are automatically configured based on the operating mode:
 | Storage | Every 60 minutes |
 | Sleep | Disabled |
 
+### USB Power Detection
+
+Mojo power monitoring is automatically **disabled when the device is USB-powered** and **re-enabled when running on battery**. This prevents unnecessary `_log.qo` events when the device is plugged in for charging or development.
+
+The firmware detects USB power via the `usb` field in the Notecard's `card.voltage` response and only reconfigures Mojo when the power source changes (not on every reading).
+
 ### Viewing Data
 
 Mojo data is automatically logged to Notehub. To enable automatic power logging:

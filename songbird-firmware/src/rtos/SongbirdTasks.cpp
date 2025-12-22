@@ -531,6 +531,10 @@ void SensorTask(void* pvParameters) {
     TickType_t lastWakeTime = xTaskGetTickCount();
     SensorData data;
 
+    // Track USB power state to detect changes
+    // Start with "unknown" state (-1) to force initial configuration
+    static int8_t s_lastUsbPowered = -1;
+
     for (;;) {
         // Check for sleep request
         if (g_sleepRequested) {
@@ -548,8 +552,22 @@ void SensorTask(void* pvParameters) {
         if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
             readSuccess = sensorsRead(&data);
 
-            // Get battery voltage
-            data.voltage = notecardGetVoltage();
+            // Get battery voltage and USB power status
+            bool usbPowered = false;
+            data.voltage = notecardGetVoltage(&usbPowered);
+
+            // Check for USB power state change and toggle Mojo monitoring
+            int8_t currentUsbState = usbPowered ? 1 : 0;
+            if (currentUsbState != s_lastUsbPowered) {
+                #ifdef DEBUG_MODE
+                DEBUG_SERIAL.print("[SensorTask] USB power state changed: ");
+                DEBUG_SERIAL.println(usbPowered ? "USB powered" : "battery powered");
+                #endif
+
+                // Enable Mojo when on battery, disable when on USB
+                notecardConfigureMojo(!usbPowered, config.mode);
+                s_lastUsbPowered = currentUsbState;
+            }
 
             // Get motion status
             data.motion = notecardGetMotion() || stateGetAndClearMotion();
