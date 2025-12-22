@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   Satellite,
   Radio,
+  Lock,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -301,7 +302,11 @@ export function Devices() {
                               <span className="italic">Unassigned</span>
                             )}
                             {device.mode && (
-                              <Badge variant="outline" className="ml-2 text-xs">
+                              <Badge
+                                variant={device.transit_locked ? "default" : "outline"}
+                                className={`ml-2 text-xs ${device.transit_locked ? "gap-1 bg-amber-500 hover:bg-amber-600" : ""}`}
+                              >
+                                {device.transit_locked && <Lock className="h-2.5 w-2.5" />}
                                 {formatMode(device.mode)}
                               </Badge>
                             )}

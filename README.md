@@ -76,6 +76,7 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
 | **Alert Management** | Temperature threshold alerts with acknowledgment workflow |
 | **User Management** | Role-based access with Admin, Sales, Field Engineering, Viewer groups |
 | **Device Assignment** | Assign devices to users for accountability tracking |
+| **Transit Lock** | Double-click button to lock device in transit mode for shipping |
 
 ## Project Structure
 
@@ -200,6 +201,24 @@ Transit mode enables autonomous GPS tracking via `card.location.track`:
 - **Immediate sync**: Track notes sync to cloud as soon as they're created
 
 Other modes use cell tower/Wi-Fi triangulation for location, which is lower power but less precise.
+
+### Transit Lock
+
+Transit Lock is a physical button feature that locks the device into transit mode, preventing remote mode changes during shipping:
+
+| Action | Result |
+|--------|--------|
+| **Single-click** | Toggle audio mute |
+| **Double-click** (unlocked) | Enter transit mode, save previous mode, lock |
+| **Double-click** (locked) | Restore previous mode, unlock |
+
+When transit lock is active:
+- Device enters transit mode with full GPS tracking
+- Environment variable mode changes are ignored
+- Dashboard shows amber lock icon next to mode
+- Lock state persists across sleep cycles
+
+This ensures devices maintain GPS tracking during transit without accidental remote reconfiguration.
 
 ## Cloud-to-Device Commands
 

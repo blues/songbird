@@ -262,24 +262,52 @@ Mojo data is automatically logged to Notehub. To enable automatic power logging:
 
 Power data will appear in the `_power.qo` notefile.
 
-## User Button (Mute Toggle)
+## User Button
 
-The user button on the Notecarrier can be used to quickly mute or unmute all audio feedback without needing to change cloud configuration.
+The user button on the Notecarrier supports two functions via single-click and double-click:
 
-### How to Use
+### Button Actions
+
+| Action | Result | Audio Feedback |
+|--------|--------|----------------|
+| **Single-click** | Toggle mute | Rising (C→E→G) = unmuted, Falling (G→E→C) = muted |
+| **Double-click** | Toggle transit lock | Descending (E6→C6→G5) = locked, Ascending (G5→C6→E6) = unlocked |
+
+### Mute Toggle (Single-click)
 
 - **Press the button once** to toggle between muted and unmuted states
 - **Rising tone (C→E→G)** confirms audio is now **unmuted**
 - **Falling tone (G→E→C)** confirms audio is now **muted**
-
-### Behavior
 
 | State | Audio Behavior |
 |-------|----------------|
 | Unmuted | All audio plays normally (power-on, alerts, notifications) |
 | Muted | All audio is silenced, including alerts and locate mode |
 
-**Note**: The mute state is temporary and resets to the configured `audio_enabled` setting after a device reboot or sleep cycle. For persistent audio control, use the `audio_enabled` environment variable in Notehub.
+**Note**: The mute state is temporary and resets to the configured `audio_enabled` setting after a device reboot or sleep cycle.
+
+### Transit Lock (Double-click)
+
+Transit Lock allows you to physically lock the device into transit mode, preventing remote mode changes during shipping:
+
+| State | Behavior |
+|-------|----------|
+| **Unlocked** | Double-click saves current mode and switches to transit mode with GPS tracking |
+| **Locked** | Double-click restores the saved mode and unlocks |
+
+When transit lock is active:
+- Device operates in **transit mode** with full GPS tracking enabled
+- **Environment variable mode changes are blocked** - remote configuration cannot change the mode
+- Lock state **persists across sleep cycles** - survives reboots
+- Dashboard shows an **amber lock icon** next to the mode badge
+
+This feature is useful when shipping devices - it ensures GPS tracking remains active without accidental remote reconfiguration.
+
+### Timing
+
+- Single-click is processed after a 450ms delay (to distinguish from double-click)
+- Double-click must occur within 400ms window
+- Button debounce is 50ms
 
 ### Hardware
 

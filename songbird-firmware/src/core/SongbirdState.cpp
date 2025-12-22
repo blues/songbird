@@ -57,6 +57,8 @@ void stateInit(void) {
     s_state.motionSinceLastReport = false;
     s_state.uptimeAtSleep = 0;
     s_state.totalUptimeSec = 0;
+    s_state.transitLocked = false;
+    s_state.preTransitMode = MODE_DEMO;
 
     s_bootStartTime = millis();
     s_warmBoot = false;
@@ -238,6 +240,21 @@ uint32_t stateGetBootCount(void) {
 
 float stateGetLastPressure(void) {
     return s_state.lastPressure;
+}
+
+void stateSetTransitLock(bool locked, OperatingMode previousMode) {
+    s_state.transitLocked = locked;
+    if (locked) {
+        s_state.preTransitMode = previousMode;
+    }
+}
+
+bool stateIsTransitLocked(void) {
+    return s_state.transitLocked;
+}
+
+OperatingMode stateGetPreTransitMode(void) {
+    return s_state.preTransitMode;
 }
 
 // =============================================================================

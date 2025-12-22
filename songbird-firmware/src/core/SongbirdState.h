@@ -21,7 +21,7 @@
 
 // Magic number to validate state data
 #define STATE_MAGIC 0x534F4E47  // "SONG"
-#define STATE_VERSION 1
+#define STATE_VERSION 2
 
 /**
  * @brief Persistent state structure
@@ -41,7 +41,9 @@ typedef struct {
     bool motionSinceLastReport; // Motion detected since last track note
     uint32_t uptimeAtSleep;     // Uptime when entering sleep
     uint32_t totalUptimeSec;    // Cumulative uptime across sleeps
-    uint8_t reserved[16];       // Reserved for future use
+    bool transitLocked;         // Transit lock is active (double-click engaged)
+    OperatingMode preTransitMode; // Mode before transit lock was engaged
+    uint8_t reserved[14];       // Reserved for future use
     uint32_t checksum;          // CRC32 checksum
 } SongbirdState;
 
@@ -181,6 +183,30 @@ uint32_t stateGetBootCount(void);
  * @return Pressure in hPa, or NAN if none
  */
 float stateGetLastPressure(void);
+
+/**
+ * @brief Set transit lock state
+ *
+ * When locking, saves the previous mode so it can be restored.
+ *
+ * @param locked Whether transit lock is active
+ * @param previousMode Mode to save (only used when locking)
+ */
+void stateSetTransitLock(bool locked, OperatingMode previousMode);
+
+/**
+ * @brief Check if transit lock is active
+ *
+ * @return true if transit lock is engaged
+ */
+bool stateIsTransitLocked(void);
+
+/**
+ * @brief Get the mode saved before transit lock was engaged
+ *
+ * @return The previous operating mode
+ */
+OperatingMode stateGetPreTransitMode(void);
 
 // =============================================================================
 // Checksum

@@ -8,6 +8,7 @@
 
 #include "SongbirdEnv.h"
 #include "SongbirdNotecard.h"
+#include "SongbirdState.h"
 
 // =============================================================================
 // Initialization
@@ -57,10 +58,16 @@ bool envFetchConfig(SongbirdConfig* config) {
     char buffer[32];
     bool anySuccess = false;
 
-    // Mode
+    // Mode - only apply if not transit locked
     if (notecardEnvGet(ENV_MODE, buffer, sizeof(buffer))) {
-        config->mode = envParseMode(buffer);
-        anySuccess = true;
+        if (!stateIsTransitLocked()) {
+            config->mode = envParseMode(buffer);
+            anySuccess = true;
+        } else {
+            #ifdef DEBUG_MODE
+            DEBUG_SERIAL.println("[Env] Mode change blocked - transit lock active");
+            #endif
+        }
     }
 
     // Timing

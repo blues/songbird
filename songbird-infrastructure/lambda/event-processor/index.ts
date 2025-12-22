@@ -40,6 +40,7 @@ interface SongbirdEvent {
     voltage?: number;
     motion?: boolean | number;
     mode?: string;
+    transit_locked?: boolean;
     // Alert-specific fields
     type?: string;
     value?: number;
@@ -304,6 +305,13 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
     updateExpressions.push('#mode = :mode');
     expressionAttributeNames['#mode'] = 'current_mode';
     expressionAttributeValues[':mode'] = event.body.mode;
+  }
+
+  // Update transit lock state if in body
+  if (event.body.transit_locked !== undefined) {
+    updateExpressions.push('#transit_locked = :transit_locked');
+    expressionAttributeNames['#transit_locked'] = 'transit_locked';
+    expressionAttributeValues[':transit_locked'] = event.body.transit_locked;
   }
 
   // Update last location if available

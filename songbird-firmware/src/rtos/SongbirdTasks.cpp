@@ -34,12 +34,18 @@ TaskHandle_t g_envTaskHandle = NULL;
 static SongbirdConfig s_currentConfig;
 
 // =============================================================================
-// Button State (for mute toggle)
+// Button State (for mute toggle and transit lock)
 // =============================================================================
 
 static bool s_lastButtonState = HIGH;       // Button is active-low with pull-up
 static uint32_t s_lastButtonChange = 0;     // Debounce timing
 static const uint32_t BUTTON_DEBOUNCE_MS = 50;
+
+// Double-click detection for transit lock
+static uint8_t s_clickCount = 0;            // Number of clicks in current window
+static uint32_t s_firstClickTime = 0;       // Time of first click
+static const uint32_t DOUBLE_CLICK_WINDOW_MS = 400;  // Window for second click
+static const uint32_t SINGLE_CLICK_DELAY_MS = 450;   // Delay before single-click action
 
 // =============================================================================
 // Task Creation
@@ -294,21 +300,102 @@ void MainTask(void* pvParameters) {
         // (In a real implementation, this would be more sophisticated)
         // For now, we don't automatically sleep - let the device run continuously
 
-        // Handle user button for mute toggle
+        // Handle user button: single-click = mute toggle, double-click = transit lock
         bool currentButtonState = digitalRead(BUTTON_PIN);
+        uint32_t now = millis();
+
+        // Handle button state change with debounce
         if (currentButtonState != s_lastButtonState) {
-            uint32_t now = millis();
             if (now - s_lastButtonChange > BUTTON_DEBOUNCE_MS) {
                 s_lastButtonChange = now;
                 s_lastButtonState = currentButtonState;
 
                 // Button pressed (active low)
                 if (currentButtonState == LOW) {
+                    s_clickCount++;
+                    if (s_clickCount == 1) {
+                        s_firstClickTime = now;
+                    }
+
                     #ifdef DEBUG_MODE
-                    DEBUG_SERIAL.println("[MainTask] Button pressed - toggling mute");
+                    DEBUG_SERIAL.print("[MainTask] Click count: ");
+                    DEBUG_SERIAL.println(s_clickCount);
                     #endif
-                    audioToggleMute();
                 }
+            }
+        }
+
+        // Process click actions after timing window
+        if (s_clickCount > 0) {
+            uint32_t elapsed = now - s_firstClickTime;
+
+            // Check for double-click completion
+            if (s_clickCount >= 2 && elapsed < DOUBLE_CLICK_WINDOW_MS) {
+                // Double-click detected - toggle transit lock
+                #ifdef DEBUG_MODE
+                DEBUG_SERIAL.println("[MainTask] Double-click - toggling transit lock");
+                #endif
+
+                if (stateIsTransitLocked()) {
+                    // Unlock: restore previous mode
+                    OperatingMode previousMode = stateGetPreTransitMode();
+                    stateSetTransitLock(false, MODE_DEMO);
+                    stateSetMode(previousMode);
+
+                    // Apply the restored mode
+                    if (syncAcquireConfig(100)) {
+                        s_currentConfig.mode = previousMode;
+                        syncReleaseConfig();
+                    }
+                    if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
+                        notecardConfigure(previousMode);
+                        syncReleaseI2C();
+                    }
+
+                    audioQueueEvent(AUDIO_EVENT_TRANSIT_LOCK_OFF);
+
+                    #ifdef DEBUG_MODE
+                    DEBUG_SERIAL.print("[MainTask] Transit lock OFF, restored mode: ");
+                    DEBUG_SERIAL.println(envGetModeName(previousMode));
+                    #endif
+                } else {
+                    // Lock: save current mode and switch to transit
+                    OperatingMode currentMode = s_currentConfig.mode;
+                    stateSetTransitLock(true, currentMode);
+                    stateSetMode(MODE_TRANSIT);
+
+                    // Apply transit mode
+                    if (syncAcquireConfig(100)) {
+                        s_currentConfig.mode = MODE_TRANSIT;
+                        syncReleaseConfig();
+                    }
+                    if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
+                        notecardConfigure(MODE_TRANSIT);
+                        syncReleaseI2C();
+                    }
+
+                    audioQueueEvent(AUDIO_EVENT_TRANSIT_LOCK_ON);
+
+                    #ifdef DEBUG_MODE
+                    DEBUG_SERIAL.print("[MainTask] Transit lock ON, saved mode: ");
+                    DEBUG_SERIAL.println(envGetModeName(currentMode));
+                    #endif
+                }
+
+                s_clickCount = 0;
+            }
+            // Single click: wait for window to expire before executing
+            else if (s_clickCount == 1 && elapsed >= SINGLE_CLICK_DELAY_MS) {
+                // Single click - toggle mute
+                #ifdef DEBUG_MODE
+                DEBUG_SERIAL.println("[MainTask] Single-click - toggling mute");
+                #endif
+                audioToggleMute();
+                s_clickCount = 0;
+            }
+            // Double-click window expired with 2+ clicks (safety reset)
+            else if (elapsed >= DOUBLE_CLICK_WINDOW_MS && s_clickCount >= 2) {
+                s_clickCount = 0;
             }
         }
 

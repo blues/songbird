@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Thermometer, Droplets, Gauge, Battery, MapPin, AlertTriangle, Satellite, Radio } from 'lucide-react';
+import { Thermometer, Droplets, Gauge, Battery, MapPin, AlertTriangle, Satellite, Radio, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { DeviceStatus } from './DeviceStatus';
@@ -61,7 +61,13 @@ export function DeviceCard({ device, alertCount = 0 }: DeviceCardProps) {
                   {alertCount}
                 </Badge>
               )}
-              <Badge variant="secondary">{formatMode(device.mode)}</Badge>
+              <Badge
+                variant={device.transit_locked ? "default" : "secondary"}
+                className={device.transit_locked ? "gap-1 bg-amber-500 hover:bg-amber-600" : ""}
+              >
+                {device.transit_locked && <Lock className="h-3 w-3" />}
+                {formatMode(device.mode)}
+              </Badge>
               <DeviceStatus status={device.status} showLabel={false} />
             </div>
           </div>

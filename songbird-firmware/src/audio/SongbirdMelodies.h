@@ -335,6 +335,40 @@ static const Melody MELODY_PRESSURE_ALERT = {
 };
 
 // =============================================================================
+// Transit Lock ON - Descending lock sound E6→C6→G5
+// Double-click to engage transit lock
+// =============================================================================
+
+static const uint16_t MELODY_TRANSIT_LOCK_ON_NOTES[] = {
+    NOTE_E6, NOTE_C6, NOTE_REST, NOTE_G5
+};
+static const uint16_t MELODY_TRANSIT_LOCK_ON_DURATIONS[] = {
+    80, 80, 50, 150
+};
+static const Melody MELODY_TRANSIT_LOCK_ON = {
+    MELODY_TRANSIT_LOCK_ON_NOTES,
+    MELODY_TRANSIT_LOCK_ON_DURATIONS,
+    4
+};
+
+// =============================================================================
+// Transit Lock OFF - Ascending unlock sound G5→C6→E6
+// Double-click to disengage transit lock
+// =============================================================================
+
+static const uint16_t MELODY_TRANSIT_LOCK_OFF_NOTES[] = {
+    NOTE_G5, NOTE_C6, NOTE_REST, NOTE_E6
+};
+static const uint16_t MELODY_TRANSIT_LOCK_OFF_DURATIONS[] = {
+    80, 80, 50, 150
+};
+static const Melody MELODY_TRANSIT_LOCK_OFF = {
+    MELODY_TRANSIT_LOCK_OFF_NOTES,
+    MELODY_TRANSIT_LOCK_OFF_DURATIONS,
+    4
+};
+
+// =============================================================================
 // Melody Lookup Table
 // =============================================================================
 
@@ -354,7 +388,9 @@ static const Melody* const MELODY_TABLE[] = {
     &MELODY_PING,           // AUDIO_EVENT_PING
     &MELODY_LOCATE,         // AUDIO_EVENT_LOCATE_START (single beep)
     NULL,                   // AUDIO_EVENT_LOCATE_STOP (no sound)
-    NULL                    // AUDIO_EVENT_CUSTOM_TONE (handled separately)
+    NULL,                   // AUDIO_EVENT_CUSTOM_TONE (handled separately)
+    &MELODY_TRANSIT_LOCK_ON,  // AUDIO_EVENT_TRANSIT_LOCK_ON
+    &MELODY_TRANSIT_LOCK_OFF  // AUDIO_EVENT_TRANSIT_LOCK_OFF
 };
 
 /**

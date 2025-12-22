@@ -44,6 +44,7 @@ export interface Device {
   status: DeviceStatus;
   last_seen?: string;
   mode: OperatingMode;
+  transit_locked?: boolean;
   firmware_version?: string;
   notecard_version?: string;
   notecard_sku?: string;

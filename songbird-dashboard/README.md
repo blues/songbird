@@ -201,6 +201,22 @@ The dashboard displays location data from multiple sources:
 
 The location trail map shows pins with different colors/icons to indicate the location source, so users can understand the accuracy level of each data point.
 
+### Transit Lock
+
+Devices can be physically locked into transit mode by double-clicking the user button on the device. When transit lock is active:
+
+- The mode badge displays an **amber background** with a **lock icon**
+- The device operates in transit mode with full GPS tracking
+- Remote mode changes via environment variables are blocked
+- Lock state persists across device reboots
+
+This visual indicator helps users understand when a device is in a locked shipping state and cannot be remotely reconfigured.
+
+| Lock State | Badge Appearance |
+|------------|------------------|
+| Unlocked | Gray badge with mode name (e.g., "Demo", "Transit") |
+| Locked | Amber badge with lock icon and mode name |
+
 ### Commands
 
 Fleet-wide command management:

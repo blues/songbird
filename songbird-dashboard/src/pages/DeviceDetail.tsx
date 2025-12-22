@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, Zap, AlertTriangle, Check, Clock, Activity, MapPin, Satellite, Radio } from 'lucide-react';
+import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, Zap, AlertTriangle, Check, Clock, Activity, MapPin, Satellite, Radio, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -150,7 +150,13 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
           <p className="text-muted-foreground">
             {device.fleet_name && `Fleet: ${device.fleet_name} • `}
             {(device.assigned_to_name || device.assigned_to) && `Assigned: ${device.assigned_to_name || device.assigned_to} • `}
-            <Badge variant="secondary">{formatMode(device.mode)}</Badge>
+            <Badge
+              variant={device.transit_locked ? "default" : "secondary"}
+              className={device.transit_locked ? "gap-1 bg-amber-500 hover:bg-amber-600" : ""}
+            >
+              {device.transit_locked && <Lock className="h-3 w-3" />}
+              {formatMode(device.mode)}
+            </Badge>
             {device.last_seen && ` • Last seen: ${formatRelativeTime(device.last_seen)}`}
           </p>
         </div>

@@ -50,6 +50,7 @@ interface NotehubEvent {
     voltage?: number;
     motion?: boolean;
     mode?: string;
+    transit_locked?: boolean;
     // Alert-specific fields
     type?: string;
     value?: number;
@@ -295,6 +296,7 @@ interface SongbirdEvent {
     voltage?: number;
     motion?: boolean;
     mode?: string;
+    transit_locked?: boolean;
     type?: string;
     value?: number;
     threshold?: number;
@@ -517,6 +519,12 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
     updateExpressions.push('#mode = :mode');
     expressionAttributeNames['#mode'] = 'current_mode';
     expressionAttributeValues[':mode'] = event.body.mode;
+  }
+
+  if (event.body.transit_locked !== undefined) {
+    updateExpressions.push('#transit_locked = :transit_locked');
+    expressionAttributeNames['#transit_locked'] = 'transit_locked';
+    expressionAttributeValues[':transit_locked'] = event.body.transit_locked;
   }
 
   if (event.location?.lat !== undefined && event.location?.lon !== undefined) {
