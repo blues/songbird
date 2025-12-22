@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, Zap, AlertTriangle, Check, Clock, Activity, MapPin, Satellite, Radio, Lock } from 'lucide-react';
+import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, Clock, Activity, MapPin, Satellite, Radio, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -136,7 +136,12 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <h1 className="text-2xl font-bold">
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              {device.usb_powered ? (
+                <BatteryCharging className="h-5 w-5 text-blue-500" title="USB Powered" />
+              ) : (
+                <BatteryFull className="h-5 w-5 text-green-500" title="Battery Powered" />
+              )}
               {device.name || device.serial_number || truncateDeviceUid(device.device_uid)}
             </h1>
             <DeviceStatus status={device.status} />

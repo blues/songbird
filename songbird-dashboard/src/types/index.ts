@@ -46,6 +46,7 @@ export interface Device {
   mode: OperatingMode;
   transit_locked?: boolean;
   demo_locked?: boolean;
+  usb_powered?: boolean;
   firmware_version?: string;
   notecard_version?: string;
   notecard_sku?: string;

@@ -258,6 +258,10 @@ Mojo power monitoring is automatically **disabled when the device is USB-powered
 
 The firmware detects USB power via the `usb` field in the Notecard's `card.voltage` response and only reconfigures Mojo when the power source changes (not on every reading).
 
+The USB power status is also reported to the cloud via `_session.qo` events (the `power_usb` field). The dashboard displays:
+- **Blue charging icon** next to the device name when USB powered
+- **Green battery icon** next to the device name when running on battery
+
 ### Viewing Data
 
 Mojo data is automatically logged to Notehub. To enable automatic power logging:

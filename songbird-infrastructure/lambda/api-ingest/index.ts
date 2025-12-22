@@ -68,6 +68,8 @@ interface NotehubEvent {
     method?: string;
     text?: string;
     voltage_mode?: string;
+    // Session fields may appear in body for _session.qo
+    power_usb?: boolean;
   };
   best_location_type?: string;
   best_location_when?: number;
@@ -87,10 +89,11 @@ interface NotehubEvent {
   tri_timezone?: string;
   tri_points?: number;  // Number of reference points used for triangulation
   fleets?: string[];
-  // Session fields (_session.qo)
+  // Session fields (_session.qo) - may appear at top level or in body
   firmware_host?: string;     // JSON string with host firmware info
   firmware_notecard?: string; // JSON string with Notecard firmware info
   sku?: string;               // Notecard SKU (e.g., "NOTE-WBGLW")
+  power_usb?: boolean;        // true if device is USB powered
 }
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -195,14 +198,19 @@ interface SessionInfo {
   firmware_version?: string;
   notecard_version?: string;
   notecard_sku?: string;
+  usb_powered?: boolean;
 }
 
 /**
- * Extract session info (firmware versions, SKU) from Notehub event
+ * Extract session info (firmware versions, SKU, power status) from Notehub event
  * This info is available in _session.qo events
+ * Note: Some fields may appear at the top level or inside the body depending on the HTTP route configuration
  */
 function extractSessionInfo(event: NotehubEvent): SessionInfo | undefined {
-  if (!event.firmware_host && !event.firmware_notecard && !event.sku) {
+  // Check for power_usb at top level OR in body
+  const powerUsb = event.power_usb ?? event.body?.power_usb;
+
+  if (!event.firmware_host && !event.firmware_notecard && !event.sku && powerUsb === undefined) {
     return undefined;
   }
 
@@ -231,6 +239,12 @@ function extractSessionInfo(event: NotehubEvent): SessionInfo | undefined {
   // SKU
   if (event.sku) {
     sessionInfo.notecard_sku = event.sku;
+  }
+
+  // USB power status (check top level first, then body)
+  if (powerUsb !== undefined) {
+    sessionInfo.usb_powered = powerUsb;
+    console.log(`Extracted usb_powered: ${powerUsb}`);
   }
 
   return Object.keys(sessionInfo).length > 0 ? sessionInfo : undefined;
@@ -593,6 +607,13 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
     updateExpressions.push('#nc_sku = :nc_sku');
     expressionAttributeNames['#nc_sku'] = 'notecard_sku';
     expressionAttributeValues[':nc_sku'] = event.session.notecard_sku;
+  }
+
+  // Update USB power status from _session.qo events
+  if (event.session?.usb_powered !== undefined) {
+    updateExpressions.push('#usb_powered = :usb_powered');
+    expressionAttributeNames['#usb_powered'] = 'usb_powered';
+    expressionAttributeValues[':usb_powered'] = event.session.usb_powered;
   }
 
   updateExpressions.push('#created_at = if_not_exists(#created_at, :created_at)');

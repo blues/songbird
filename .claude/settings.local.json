@@ -48,7 +48,8 @@
       "Bash(aws lambda get-function:*)",
       "Bash(node -e:*)",
       "Bash(npx cdk deploy:*)",
-      "Bash(npx cdk synth:*)"
+      "Bash(npx cdk synth:*)",
+      "Bash(aws dynamodb get-item --table-name songbird-devices --key '{\"\"device_uid\"\": {\"\"S\"\": \"\"dev:351077454527360\"\"}}')"
     ],
     "deny": [],
     "ask": []

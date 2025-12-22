@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Thermometer, Droplets, Gauge, Battery, MapPin, AlertTriangle, Satellite, Radio, Lock } from 'lucide-react';
+import { Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryMedium, BatteryLow, BatteryCharging, MapPin, AlertTriangle, Satellite, Radio, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { DeviceStatus } from './DeviceStatus';
@@ -47,7 +47,12 @@ export function DeviceCard({ device, alertCount = 0 }: DeviceCardProps) {
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="font-semibold">
+              <h3 className="font-semibold flex items-center gap-1.5">
+                {device.usb_powered ? (
+                  <BatteryCharging className="h-4 w-4 text-blue-500" title="USB Powered" />
+                ) : (
+                  <BatteryFull className="h-4 w-4 text-green-500" title="Battery Powered" />
+                )}
                 {device.name || device.serial_number || device.device_uid}
               </h3>
               {(device.assigned_to_name || device.assigned_to) && (
@@ -106,15 +111,13 @@ export function DeviceCard({ device, alertCount = 0 }: DeviceCardProps) {
 
             {/* Battery */}
             <div className="flex items-center gap-2">
-              <Battery
-                className={`h-4 w-4 ${
-                  battery.level === 'critical'
-                    ? 'text-red-500'
-                    : battery.level === 'low'
-                    ? 'text-yellow-500'
-                    : 'text-green-500'
-                }`}
-              />
+              {battery.percentage >= 75 ? (
+                <BatteryFull className="h-4 w-4 text-green-500" />
+              ) : battery.percentage >= 25 ? (
+                <BatteryMedium className="h-4 w-4 text-orange-500" />
+              ) : (
+                <BatteryLow className="h-4 w-4 text-red-500" />
+              )}
               <span className="text-sm font-medium">{battery.percentage}%</span>
             </div>
           </div>

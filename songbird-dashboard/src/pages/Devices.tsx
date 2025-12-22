@@ -5,6 +5,8 @@ import {
   ChevronUp,
   ChevronDown,
   Battery,
+  BatteryFull,
+  BatteryCharging,
   Thermometer,
   MapPin,
   AlertTriangle,
@@ -287,6 +289,11 @@ export function Devices() {
                   >
                     <TableCell>
                       <div className="flex items-center gap-2">
+                        {device.usb_powered ? (
+                          <BatteryCharging className="h-4 w-4 text-blue-500 flex-shrink-0" title="USB Powered" />
+                        ) : (
+                          <BatteryFull className="h-4 w-4 text-green-500 flex-shrink-0" title="Battery Powered" />
+                        )}
                         <div>
                           <div className="font-medium flex items-center gap-2">
                             {device.name || device.serial_number || device.device_uid}
