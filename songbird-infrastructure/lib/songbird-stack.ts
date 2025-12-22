@@ -8,7 +8,6 @@ import * as cdk from 'aws-cdk-lib';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import { Construct } from 'constructs';
 import { StorageConstruct } from './storage-construct';
-import { IotConstruct } from './iot-construct';
 import { ApiConstruct } from './api-construct';
 import { DashboardConstruct } from './dashboard-construct';
 import { AuthConstruct } from './auth-construct';
@@ -37,7 +36,7 @@ export class SongbirdStack extends cdk.Stack {
     });
 
     // ==========================================================================
-    // SNS Topic for Alerts (shared between API and IoT constructs)
+    // SNS Topic for Alerts
     // ==========================================================================
     const alertTopic = new sns.Topic(this, 'AlertTopic', {
       topicName: 'songbird-alerts',
@@ -55,15 +54,6 @@ export class SongbirdStack extends cdk.Stack {
       userPool: auth.userPool,
       userPoolClient: auth.userPoolClient,
       notehubProjectUid: props.notehubProjectUid,
-      alertTopic,
-    });
-
-    // ==========================================================================
-    // IoT Layer (IoT Core Rules + Lambda)
-    // ==========================================================================
-    const iot = new IotConstruct(this, 'Iot', {
-      telemetryTable: storage.telemetryTable,
-      devicesTable: storage.devicesTable,
       alertTopic,
     });
 
@@ -107,12 +97,6 @@ export class SongbirdStack extends cdk.Stack {
       value: auth.userPoolClient.userPoolClientId,
       description: 'Cognito User Pool Client ID',
       exportName: 'SongbirdUserPoolClientId',
-    });
-
-    new cdk.CfnOutput(this, 'IoTRuleName', {
-      value: iot.eventProcessingRule.ruleName!,
-      description: 'IoT Core rule name for Notehub route configuration',
-      exportName: 'SongbirdIoTRuleName',
     });
 
     new cdk.CfnOutput(this, 'DevicesTableName', {

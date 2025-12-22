@@ -521,10 +521,12 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
     expressionAttributeValues[':mode'] = event.body.mode;
   }
 
-  if (event.body.transit_locked !== undefined) {
+  // For track.qo events, update transit_locked based on presence of the field
+  // If transit_locked is true, set it; if absent or false, clear it
+  if (event.event_type === 'track.qo') {
     updateExpressions.push('#transit_locked = :transit_locked');
     expressionAttributeNames['#transit_locked'] = 'transit_locked';
-    expressionAttributeValues[':transit_locked'] = event.body.transit_locked;
+    expressionAttributeValues[':transit_locked'] = event.body.transit_locked === true;
   }
 
   if (event.location?.lat !== undefined && event.location?.lon !== undefined) {

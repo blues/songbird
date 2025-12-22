@@ -47,7 +47,8 @@
       "Bash(aws dynamodb get-item:*)",
       "Bash(aws lambda get-function:*)",
       "Bash(node -e:*)",
-      "Bash(npx cdk deploy:*)"
+      "Bash(npx cdk deploy:*)",
+      "Bash(npx cdk synth:*)"
     ],
     "deny": [],
     "ask": []
