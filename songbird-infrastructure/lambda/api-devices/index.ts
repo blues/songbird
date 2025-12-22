@@ -238,6 +238,7 @@ function transformDevice(item: any): any {
     last_seen: item.last_seen ? new Date(item.last_seen).toISOString() : undefined,
     mode: item.current_mode,
     transit_locked: item.transit_locked || false,
+    demo_locked: item.demo_locked || false,
     created_at: item.created_at ? new Date(item.created_at).toISOString() : undefined,
     updated_at: item.updated_at ? new Date(item.updated_at).toISOString() : undefined,
     assigned_to: item.assigned_to,

@@ -59,6 +59,8 @@ void stateInit(void) {
     s_state.totalUptimeSec = 0;
     s_state.transitLocked = false;
     s_state.preTransitMode = MODE_DEMO;
+    s_state.demoLocked = false;
+    s_state.preDemoMode = MODE_DEMO;
 
     s_bootStartTime = millis();
     s_warmBoot = false;
@@ -255,6 +257,21 @@ bool stateIsTransitLocked(void) {
 
 OperatingMode stateGetPreTransitMode(void) {
     return s_state.preTransitMode;
+}
+
+void stateSetDemoLock(bool locked, OperatingMode previousMode) {
+    s_state.demoLocked = locked;
+    if (locked) {
+        s_state.preDemoMode = previousMode;
+    }
+}
+
+bool stateIsDemoLocked(void) {
+    return s_state.demoLocked;
+}
+
+OperatingMode stateGetPreDemoMode(void) {
+    return s_state.preDemoMode;
 }
 
 // =============================================================================

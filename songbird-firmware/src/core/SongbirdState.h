@@ -21,7 +21,7 @@
 
 // Magic number to validate state data
 #define STATE_MAGIC 0x534F4E47  // "SONG"
-#define STATE_VERSION 2
+#define STATE_VERSION 3
 
 /**
  * @brief Persistent state structure
@@ -43,7 +43,9 @@ typedef struct {
     uint32_t totalUptimeSec;    // Cumulative uptime across sleeps
     bool transitLocked;         // Transit lock is active (double-click engaged)
     OperatingMode preTransitMode; // Mode before transit lock was engaged
-    uint8_t reserved[14];       // Reserved for future use
+    bool demoLocked;            // Demo lock is active (triple-click engaged)
+    OperatingMode preDemoMode;  // Mode before demo lock was engaged
+    uint8_t reserved[10];       // Reserved for future use
     uint32_t checksum;          // CRC32 checksum
 } SongbirdState;
 
@@ -207,6 +209,30 @@ bool stateIsTransitLocked(void);
  * @return The previous operating mode
  */
 OperatingMode stateGetPreTransitMode(void);
+
+/**
+ * @brief Set demo lock state
+ *
+ * When locking, saves the previous mode so it can be restored.
+ *
+ * @param locked Whether demo lock is active
+ * @param previousMode Mode to save (only used when locking)
+ */
+void stateSetDemoLock(bool locked, OperatingMode previousMode);
+
+/**
+ * @brief Check if demo lock is active
+ *
+ * @return true if demo lock is engaged
+ */
+bool stateIsDemoLocked(void);
+
+/**
+ * @brief Get the mode saved before demo lock was engaged
+ *
+ * @return The previous operating mode
+ */
+OperatingMode stateGetPreDemoMode(void);
 
 // =============================================================================
 // Checksum

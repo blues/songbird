@@ -369,6 +369,40 @@ static const Melody MELODY_TRANSIT_LOCK_OFF = {
 };
 
 // =============================================================================
+// Demo Lock ON - Higher pitched descending lock A6→F6→D6
+// Triple-click to engage demo lock
+// =============================================================================
+
+static const uint16_t MELODY_DEMO_LOCK_ON_NOTES[] = {
+    NOTE_A6, NOTE_F6, NOTE_REST, NOTE_D6
+};
+static const uint16_t MELODY_DEMO_LOCK_ON_DURATIONS[] = {
+    80, 80, 50, 150
+};
+static const Melody MELODY_DEMO_LOCK_ON = {
+    MELODY_DEMO_LOCK_ON_NOTES,
+    MELODY_DEMO_LOCK_ON_DURATIONS,
+    4
+};
+
+// =============================================================================
+// Demo Lock OFF - Higher pitched ascending unlock D6→F6→A6
+// Triple-click to disengage demo lock
+// =============================================================================
+
+static const uint16_t MELODY_DEMO_LOCK_OFF_NOTES[] = {
+    NOTE_D6, NOTE_F6, NOTE_REST, NOTE_A6
+};
+static const uint16_t MELODY_DEMO_LOCK_OFF_DURATIONS[] = {
+    80, 80, 50, 150
+};
+static const Melody MELODY_DEMO_LOCK_OFF = {
+    MELODY_DEMO_LOCK_OFF_NOTES,
+    MELODY_DEMO_LOCK_OFF_DURATIONS,
+    4
+};
+
+// =============================================================================
 // Melody Lookup Table
 // =============================================================================
 
@@ -390,7 +424,9 @@ static const Melody* const MELODY_TABLE[] = {
     NULL,                   // AUDIO_EVENT_LOCATE_STOP (no sound)
     NULL,                   // AUDIO_EVENT_CUSTOM_TONE (handled separately)
     &MELODY_TRANSIT_LOCK_ON,  // AUDIO_EVENT_TRANSIT_LOCK_ON
-    &MELODY_TRANSIT_LOCK_OFF  // AUDIO_EVENT_TRANSIT_LOCK_OFF
+    &MELODY_TRANSIT_LOCK_OFF, // AUDIO_EVENT_TRANSIT_LOCK_OFF
+    &MELODY_DEMO_LOCK_ON,     // AUDIO_EVENT_DEMO_LOCK_ON
+    &MELODY_DEMO_LOCK_OFF     // AUDIO_EVENT_DEMO_LOCK_OFF
 };
 
 /**

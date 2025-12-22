@@ -62,10 +62,16 @@ export function DeviceCard({ device, alertCount = 0 }: DeviceCardProps) {
                 </Badge>
               )}
               <Badge
-                variant={device.transit_locked ? "default" : "secondary"}
-                className={device.transit_locked ? "gap-1 bg-amber-500 hover:bg-amber-600" : ""}
+                variant={device.transit_locked || device.demo_locked ? "default" : "secondary"}
+                className={
+                  device.transit_locked
+                    ? "gap-1 bg-amber-500 hover:bg-amber-600"
+                    : device.demo_locked
+                    ? "gap-1 bg-green-500 hover:bg-green-600"
+                    : ""
+                }
               >
-                {device.transit_locked && <Lock className="h-3 w-3" />}
+                {(device.transit_locked || device.demo_locked) && <Lock className="h-3 w-3" />}
                 {formatMode(device.mode)}
               </Badge>
               <DeviceStatus status={device.status} showLabel={false} />

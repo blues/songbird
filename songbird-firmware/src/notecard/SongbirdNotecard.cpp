@@ -230,6 +230,7 @@ bool notecardSetupTemplates(void) {
         JAddBoolToObject(body, "motion", TBOOL);
         JAddStringToObject(body, "mode", "xxxxxxxxxxxx");  // 12 char max
         JAddBoolToObject(body, "transit_locked", TBOOL);
+        JAddBoolToObject(body, "demo_locked", TBOOL);
         JAddItemToObject(req, "body", body);
 
         J* rsp = s_notecard.requestAndResponse(req);
@@ -425,7 +426,12 @@ bool notecardSendTrackNote(const SensorData* data, OperatingMode mode) {
         case MODE_SLEEP: modeStr = "sleep"; break;
     }
     JAddStringToObject(body, "mode", modeStr);
-    JAddBoolToObject(body, "transit_locked", stateIsTransitLocked());
+    if (stateIsTransitLocked()) {
+        JAddBoolToObject(body, "transit_locked", true);
+    }
+    if (stateIsDemoLocked()) {
+        JAddBoolToObject(body, "demo_locked", true);
+    }
     JAddItemToObject(req, "body", body);
 
     J* rsp = s_notecard.requestAndResponse(req);

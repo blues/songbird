@@ -264,18 +264,53 @@ Power data will appear in the `_power.qo` notefile.
 
 ## User Button
 
-The user button on the Notecarrier supports two functions via single-click and double-click:
+The user button on the Notecarrier supports three functions via single-click, double-click, and triple-click:
 
 ### Button Actions
 
 | Action | Result | Audio Feedback |
 |--------|--------|----------------|
-| **Single-click** | Toggle mute | Rising (C→E→G) = unmuted, Falling (G→E→C) = muted |
-| **Double-click** | Toggle transit lock | Descending (E6→C6→G5) = locked, Ascending (G5→C6→E6) = unlocked |
+| **Single-click** | Toggle transit lock | Descending (E6→C6→G5) = locked, Ascending (G5→C6→E6) = unlocked |
+| **Double-click** | Toggle demo lock | Descending (A6→F6→D6) = locked, Ascending (D6→F6→A6) = unlocked |
+| **Triple-click** | Toggle mute | Rising (C→E→G) = unmuted, Falling (G→E→C) = muted |
 
-### Mute Toggle (Single-click)
+### Transit Lock (Single-click)
 
-- **Press the button once** to toggle between muted and unmuted states
+Transit Lock allows you to physically lock the device into transit mode, preventing remote mode changes during shipping:
+
+| State | Behavior |
+|-------|----------|
+| **Unlocked** | Single-click saves current mode and switches to transit mode with GPS tracking |
+| **Locked** | Single-click restores the saved mode and unlocks |
+
+When transit lock is active:
+- Device operates in **transit mode** with full GPS tracking enabled
+- **Environment variable mode changes are blocked** - remote configuration cannot change the mode
+- Lock state **persists across sleep cycles** - survives reboots
+- Dashboard shows an **amber lock icon** next to the mode badge
+
+This feature is useful when shipping devices - it ensures GPS tracking remains active without accidental remote reconfiguration.
+
+### Demo Lock (Double-click)
+
+Demo Lock allows you to physically lock the device into demo mode, preventing remote mode changes during demonstrations:
+
+| State | Behavior |
+|-------|----------|
+| **Unlocked** | Double-click saves current mode and switches to demo mode |
+| **Locked** | Double-click restores the saved mode and unlocks |
+
+When demo lock is active:
+- Device operates in **demo mode** with continuous sync enabled
+- **Environment variable mode changes are blocked** - remote configuration cannot change the mode
+- Lock state **persists across sleep cycles** - survives reboots
+- Dashboard shows a **green lock icon** next to the mode badge
+
+This feature is useful during demonstrations - it ensures demo mode remains active without accidental remote reconfiguration.
+
+### Mute Toggle (Triple-click)
+
+- **Press the button three times** to toggle between muted and unmuted states
 - **Rising tone (C→E→G)** confirms audio is now **unmuted**
 - **Falling tone (G→E→C)** confirms audio is now **muted**
 
@@ -286,27 +321,11 @@ The user button on the Notecarrier supports two functions via single-click and d
 
 **Note**: The mute state is temporary and resets to the configured `audio_enabled` setting after a device reboot or sleep cycle.
 
-### Transit Lock (Double-click)
-
-Transit Lock allows you to physically lock the device into transit mode, preventing remote mode changes during shipping:
-
-| State | Behavior |
-|-------|----------|
-| **Unlocked** | Double-click saves current mode and switches to transit mode with GPS tracking |
-| **Locked** | Double-click restores the saved mode and unlocks |
-
-When transit lock is active:
-- Device operates in **transit mode** with full GPS tracking enabled
-- **Environment variable mode changes are blocked** - remote configuration cannot change the mode
-- Lock state **persists across sleep cycles** - survives reboots
-- Dashboard shows an **amber lock icon** next to the mode badge
-
-This feature is useful when shipping devices - it ensures GPS tracking remains active without accidental remote reconfiguration.
-
 ### Timing
 
-- Single-click is processed after a 450ms delay (to distinguish from double-click)
-- Double-click must occur within 400ms window
+- Single-click is processed after 1 second delay (to distinguish from multi-clicks)
+- Double-click is processed after 600ms-1s from first click
+- Triple-click must occur within 1 second window
 - Button debounce is 50ms
 
 ### Hardware

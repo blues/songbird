@@ -58,15 +58,19 @@ bool envFetchConfig(SongbirdConfig* config) {
     char buffer[32];
     bool anySuccess = false;
 
-    // Mode - only apply if not transit locked
+    // Mode - only apply if not transit locked or demo locked
     if (notecardEnvGet(ENV_MODE, buffer, sizeof(buffer))) {
-        if (!stateIsTransitLocked()) {
-            config->mode = envParseMode(buffer);
-            anySuccess = true;
-        } else {
+        if (stateIsTransitLocked()) {
             #ifdef DEBUG_MODE
             DEBUG_SERIAL.println("[Env] Mode change blocked - transit lock active");
             #endif
+        } else if (stateIsDemoLocked()) {
+            #ifdef DEBUG_MODE
+            DEBUG_SERIAL.println("[Env] Mode change blocked - demo lock active");
+            #endif
+        } else {
+            config->mode = envParseMode(buffer);
+            anySuccess = true;
         }
     }
 

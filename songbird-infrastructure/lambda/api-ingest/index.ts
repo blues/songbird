@@ -51,6 +51,7 @@ interface NotehubEvent {
     motion?: boolean;
     mode?: string;
     transit_locked?: boolean;
+    demo_locked?: boolean;
     // Alert-specific fields
     type?: string;
     value?: number;
@@ -297,6 +298,7 @@ interface SongbirdEvent {
     motion?: boolean;
     mode?: string;
     transit_locked?: boolean;
+    demo_locked?: boolean;
     type?: string;
     value?: number;
     threshold?: number;
@@ -521,12 +523,16 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
     expressionAttributeValues[':mode'] = event.body.mode;
   }
 
-  // For track.qo events, update transit_locked based on presence of the field
-  // If transit_locked is true, set it; if absent or false, clear it
+  // For track.qo events, update lock states based on presence of the field
+  // If locked is true, set it; if absent or false, clear it
   if (event.event_type === 'track.qo') {
     updateExpressions.push('#transit_locked = :transit_locked');
     expressionAttributeNames['#transit_locked'] = 'transit_locked';
     expressionAttributeValues[':transit_locked'] = event.body.transit_locked === true;
+
+    updateExpressions.push('#demo_locked = :demo_locked');
+    expressionAttributeNames['#demo_locked'] = 'demo_locked';
+    expressionAttributeValues[':demo_locked'] = event.body.demo_locked === true;
   }
 
   if (event.location?.lat !== undefined && event.location?.lon !== undefined) {

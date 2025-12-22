@@ -202,23 +202,31 @@ Transit mode enables autonomous GPS tracking via `card.location.track`:
 
 Other modes use cell tower/Wi-Fi triangulation for location, which is lower power but less precise.
 
-### Transit Lock
+### Button Actions
 
-Transit Lock is a physical button feature that locks the device into transit mode, preventing remote mode changes during shipping:
+The user button supports three functions:
 
 | Action | Result |
 |--------|--------|
 | **Single-click** | Toggle audio mute |
-| **Double-click** (unlocked) | Enter transit mode, save previous mode, lock |
-| **Double-click** (locked) | Restore previous mode, unlock |
+| **Double-click** | Toggle transit lock (amber badge) |
+| **Triple-click** | Toggle demo lock (green badge) |
 
-When transit lock is active:
-- Device enters transit mode with full GPS tracking
-- Environment variable mode changes are ignored
+### Transit Lock (Double-click)
+
+Locks the device into transit mode for shipping:
+- Saves current mode, switches to transit mode with GPS tracking
+- Environment variable mode changes are blocked
 - Dashboard shows amber lock icon next to mode
 - Lock state persists across sleep cycles
 
-This ensures devices maintain GPS tracking during transit without accidental remote reconfiguration.
+### Demo Lock (Triple-click)
+
+Locks the device into demo mode for demonstrations:
+- Saves current mode, switches to demo mode with continuous sync
+- Environment variable mode changes are blocked
+- Dashboard shows green lock icon next to mode
+- Lock state persists across sleep cycles
 
 ## Cloud-to-Device Commands
 
