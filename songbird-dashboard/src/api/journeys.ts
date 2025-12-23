@@ -2,8 +2,8 @@
  * Journeys API
  */
 
-import { apiGet } from './client';
-import type { JourneysResponse, JourneyDetailResponse, LocationHistoryResponse } from '@/types';
+import { apiGet, apiPost } from './client';
+import type { JourneysResponse, JourneyDetailResponse, LocationHistoryResponse, MapMatchResponse } from '@/types';
 
 /**
  * Get all journeys for a device
@@ -28,6 +28,17 @@ export async function getJourneyDetail(
   journeyId: number
 ): Promise<JourneyDetailResponse> {
   return apiGet<JourneyDetailResponse>(`/v1/devices/${deviceUid}/journeys/${journeyId}`);
+}
+
+/**
+ * Trigger map matching for a journey
+ * Returns the matched route snapped to roads
+ */
+export async function matchJourney(
+  deviceUid: string,
+  journeyId: number
+): Promise<MapMatchResponse> {
+  return apiPost<MapMatchResponse>(`/v1/devices/${deviceUid}/journeys/${journeyId}/match`);
 }
 
 /**

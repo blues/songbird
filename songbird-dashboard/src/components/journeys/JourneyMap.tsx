@@ -1,12 +1,12 @@
 import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import Map, { Source, Layer, Marker, NavigationControl, Popup } from 'react-map-gl';
 import type { MapRef } from 'react-map-gl';
-import { MapPin, Play, Pause, RotateCcw, FastForward, Navigation, Gauge, Target, Clock, Route, SkipBack, SkipForward } from 'lucide-react';
+import { MapPin, Play, Pause, RotateCcw, FastForward, Navigation, Gauge, Target, Clock, Route, SkipBack, SkipForward, Waypoints, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { usePreferences } from '@/contexts/PreferencesContext';
-import type { JourneyPoint } from '@/types';
+import type { JourneyPoint, GeoJSONLineString } from '@/types';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 const MAP_STYLES = {
@@ -20,25 +20,201 @@ interface JourneyMapProps {
   points: JourneyPoint[];
   mapboxToken: string;
   className?: string;
+  matchedRoute?: GeoJSONLineString;
+  onMatchRoute?: () => void;
+  isMatching?: boolean;
 }
 
-export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) {
+/**
+ * Calculate distance between two coordinates using Haversine formula
+ */
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000; // Earth's radius in meters
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/**
+ * Calculate cumulative distances along a route
+ */
+function calculateRouteDistances(coordinates: [number, number][]): number[] {
+  const distances: number[] = [0];
+  for (let i = 1; i < coordinates.length; i++) {
+    const [lon1, lat1] = coordinates[i - 1];
+    const [lon2, lat2] = coordinates[i];
+    const segmentDist = haversineDistance(lat1, lon1, lat2, lon2);
+    distances.push(distances[i - 1] + segmentDist);
+  }
+  return distances;
+}
+
+/**
+ * Get position along route at a given distance
+ */
+function getPositionAtDistance(
+  coordinates: [number, number][],
+  distances: number[],
+  targetDistance: number
+): { lon: number; lat: number } {
+  if (targetDistance <= 0) {
+    return { lon: coordinates[0][0], lat: coordinates[0][1] };
+  }
+
+  const totalDistance = distances[distances.length - 1];
+  if (targetDistance >= totalDistance) {
+    const last = coordinates[coordinates.length - 1];
+    return { lon: last[0], lat: last[1] };
+  }
+
+  // Find the segment containing our target distance
+  for (let i = 1; i < distances.length; i++) {
+    if (distances[i] >= targetDistance) {
+      const segmentStart = distances[i - 1];
+      const segmentEnd = distances[i];
+      const segmentLength = segmentEnd - segmentStart;
+      const t = (targetDistance - segmentStart) / segmentLength;
+
+      const [lon1, lat1] = coordinates[i - 1];
+      const [lon2, lat2] = coordinates[i];
+
+      return {
+        lon: lon1 + t * (lon2 - lon1),
+        lat: lat1 + t * (lat2 - lat1),
+      };
+    }
+  }
+
+  // Fallback
+  const last = coordinates[coordinates.length - 1];
+  return { lon: last[0], lat: last[1] };
+}
+
+export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMatchRoute, isMatching }: JourneyMapProps) {
   const { preferences } = usePreferences();
   const mapStyle = MAP_STYLES[preferences.map_style] || MAP_STYLES.street;
+  const [showMatchedRoute, setShowMatchedRoute] = useState(true);
 
   const mapRef = useRef<MapRef>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [hasTriggeredMatch, setHasTriggeredMatch] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [animationProgress, setAnimationProgress] = useState(0); // 0-1 progress within current segment
   const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null);
   const animationRef = useRef<number | null>(null);
   const lastFrameTimeRef = useRef<number>(0);
 
-  // Current point being displayed
+  // Current point being displayed (from GPS data)
   const currentPoint = points[currentIndex];
 
-  // Create GeoJSON for the complete trail
+  // Calculate cumulative distances for GPS points (for timeline mapping)
+  const gpsDistances = useMemo(() => {
+    if (points.length < 2) return [0];
+    const distances: number[] = [0];
+    for (let i = 1; i < points.length; i++) {
+      const dist = haversineDistance(
+        points[i - 1].lat,
+        points[i - 1].lon,
+        points[i].lat,
+        points[i].lon
+      );
+      distances.push(distances[i - 1] + dist);
+    }
+    return distances;
+  }, [points]);
+
+  // Calculate cumulative distances for matched route
+  const routeDistances = useMemo(() => {
+    if (!matchedRoute || matchedRoute.coordinates.length < 2) return null;
+    return calculateRouteDistances(matchedRoute.coordinates);
+  }, [matchedRoute]);
+
+  const totalRouteDistance = routeDistances ? routeDistances[routeDistances.length - 1] : 0;
+  const totalGpsDistance = gpsDistances[gpsDistances.length - 1];
+
+  // Calculate current distance traveled based on currentIndex and progress
+  const currentDistanceTraveled = useMemo(() => {
+    if (currentIndex === 0) return animationProgress * (gpsDistances[1] || 0);
+    if (currentIndex >= points.length - 1) return totalGpsDistance;
+
+    const baseDistance = gpsDistances[currentIndex];
+    const segmentDistance = gpsDistances[currentIndex + 1] - gpsDistances[currentIndex];
+    return baseDistance + animationProgress * segmentDistance;
+  }, [currentIndex, animationProgress, gpsDistances, points.length, totalGpsDistance]);
+
+  // Get current marker position - follows matched route if available
+  const currentMarkerPosition = useMemo(() => {
+    if (matchedRoute && routeDistances && showMatchedRoute && totalRouteDistance > 0) {
+      // Map GPS distance to route distance proportionally
+      const routeProgress = currentDistanceTraveled / totalGpsDistance;
+      const targetDistance = routeProgress * totalRouteDistance;
+      return getPositionAtDistance(matchedRoute.coordinates, routeDistances, targetDistance);
+    }
+
+    // Fall back to GPS position with interpolation
+    if (currentIndex >= points.length - 1) {
+      return { lon: points[points.length - 1].lon, lat: points[points.length - 1].lat };
+    }
+
+    const p1 = points[currentIndex];
+    const p2 = points[currentIndex + 1];
+    return {
+      lon: p1.lon + animationProgress * (p2.lon - p1.lon),
+      lat: p1.lat + animationProgress * (p2.lat - p1.lat),
+    };
+  }, [matchedRoute, routeDistances, showMatchedRoute, totalRouteDistance, currentDistanceTraveled, totalGpsDistance, currentIndex, points, animationProgress]);
+
+  // Create GeoJSON for the traveled portion of the matched route
+  const traveledRouteGeoJson = useMemo(() => {
+    if (!matchedRoute || !routeDistances || matchedRoute.coordinates.length < 2) return null;
+
+    const routeProgress = currentDistanceTraveled / totalGpsDistance;
+    const targetDistance = routeProgress * totalRouteDistance;
+
+    // Collect coordinates up to target distance
+    const traveledCoords: [number, number][] = [];
+    for (let i = 0; i < routeDistances.length; i++) {
+      if (routeDistances[i] <= targetDistance) {
+        traveledCoords.push(matchedRoute.coordinates[i]);
+      } else {
+        // Add interpolated final point
+        if (i > 0) {
+          const segmentStart = routeDistances[i - 1];
+          const segmentEnd = routeDistances[i];
+          const t = (targetDistance - segmentStart) / (segmentEnd - segmentStart);
+          const [lon1, lat1] = matchedRoute.coordinates[i - 1];
+          const [lon2, lat2] = matchedRoute.coordinates[i];
+          traveledCoords.push([
+            lon1 + t * (lon2 - lon1),
+            lat1 + t * (lat2 - lat1),
+          ]);
+        }
+        break;
+      }
+    }
+
+    if (traveledCoords.length < 2) return null;
+
+    return {
+      type: 'Feature' as const,
+      properties: {},
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: traveledCoords,
+      },
+    };
+  }, [matchedRoute, routeDistances, currentDistanceTraveled, totalGpsDistance, totalRouteDistance]);
+
+  // Create GeoJSON for the complete trail (fallback when no matched route)
   const completeTrailGeoJson = useMemo(() => {
     if (points.length < 2) return null;
 
@@ -51,21 +227,6 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
       },
     };
   }, [points]);
-
-  // Create GeoJSON for the progress trail (up to current point)
-  const progressTrailGeoJson = useMemo(() => {
-    if (currentIndex < 1) return null;
-
-    const progressPoints = points.slice(0, currentIndex + 1);
-    return {
-      type: 'Feature' as const,
-      properties: {},
-      geometry: {
-        type: 'LineString' as const,
-        coordinates: progressPoints.map((p) => [p.lon, p.lat]),
-      },
-    };
-  }, [points, currentIndex]);
 
   // Calculate bounds for the view
   const bounds = useMemo(() => {
@@ -118,7 +279,26 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
     }
   }, [points, hasInitialized, fitMapToJourney]);
 
-  // Animation loop for playback
+  // Auto-trigger map matching when journey loads
+  useEffect(() => {
+    if (
+      points.length >= 2 &&
+      !matchedRoute &&
+      !isMatching &&
+      !hasTriggeredMatch &&
+      onMatchRoute
+    ) {
+      setHasTriggeredMatch(true);
+      onMatchRoute();
+    }
+  }, [points.length, matchedRoute, isMatching, hasTriggeredMatch, onMatchRoute]);
+
+  // Reset trigger flag when journey changes
+  useEffect(() => {
+    setHasTriggeredMatch(false);
+  }, [points]);
+
+  // Animation loop for playback - uses real GPS velocity
   useEffect(() => {
     if (!isPlaying) {
       if (animationRef.current) {
@@ -134,21 +314,51 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
       }
 
       const elapsed = timestamp - lastFrameTimeRef.current;
-      // Advance based on playback speed (roughly 1 point per 500ms at 1x)
-      const frameInterval = 500 / playbackSpeed;
 
-      if (elapsed >= frameInterval) {
-        lastFrameTimeRef.current = timestamp;
-        setCurrentIndex((prev) => {
-          const next = prev + 1;
-          if (next >= points.length) {
+      // Get current velocity from GPS data (m/s), default to 10 m/s if not available
+      const velocity = (points[currentIndex]?.velocity || 10) * playbackSpeed;
+
+      // Calculate distance traveled in this frame (in meters)
+      const distanceTraveled = velocity * (elapsed / 1000);
+
+      // Get distance to next point
+      const segmentDistance = currentIndex < points.length - 1
+        ? gpsDistances[currentIndex + 1] - gpsDistances[currentIndex]
+        : 0;
+
+      if (segmentDistance > 0) {
+        // Calculate new progress within segment
+        const progressIncrement = distanceTraveled / segmentDistance;
+        const newProgress = animationProgress + progressIncrement;
+
+        if (newProgress >= 1) {
+          // Move to next point
+          const nextIndex = currentIndex + 1;
+          if (nextIndex >= points.length) {
             setIsPlaying(false);
-            return points.length - 1;
+            setCurrentIndex(points.length - 1);
+            setAnimationProgress(0);
+          } else {
+            setCurrentIndex(nextIndex);
+            setAnimationProgress(newProgress - 1);
           }
-          return next;
-        });
+        } else {
+          setAnimationProgress(newProgress);
+        }
+      } else {
+        // At the end or no segment, move to next point
+        const nextIndex = currentIndex + 1;
+        if (nextIndex >= points.length) {
+          setIsPlaying(false);
+          setCurrentIndex(points.length - 1);
+          setAnimationProgress(0);
+        } else {
+          setCurrentIndex(nextIndex);
+          setAnimationProgress(0);
+        }
       }
 
+      lastFrameTimeRef.current = timestamp;
       animationRef.current = requestAnimationFrame(animate);
     };
 
@@ -159,12 +369,13 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isPlaying, playbackSpeed, points.length]);
+  }, [isPlaying, playbackSpeed, currentIndex, animationProgress, points, gpsDistances]);
 
   // Reset playback
   const handleReset = () => {
     setIsPlaying(false);
     setCurrentIndex(0);
+    setAnimationProgress(0);
     lastFrameTimeRef.current = 0;
   };
 
@@ -188,6 +399,7 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
   // Handle slider change
   const handleSliderChange = (value: number[]) => {
     setCurrentIndex(value[0]);
+    setAnimationProgress(0);
   };
 
   // Step to previous point
@@ -195,6 +407,7 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
     if (currentIndex > 0) {
       const newIndex = currentIndex - 1;
       setCurrentIndex(newIndex);
+      setAnimationProgress(0);
       // If popup is open, move it to the new point
       if (selectedPointIndex !== null) {
         setSelectedPointIndex(newIndex);
@@ -215,6 +428,7 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
     if (currentIndex < points.length - 1) {
       const newIndex = currentIndex + 1;
       setCurrentIndex(newIndex);
+      setAnimationProgress(0);
       // If popup is open, move it to the new point
       if (selectedPointIndex !== null) {
         setSelectedPointIndex(newIndex);
@@ -230,9 +444,14 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
     }
   };
 
-  // Format velocity for display
+  // Format velocity for display (respects distance_unit preference)
   const formatVelocity = (velocity?: number) => {
     if (velocity === undefined) return '--';
+    if (preferences.distance_unit === 'mi') {
+      // Convert m/s to mph (1 m/s = 2.23694 mph)
+      const mph = velocity * 2.23694;
+      return `${mph.toFixed(1)} mph`;
+    }
     // Convert m/s to km/h
     const kmh = velocity * 3.6;
     return `${kmh.toFixed(1)} km/h`;
@@ -246,9 +465,19 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
     return `${directions[index]} (${bearing.toFixed(0)}°)`;
   };
 
-  // Format distance for display
+  // Format distance for display (respects distance_unit preference)
   const formatDistance = (distance?: number) => {
     if (distance === undefined) return '--';
+    if (preferences.distance_unit === 'mi') {
+      // Convert meters to feet/miles
+      const feet = distance * 3.28084;
+      if (feet < 5280) {
+        return `${feet.toFixed(0)} ft`;
+      }
+      const miles = distance / 1609.344;
+      return `${miles.toFixed(2)} mi`;
+    }
+    // Metric: meters/kilometers
     if (distance < 1000) {
       return `${distance.toFixed(0)} m`;
     }
@@ -279,10 +508,22 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
     );
   }
 
+  const hasMatchedRoute = matchedRoute && showMatchedRoute;
+
   return (
     <div className={`flex flex-col ${className}`}>
       {/* Map */}
-      <div className="flex-1 min-h-[300px]">
+      <div className="flex-1 min-h-[300px] relative">
+        {/* Loading overlay */}
+        {isMatching && (
+          <div className="absolute inset-0 bg-background/50 z-10 flex items-center justify-center">
+            <div className="flex items-center gap-2 bg-background px-4 py-2 rounded-lg shadow-lg">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span>Snapping to roads...</span>
+            </div>
+          </div>
+        )}
+
         <Map
           ref={mapRef}
           initialViewState={{
@@ -295,8 +536,46 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
         >
           <NavigationControl position="top-right" />
 
-          {/* Complete trail (faded) */}
-          {completeTrailGeoJson && (
+          {/* Full matched route (light blue, upcoming path) */}
+          {matchedRoute && showMatchedRoute && (
+            <Source
+              id="matched-route-bg"
+              type="geojson"
+              data={{
+                type: 'Feature',
+                properties: {},
+                geometry: matchedRoute,
+              }}
+            >
+              <Layer
+                id="matched-route-bg-line"
+                type="line"
+                paint={{
+                  'line-color': '#93c5fd',
+                  'line-width': 4,
+                  'line-opacity': 0.7,
+                }}
+              />
+            </Source>
+          )}
+
+          {/* Traveled portion of matched route (solid) */}
+          {hasMatchedRoute && traveledRouteGeoJson && (
+            <Source id="traveled-route" type="geojson" data={traveledRouteGeoJson}>
+              <Layer
+                id="traveled-route-line"
+                type="line"
+                paint={{
+                  'line-color': '#0066CC',
+                  'line-width': 4,
+                  'line-opacity': 0.9,
+                }}
+              />
+            </Source>
+          )}
+
+          {/* Fallback: Raw GPS trail (only when no matched route or toggle is off) */}
+          {!hasMatchedRoute && completeTrailGeoJson && (
             <Source id="complete-trail" type="geojson" data={completeTrailGeoJson}>
               <Layer
                 id="complete-trail-line"
@@ -306,21 +585,6 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
                   'line-width': 2,
                   'line-opacity': 0.4,
                   'line-dasharray': [2, 2],
-                }}
-              />
-            </Source>
-          )}
-
-          {/* Progress trail (solid) */}
-          {progressTrailGeoJson && (
-            <Source id="progress-trail" type="geojson" data={progressTrailGeoJson}>
-              <Layer
-                id="progress-trail-line"
-                type="line"
-                paint={{
-                  'line-color': '#0066CC',
-                  'line-width': 3,
-                  'line-opacity': 0.8,
                 }}
               />
             </Source>
@@ -348,11 +612,11 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
             </Marker>
           )}
 
-          {/* Current position marker */}
-          {currentPoint && (
+          {/* Current position marker - follows matched route */}
+          {currentMarkerPosition && (
             <Marker
-              longitude={currentPoint.lon}
-              latitude={currentPoint.lat}
+              longitude={currentMarkerPosition.lon}
+              latitude={currentMarkerPosition.lat}
               anchor="bottom"
             >
               <MapPin
@@ -364,8 +628,8 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
             </Marker>
           )}
 
-          {/* Clickable point markers */}
-          {points.map((point, index) => (
+          {/* Clickable point markers (only show when not using matched route or for selection) */}
+          {!hasMatchedRoute && points.map((point, index) => (
             <Marker
               key={`point-${index}`}
               longitude={point.lon}
@@ -456,6 +720,7 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
                     className="w-full text-xs"
                     onClick={() => {
                       setCurrentIndex(selectedPointIndex);
+                      setAnimationProgress(0);
                       setSelectedPointIndex(null);
                     }}
                   >
@@ -466,6 +731,50 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
             </Popup>
           )}
         </Map>
+
+        {/* Point info overlay for snapped view */}
+        {hasMatchedRoute && currentPoint && (
+          <div className="absolute top-3 right-12 bg-background/95 backdrop-blur-sm rounded-lg shadow-lg border p-3 min-w-[200px] z-10">
+            <div className="flex items-center justify-between mb-2 pb-2 border-b">
+              <span className="font-semibold text-sm">Current Position</span>
+              <Badge variant="outline" className="text-xs">
+                {currentIndex + 1} / {points.length}
+              </Badge>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                <span>{new Date(currentPoint.time).toLocaleString()}</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                <span>{currentPoint.lat.toFixed(6)}, {currentPoint.lon.toFixed(6)}</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Gauge className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                <span className="font-medium">{formatVelocity(currentPoint.velocity)}</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Navigation className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                <span>{formatBearing(currentPoint.bearing)}</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Route className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                <span>{formatDistance(currentPoint.distance)}</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Target className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                <span>{formatDOP(currentPoint.dop)}</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Playback controls */}
@@ -508,6 +817,20 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
 
         {/* Control buttons */}
         <div className="flex items-center justify-center gap-2">
+          {/* Toggle matched/raw route */}
+          {matchedRoute && (
+            <Button
+              variant={showMatchedRoute ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowMatchedRoute(!showMatchedRoute)}
+              title={showMatchedRoute ? 'Show raw GPS' : 'Show snapped route'}
+              className="mr-2"
+            >
+              <Waypoints className="h-4 w-4 mr-1" />
+              {showMatchedRoute ? 'Snapped' : 'Raw'}
+            </Button>
+          )}
+
           <Button
             variant="outline"
             size="icon"

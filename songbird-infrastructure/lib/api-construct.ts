@@ -287,7 +287,13 @@ export class ApiConstruct extends Construct {
     props.journeysTable.grantReadWriteData(ingestFunction);
     props.locationsTable.grantReadWriteData(ingestFunction);
 
-    // Journeys API
+    // Mapbox API Token Secret (for map matching)
+    const mapboxSecret = new secretsmanager.Secret(this, 'MapboxApiToken', {
+      secretName: 'songbird/mapbox-api-token',
+      description: 'Mapbox API token for Songbird map matching',
+    });
+
+    // Journeys API (with map matching support)
     const journeysFunction = new NodejsFunction(this, 'JourneysFunction', {
       functionName: 'songbird-api-journeys',
       description: 'Songbird Journeys API',
@@ -299,11 +305,12 @@ export class ApiConstruct extends Construct {
       environment: {
         JOURNEYS_TABLE: props.journeysTable.tableName,
         LOCATIONS_TABLE: props.locationsTable.tableName,
+        MAPBOX_TOKEN: 'pk.eyJ1IjoiYnJhbmRvbnNhdHJvbSIsImEiOiJjbWphb2oyaW8wN2k3M3Bwd3lrdnpjOHhtIn0.Syc0GM_ia3Dz7HreQ6-ImQ',
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
     });
-    props.journeysTable.grantReadData(journeysFunction);
+    props.journeysTable.grantReadWriteData(journeysFunction); // Need write for matched_route
     props.locationsTable.grantReadData(journeysFunction);
 
     // ==========================================================================
@@ -611,6 +618,14 @@ export class ApiConstruct extends Construct {
     this.api.addRoutes({
       path: '/v1/devices/{device_uid}/journeys/{journey_id}',
       methods: [apigateway.HttpMethod.GET],
+      integration: journeysIntegration,
+      authorizer,
+    });
+
+    // Map matching endpoint for journeys
+    this.api.addRoutes({
+      path: '/v1/devices/{device_uid}/journeys/{journey_id}/match',
+      methods: [apigateway.HttpMethod.POST],
       integration: journeysIntegration,
       authorizer,
     });

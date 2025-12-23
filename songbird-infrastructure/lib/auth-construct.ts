@@ -80,6 +80,7 @@ export class AuthConstruct extends Construct {
         time_format: new cognito.StringAttribute({ mutable: true }), // '12h' | '24h'
         default_time_range: new cognito.StringAttribute({ mutable: true }), // '1' | '12' | '24' | '48' | '168'
         map_style: new cognito.StringAttribute({ mutable: true }), // 'street' | 'satellite'
+        distance_unit: new cognito.StringAttribute({ mutable: true }), // 'km' | 'mi'
       },
 
       // Email configuration (use Cognito default for demo)

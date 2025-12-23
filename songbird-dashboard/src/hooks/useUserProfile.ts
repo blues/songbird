@@ -16,6 +16,7 @@ const DEFAULT_PREFERENCES: DisplayPreferences = {
   time_format: '24h',
   default_time_range: '24',
   map_style: 'street',
+  distance_unit: 'km',
 };
 
 async function getUserProfile(): Promise<UserProfile> {
@@ -30,6 +31,7 @@ async function getUserProfile(): Promise<UserProfile> {
       time_format: (attributes['custom:time_format'] as DisplayPreferences['time_format']) || DEFAULT_PREFERENCES.time_format,
       default_time_range: (attributes['custom:default_time_range'] as DisplayPreferences['default_time_range']) || DEFAULT_PREFERENCES.default_time_range,
       map_style: (attributes['custom:map_style'] as DisplayPreferences['map_style']) || DEFAULT_PREFERENCES.map_style,
+      distance_unit: (attributes['custom:distance_unit'] as DisplayPreferences['distance_unit']) || DEFAULT_PREFERENCES.distance_unit,
     },
   };
 }
@@ -61,6 +63,9 @@ async function updatePreferences(preferences: Partial<DisplayPreferences>): Prom
   }
   if (preferences.map_style !== undefined) {
     updates.push({ attributeKey: 'custom:map_style', value: preferences.map_style });
+  }
+  if (preferences.distance_unit !== undefined) {
+    updates.push({ attributeKey: 'custom:distance_unit', value: preferences.distance_unit });
   }
 
   if (updates.length === 0) return;

@@ -49,7 +49,11 @@
       "Bash(node -e:*)",
       "Bash(npx cdk deploy:*)",
       "Bash(npx cdk synth:*)",
-      "Bash(aws dynamodb get-item --table-name songbird-devices --key '{\"\"device_uid\"\": {\"\"S\"\": \"\"dev:351077454527360\"\"}}')"
+      "Bash(aws dynamodb get-item --table-name songbird-devices --key '{\"\"device_uid\"\": {\"\"S\"\": \"\"dev:351077454527360\"\"}}')",
+      "Bash(aws s3 ls:*)",
+      "Bash(aws secretsmanager describe-secret:*)",
+      "Bash(aws secretsmanager list-secrets:*)",
+      "Bash(aws secretsmanager put-secret-value:*)"
     ],
     "deny": [],
     "ask": []

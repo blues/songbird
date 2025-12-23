@@ -238,6 +238,14 @@ export interface HealthResponse {
 }
 
 /**
+ * GeoJSON LineString geometry (for matched routes)
+ */
+export interface GeoJSONLineString {
+  type: 'LineString';
+  coordinates: [number, number][]; // [lon, lat][]
+}
+
+/**
  * Journey (GPS tracking trip)
  */
 export interface Journey {
@@ -248,6 +256,7 @@ export interface Journey {
   point_count: number;
   total_distance: number; // meters
   status: 'active' | 'completed';
+  matched_route?: GeoJSONLineString; // Road-snapped route from Mapbox Map Matching
 }
 
 /**
@@ -289,6 +298,16 @@ export interface JourneysResponse {
 export interface JourneyDetailResponse {
   journey: Journey;
   points: JourneyPoint[];
+}
+
+/**
+ * Map matching response
+ */
+export interface MapMatchResponse {
+  matched_route: GeoJSONLineString;
+  confidence: number;
+  original_points: number;
+  matched_points: number;
 }
 
 export interface LocationHistoryResponse {
@@ -361,6 +380,7 @@ export interface DisplayPreferences {
   time_format: '12h' | '24h';
   default_time_range: '1' | '4' | '8' | '12' | '24' | '48' | '168';
   map_style: 'street' | 'satellite';
+  distance_unit: 'km' | 'mi';
 }
 
 /**

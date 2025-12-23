@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Thermometer, Clock, Map, Timer } from 'lucide-react';
+import { Thermometer, Clock, Map, Timer, Ruler } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ export function DisplayPreferences() {
     time_format: '24h',
     default_time_range: '24',
     map_style: 'street',
+    distance_unit: 'km',
   });
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -171,6 +172,31 @@ export function DisplayPreferences() {
             <SelectContent>
               <SelectItem value="street">Street</SelectItem>
               <SelectItem value="satellite">Satellite</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Distance Unit */}
+        <div className="flex items-center justify-between border-t pt-6">
+          <div className="flex items-center gap-3">
+            <Ruler className="h-5 w-5 text-indigo-500" />
+            <div>
+              <Label>Distance Unit</Label>
+              <p className="text-sm text-muted-foreground">
+                Display distances in kilometers or miles
+              </p>
+            </div>
+          </div>
+          <Select
+            value={localPrefs.distance_unit}
+            onValueChange={(v) => updateLocalPref('distance_unit', v as DisplayPreferencesType['distance_unit'])}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="km">Kilometers (km)</SelectItem>
+              <SelectItem value="mi">Miles (mi)</SelectItem>
             </SelectContent>
           </Select>
         </div>

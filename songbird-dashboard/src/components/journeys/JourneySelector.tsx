@@ -2,6 +2,7 @@ import { MapPin, Clock, Route, Activity } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatRelativeTime } from '@/utils/formatters';
+import { usePreferences } from '@/contexts/PreferencesContext';
 import type { Journey } from '@/types';
 
 interface JourneySelectorProps {
@@ -17,8 +18,20 @@ export function JourneySelector({
   onSelect,
   isLoading,
 }: JourneySelectorProps) {
-  // Format distance for display
+  const { preferences } = usePreferences();
+
+  // Format distance for display (respects distance_unit preference)
   const formatDistance = (meters: number) => {
+    if (preferences.distance_unit === 'mi') {
+      const miles = meters / 1609.344;
+      if (miles < 0.1) {
+        // Show in feet for very short distances
+        const feet = meters * 3.28084;
+        return `${Math.round(feet)} ft`;
+      }
+      return `${miles.toFixed(1)} mi`;
+    }
+    // Metric
     if (meters >= 1000) {
       return `${(meters / 1000).toFixed(1)} km`;
     }

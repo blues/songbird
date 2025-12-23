@@ -13,6 +13,7 @@ const DEFAULT_PREFERENCES: DisplayPreferences = {
   time_format: '24h',
   default_time_range: '24',
   map_style: 'street',
+  distance_unit: 'km',
 };
 
 interface PreferencesContextValue {

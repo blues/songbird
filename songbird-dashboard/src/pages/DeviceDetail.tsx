@@ -15,7 +15,7 @@ import { ConfigPanel } from '@/components/config/ConfigPanel';
 import { JourneyMap, JourneySelector, LocationHistoryTable } from '@/components/journeys';
 import { useDevice } from '@/hooks/useDevices';
 import { useTelemetry, useLocationHistory, usePowerHistory, useHealthHistory } from '@/hooks/useTelemetry';
-import { useJourneys, useJourneyDetail, useLocationHistoryFull, useLatestJourney } from '@/hooks/useJourneys';
+import { useJourneys, useJourneyDetail, useLocationHistoryFull, useLatestJourney, useMapMatch } from '@/hooks/useJourneys';
 import { useCommands } from '@/hooks/useCommands';
 import { useDeviceAlerts, useAcknowledgeAlert } from '@/hooks/useAlerts';
 import { usePreferences } from '@/contexts/PreferencesContext';
@@ -111,6 +111,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const { data: journeyDetailData, isLoading: journeyDetailLoading } = useJourneyDetail(deviceUid!, selectedJourneyId);
   const { data: locationHistoryData, isLoading: locationHistoryLoading } = useLocationHistoryFull(deviceUid!, effectiveTimeRange);
   const { data: latestJourney } = useLatestJourney(deviceUid!);
+  const mapMatchMutation = useMapMatch(deviceUid!, selectedJourneyId);
 
   const telemetry = telemetryData?.telemetry || [];
   const alerts = alertsData?.alerts || [];
@@ -291,6 +292,9 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                           points={journeyPoints}
                           mapboxToken={mapboxToken}
                           className="h-[500px] border rounded-lg overflow-hidden"
+                          matchedRoute={journeyDetailData?.journey?.matched_route}
+                          onMatchRoute={() => mapMatchMutation.mutate()}
+                          isMatching={mapMatchMutation.isPending}
                         />
                       )
                     ) : (

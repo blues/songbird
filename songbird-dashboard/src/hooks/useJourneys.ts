@@ -2,8 +2,8 @@
  * Journey hooks using TanStack Query
  */
 
-import { useQuery } from '@tanstack/react-query';
-import { getJourneys, getJourneyDetail, getLocationHistoryFull } from '@/api/journeys';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getJourneys, getJourneyDetail, getLocationHistoryFull, matchJourney } from '@/api/journeys';
 
 /**
  * Hook to fetch all journeys for a device
@@ -65,4 +65,23 @@ export function useLatestJourney(deviceUid: string) {
     ...rest,
     data: data?.journeys?.[0] || null,
   };
+}
+
+/**
+ * Hook to trigger map matching for a journey
+ * Returns snapped-to-road route from Mapbox Map Matching API
+ */
+export function useMapMatch(deviceUid: string, journeyId: number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => {
+      if (!journeyId) throw new Error('Journey ID required');
+      return matchJourney(deviceUid, journeyId);
+    },
+    onSuccess: () => {
+      // Invalidate the journey detail query to refetch with matched_route
+      queryClient.invalidateQueries({ queryKey: ['journey', deviceUid, journeyId] });
+    },
+  });
 }
