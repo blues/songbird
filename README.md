@@ -77,6 +77,8 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
 | **User Management** | Role-based access with Admin, Sales, Field Engineering, Viewer groups |
 | **Device Assignment** | Assign devices to users for accountability tracking |
 | **Transit Lock** | Double-click button to lock device in transit mode for shipping |
+| **Journey Tracking** | Record and playback GPS journeys with velocity and bearing data |
+| **Location History** | View all location events with filtering by source (GPS, Cell, Wi-Fi) |
 
 ## Project Structure
 
@@ -201,6 +203,19 @@ Transit mode enables autonomous GPS tracking via `card.location.track`:
 - **Immediate sync**: Track notes sync to cloud as soon as they're created
 
 Other modes use cell tower/Wi-Fi triangulation for location, which is lower power but less precise.
+
+### Journeys
+
+A **journey** is a sequence of GPS tracking points recorded during a period of motion. The Notecard automatically assigns a `journey` identifier (Unix timestamp of when the journey started) to each `_track.qo` event.
+
+- **Journey start**: When `jcount` = 1 (first GPS point of a new journey)
+- **Journey end**: When a new journey starts OR the device exits transit mode
+- **Journey data**: Each point includes lat/lon, velocity, bearing, distance, and accuracy (DOP)
+
+The dashboard provides:
+- **Journey list**: Browse all recorded journeys with duration, distance, and point count
+- **Journey playback**: Animated map visualization with adjustable speed (1x, 2x, 5x, 10x)
+- **Location history**: View all location events from any source with filtering
 
 ### Button Actions
 

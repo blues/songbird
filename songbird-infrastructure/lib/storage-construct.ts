@@ -19,6 +19,8 @@ export class StorageConstruct extends Construct {
   public readonly telemetryTable: dynamodb.Table;
   public readonly alertsTable: dynamodb.Table;
   public readonly settingsTable: dynamodb.Table;
+  public readonly journeysTable: dynamodb.Table;
+  public readonly locationsTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: StorageConstructProps) {
     super(scope, id);
@@ -188,6 +190,86 @@ export class StorageConstruct extends Construct {
 
       // Remove table on stack deletion (demo environment)
       removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // ==========================================================================
+    // DynamoDB Table for Journeys (GPS tracking journeys)
+    // ==========================================================================
+    this.journeysTable = new dynamodb.Table(this, 'JourneysTable', {
+      tableName: 'songbird-journeys',
+
+      // Composite primary key: device_uid + journey_id (Unix timestamp)
+      partitionKey: {
+        name: 'device_uid',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'journey_id',
+        type: dynamodb.AttributeType.NUMBER,
+      },
+
+      // Billing mode - on-demand for unpredictable usage
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+
+      // Remove table on stack deletion (demo environment)
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+
+      // TTL to automatically delete old journeys (90 days)
+      timeToLiveAttribute: 'ttl',
+    });
+
+    // GSI for querying active journeys across all devices
+    this.journeysTable.addGlobalSecondaryIndex({
+      indexName: 'status-index',
+      partitionKey: {
+        name: 'status',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'start_time',
+        type: dynamodb.AttributeType.NUMBER,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // ==========================================================================
+    // DynamoDB Table for Location History (all location sources)
+    // ==========================================================================
+    this.locationsTable = new dynamodb.Table(this, 'LocationsTable', {
+      tableName: 'songbird-locations',
+
+      // Composite primary key: device_uid + timestamp
+      partitionKey: {
+        name: 'device_uid',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'timestamp',
+        type: dynamodb.AttributeType.NUMBER,
+      },
+
+      // Billing mode - on-demand for unpredictable usage
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+
+      // Remove table on stack deletion (demo environment)
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+
+      // TTL to automatically delete old locations (90 days)
+      timeToLiveAttribute: 'ttl',
+    });
+
+    // GSI for querying locations by journey
+    this.locationsTable.addGlobalSecondaryIndex({
+      indexName: 'journey-index',
+      partitionKey: {
+        name: 'device_uid',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'journey_id',
+        type: dynamodb.AttributeType.NUMBER,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
     });
   }
 }

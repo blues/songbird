@@ -7,6 +7,8 @@ React-based fleet management dashboard for the Songbird sales demo platform.
 - Fleet overview with device map
 - Real-time device telemetry monitoring
 - Historical data visualization with customizable time ranges
+- Journey tracking with animated playback
+- Location history with source filtering
 - Remote device configuration
 - Cloud-to-device command sending
 - Alert management with acknowledgment workflows
@@ -42,12 +44,14 @@ songbird-dashboard/
 │   │   ├── commands.ts
 │   │   ├── config.ts
 │   │   ├── devices.ts
+│   │   ├── journeys.ts
 │   │   └── telemetry.ts
 │   ├── components/
 │   │   ├── charts/           # Telemetry charts
 │   │   ├── commands/         # Command panel
 │   │   ├── config/           # Configuration panel
 │   │   ├── devices/          # Device cards and lists
+│   │   ├── journeys/         # Journey map, selector, location history
 │   │   ├── layout/           # Header, sidebar, layout
 │   │   ├── maps/             # Fleet map, location trail
 │   │   ├── profile/          # User profile components
@@ -57,6 +61,7 @@ songbird-dashboard/
 │   │   ├── useCommands.ts
 │   │   ├── useConfig.ts
 │   │   ├── useDevices.ts
+│   │   ├── useJourneys.ts
 │   │   ├── useSettings.ts
 │   │   ├── useTelemetry.ts
 │   │   ├── useUserProfile.ts
@@ -172,7 +177,10 @@ The main dashboard shows:
 ### Device Detail
 
 Individual device view includes:
-- Location trail map (24h history) with location source indicator (GPS/Cell/Wi-Fi/Triangulated)
+- **Location section** with three tabs:
+  - **Current**: Map showing current location or latest journey trail
+  - **History**: Location history table with filtering by source (GPS, Cell, Wi-Fi, Triangulated)
+  - **Journeys**: Journey selector and animated playback with speed controls (1x, 2x, 5x, 10x)
 - Real-time gauges (temperature, humidity, pressure, battery)
 - Historical telemetry charts (24h, 7d, 30d)
 - Power monitoring charts (Mojo voltage, temperature, mAh)
@@ -274,6 +282,11 @@ The dashboard communicates with the Songbird API via:
 - `GET /v1/devices/{uid}/config` - Get device config
 - `PUT /v1/devices/{uid}/config` - Update device config
 - `GET /v1/devices/unassigned` - Get devices not assigned to any user
+
+### Journeys & Location History
+- `GET /v1/devices/{uid}/journeys` - List all journeys for a device
+- `GET /v1/devices/{uid}/journeys/{journey_id}` - Get journey details with all points
+- `GET /v1/devices/{uid}/locations` - Get full location history (all sources)
 
 ### Commands
 - `GET /v1/devices/{uid}/commands` - Get command history for device

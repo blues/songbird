@@ -27,6 +27,8 @@ export interface ApiConstructProps {
   devicesTable: dynamodb.Table;
   alertsTable: dynamodb.Table;
   settingsTable: dynamodb.Table;
+  journeysTable: dynamodb.Table;
+  locationsTable: dynamodb.Table;
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
   notehubProjectUid: string;
@@ -271,6 +273,8 @@ export class ApiConstruct extends Construct {
         COMMANDS_TABLE: commandsTable.tableName,
         ALERTS_TABLE: props.alertsTable.tableName,
         ALERT_TOPIC_ARN: props.alertTopic.topicArn,
+        JOURNEYS_TABLE: props.journeysTable.tableName,
+        LOCATIONS_TABLE: props.locationsTable.tableName,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
@@ -280,6 +284,27 @@ export class ApiConstruct extends Construct {
     commandsTable.grantReadWriteData(ingestFunction);
     props.alertsTable.grantReadWriteData(ingestFunction);
     props.alertTopic.grantPublish(ingestFunction);
+    props.journeysTable.grantReadWriteData(ingestFunction);
+    props.locationsTable.grantReadWriteData(ingestFunction);
+
+    // Journeys API
+    const journeysFunction = new NodejsFunction(this, 'JourneysFunction', {
+      functionName: 'songbird-api-journeys',
+      description: 'Songbird Journeys API',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/api-journeys/index.ts'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        JOURNEYS_TABLE: props.journeysTable.tableName,
+        LOCATIONS_TABLE: props.locationsTable.tableName,
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+    props.journeysTable.grantReadData(journeysFunction);
+    props.locationsTable.grantReadData(journeysFunction);
 
     // ==========================================================================
     // HTTP API Gateway
@@ -568,6 +593,33 @@ export class ApiConstruct extends Construct {
       methods: [apigateway.HttpMethod.POST],
       integration: ingestIntegration,
       // No authorizer - Notehub HTTP routes don't support Cognito auth
+    });
+
+    // Journeys endpoints
+    const journeysIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+      'JourneysIntegration',
+      journeysFunction
+    );
+
+    this.api.addRoutes({
+      path: '/v1/devices/{device_uid}/journeys',
+      methods: [apigateway.HttpMethod.GET],
+      integration: journeysIntegration,
+      authorizer,
+    });
+
+    this.api.addRoutes({
+      path: '/v1/devices/{device_uid}/journeys/{journey_id}',
+      methods: [apigateway.HttpMethod.GET],
+      integration: journeysIntegration,
+      authorizer,
+    });
+
+    this.api.addRoutes({
+      path: '/v1/devices/{device_uid}/locations',
+      methods: [apigateway.HttpMethod.GET],
+      integration: journeysIntegration,
+      authorizer,
     });
 
     // Store API URL

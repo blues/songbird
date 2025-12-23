@@ -6,7 +6,7 @@
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, UpdateCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
@@ -25,6 +25,8 @@ const DEVICES_TABLE = process.env.DEVICES_TABLE!;
 const COMMANDS_TABLE = process.env.COMMANDS_TABLE!;
 const ALERTS_TABLE = process.env.ALERTS_TABLE!;
 const ALERT_TOPIC_ARN = process.env.ALERT_TOPIC_ARN!;
+const JOURNEYS_TABLE = process.env.JOURNEYS_TABLE!;
+const LOCATIONS_TABLE = process.env.LOCATIONS_TABLE!;
 
 // TTL: 90 days in seconds
 const TTL_DAYS = 90;
@@ -48,7 +50,7 @@ interface NotehubEvent {
     humidity?: number;
     pressure?: number;
     voltage?: number;
-    motion?: boolean;
+    motion?: boolean | number;
     mode?: string;
     transit_locked?: boolean;
     demo_locked?: boolean;
@@ -70,6 +72,15 @@ interface NotehubEvent {
     voltage_mode?: string;
     // Session fields may appear in body for _session.qo
     power_usb?: boolean;
+    // GPS tracking fields (_track.qo)
+    velocity?: number;      // Speed in m/s
+    bearing?: number;       // Direction in degrees from north
+    distance?: number;      // Distance from previous point in meters
+    seconds?: number;       // Seconds since previous tracking event
+    dop?: number;          // Dilution of precision (GPS accuracy)
+    journey?: number;      // Journey ID (Unix timestamp of journey start)
+    jcount?: number;       // Point number in current journey (starts at 1)
+    time?: number;         // Timestamp when GPS fix was captured
   };
   best_location_type?: string;
   best_location_when?: number;
@@ -161,6 +172,17 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Write location to telemetry table for location history trail
     if (songbirdEvent.event_type === '_geolocate.qo' && songbirdEvent.location) {
       await writeLocationEvent(songbirdEvent);
+    }
+
+    // Handle GPS tracking events (_track.qo from Notecard)
+    if (songbirdEvent.event_type === '_track.qo') {
+      await writeTrackingEvent(songbirdEvent);
+      await upsertJourney(songbirdEvent);
+    }
+
+    // Write to location history table for all events with location
+    if (songbirdEvent.location) {
+      await writeLocationHistory(songbirdEvent);
     }
 
     // Update device metadata in DynamoDB
@@ -314,7 +336,7 @@ interface SongbirdEvent {
     humidity?: number;
     pressure?: number;
     voltage?: number;
-    motion?: boolean;
+    motion?: boolean | number;
     mode?: string;
     transit_locked?: boolean;
     demo_locked?: boolean;
@@ -332,6 +354,15 @@ interface SongbirdEvent {
     method?: string;
     text?: string;
     voltage_mode?: string;
+    // GPS tracking fields (_track.qo)
+    velocity?: number;
+    bearing?: number;
+    distance?: number;
+    seconds?: number;
+    dop?: number;
+    journey?: number;
+    jcount?: number;
+    time?: number;
   };
   location?: {
     lat?: number;
@@ -736,4 +767,238 @@ async function publishAlert(event: SongbirdEvent): Promise<void> {
 
   await snsClient.send(command);
   console.log(`Published alert to SNS: ${event.body.type}`);
+}
+
+/**
+ * Write GPS tracking event to telemetry table
+ * Handles _track.qo events from Notecard's card.location.track
+ */
+async function writeTrackingEvent(event: SongbirdEvent): Promise<void> {
+  if (!event.location?.lat || !event.location?.lon) {
+    console.log('No location data in _track.qo event, skipping');
+    return;
+  }
+
+  const timestamp = event.timestamp * 1000; // Convert to milliseconds
+  const ttl = Math.floor(Date.now() / 1000) + TTL_SECONDS;
+
+  const record: Record<string, any> = {
+    device_uid: event.device_uid,
+    timestamp,
+    ttl,
+    data_type: 'tracking',
+    event_type: event.event_type,
+    event_type_timestamp: `tracking#${timestamp}`,
+    serial_number: event.serial_number || 'unknown',
+    fleet: event.fleet || 'default',
+    latitude: event.location.lat,
+    longitude: event.location.lon,
+    location_source: event.location.source || 'gps',
+  };
+
+  // Add tracking-specific fields
+  if (event.body.velocity !== undefined) {
+    record.velocity = event.body.velocity;
+  }
+  if (event.body.bearing !== undefined) {
+    record.bearing = event.body.bearing;
+  }
+  if (event.body.distance !== undefined) {
+    record.distance = event.body.distance;
+  }
+  if (event.body.seconds !== undefined) {
+    record.seconds = event.body.seconds;
+  }
+  if (event.body.dop !== undefined) {
+    record.dop = event.body.dop;
+  }
+  if (event.body.journey !== undefined) {
+    record.journey_id = event.body.journey;
+  }
+  if (event.body.jcount !== undefined) {
+    record.jcount = event.body.jcount;
+  }
+  if (event.body.motion !== undefined) {
+    record.motion = event.body.motion;
+  }
+
+  const command = new PutCommand({
+    TableName: TELEMETRY_TABLE,
+    Item: record,
+  });
+
+  await docClient.send(command);
+  console.log(`Wrote tracking event for ${event.device_uid} (journey: ${event.body.journey}, jcount: ${event.body.jcount})`);
+}
+
+/**
+ * Upsert journey record
+ * - Creates new journey when jcount === 1
+ * - Updates existing journey with new end_time and point_count
+ * - Marks previous journey as completed when a new one starts
+ */
+async function upsertJourney(event: SongbirdEvent): Promise<void> {
+  const journeyId = event.body.journey;
+  const jcount = event.body.jcount;
+
+  if (!journeyId || !jcount) {
+    console.log('Missing journey or jcount in _track.qo event, skipping journey upsert');
+    return;
+  }
+
+  const now = Date.now();
+  const ttl = Math.floor(Date.now() / 1000) + TTL_SECONDS;
+  const timestampMs = event.timestamp * 1000;
+
+  // If this is the first point of a new journey, mark previous journey as completed
+  if (jcount === 1) {
+    await markPreviousJourneyCompleted(event.device_uid, journeyId);
+  }
+
+  // Calculate cumulative distance
+  const distance = event.body.distance || 0;
+
+  // Upsert journey record
+  const command = new UpdateCommand({
+    TableName: JOURNEYS_TABLE,
+    Key: {
+      device_uid: event.device_uid,
+      journey_id: journeyId,
+    },
+    UpdateExpression: `
+      SET #status = :status,
+          #start_time = if_not_exists(#start_time, :start_time),
+          #end_time = :end_time,
+          #point_count = :point_count,
+          #total_distance = if_not_exists(#total_distance, :zero) + :distance,
+          #ttl = :ttl,
+          #updated_at = :updated_at
+    `,
+    ExpressionAttributeNames: {
+      '#status': 'status',
+      '#start_time': 'start_time',
+      '#end_time': 'end_time',
+      '#point_count': 'point_count',
+      '#total_distance': 'total_distance',
+      '#ttl': 'ttl',
+      '#updated_at': 'updated_at',
+    },
+    ExpressionAttributeValues: {
+      ':status': 'active',
+      ':start_time': journeyId * 1000, // Convert to milliseconds
+      ':end_time': timestampMs,
+      ':point_count': jcount,
+      ':distance': distance,
+      ':zero': 0,
+      ':ttl': ttl,
+      ':updated_at': now,
+    },
+  });
+
+  await docClient.send(command);
+  console.log(`Upserted journey ${journeyId} for ${event.device_uid} (point ${jcount})`);
+}
+
+/**
+ * Mark previous journey as completed when a new journey starts
+ */
+async function markPreviousJourneyCompleted(deviceUid: string, currentJourneyId: number): Promise<void> {
+  // Query for the most recent active journey that's not the current one
+  const queryCommand = new QueryCommand({
+    TableName: JOURNEYS_TABLE,
+    KeyConditionExpression: 'device_uid = :device_uid AND journey_id < :current_journey',
+    FilterExpression: '#status = :active',
+    ExpressionAttributeNames: {
+      '#status': 'status',
+    },
+    ExpressionAttributeValues: {
+      ':device_uid': deviceUid,
+      ':current_journey': currentJourneyId,
+      ':active': 'active',
+    },
+    ScanIndexForward: false, // Most recent first
+    Limit: 1,
+  });
+
+  const result = await docClient.send(queryCommand);
+
+  if (result.Items && result.Items.length > 0) {
+    const previousJourney = result.Items[0];
+
+    const updateCommand = new UpdateCommand({
+      TableName: JOURNEYS_TABLE,
+      Key: {
+        device_uid: deviceUid,
+        journey_id: previousJourney.journey_id,
+      },
+      UpdateExpression: 'SET #status = :status, #updated_at = :updated_at',
+      ExpressionAttributeNames: {
+        '#status': 'status',
+        '#updated_at': 'updated_at',
+      },
+      ExpressionAttributeValues: {
+        ':status': 'completed',
+        ':updated_at': Date.now(),
+      },
+    });
+
+    await docClient.send(updateCommand);
+    console.log(`Marked journey ${previousJourney.journey_id} as completed for ${deviceUid}`);
+  }
+}
+
+/**
+ * Write location to the locations history table
+ * Records all location events regardless of source for unified location history
+ */
+async function writeLocationHistory(event: SongbirdEvent): Promise<void> {
+  if (!event.location?.lat || !event.location?.lon) {
+    return;
+  }
+
+  const timestamp = event.timestamp * 1000; // Convert to milliseconds
+  const ttl = Math.floor(Date.now() / 1000) + TTL_SECONDS;
+
+  const record: Record<string, any> = {
+    device_uid: event.device_uid,
+    timestamp,
+    ttl,
+    latitude: event.location.lat,
+    longitude: event.location.lon,
+    source: event.location.source || 'unknown',
+    location_name: event.location.name,
+    event_type: event.event_type,
+    serial_number: event.serial_number || 'unknown',
+    fleet: event.fleet || 'default',
+  };
+
+  // Add journey info if this is a tracking event
+  if (event.event_type === '_track.qo') {
+    if (event.body.journey !== undefined) {
+      record.journey_id = event.body.journey;
+    }
+    if (event.body.jcount !== undefined) {
+      record.jcount = event.body.jcount;
+    }
+    if (event.body.velocity !== undefined) {
+      record.velocity = event.body.velocity;
+    }
+    if (event.body.bearing !== undefined) {
+      record.bearing = event.body.bearing;
+    }
+    if (event.body.distance !== undefined) {
+      record.distance = event.body.distance;
+    }
+    if (event.body.dop !== undefined) {
+      record.dop = event.body.dop;
+    }
+  }
+
+  const command = new PutCommand({
+    TableName: LOCATIONS_TABLE,
+    Item: record,
+  });
+
+  await docClient.send(command);
+  console.log(`Wrote location history for ${event.device_uid}: ${event.location.source} (${event.location.lat}, ${event.location.lon})`);
 }

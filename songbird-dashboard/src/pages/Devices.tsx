@@ -290,9 +290,9 @@ export function Devices() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {device.usb_powered ? (
-                          <BatteryCharging className="h-4 w-4 text-blue-500 flex-shrink-0" title="USB Powered" />
+                          <span title="USB Powered"><BatteryCharging className="h-4 w-4 text-blue-500 flex-shrink-0" /></span>
                         ) : (
-                          <BatteryFull className="h-4 w-4 text-green-500 flex-shrink-0" title="Battery Powered" />
+                          <span title="Battery Powered"><BatteryFull className="h-4 w-4 text-green-500 flex-shrink-0" /></span>
                         )}
                         <div>
                           <div className="font-medium flex items-center gap-2">

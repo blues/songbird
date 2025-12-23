@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, Clock, Activity, MapPin, Satellite, Radio, Lock } from 'lucide-react';
+import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, Clock, Activity, MapPin, Satellite, Radio, Lock, Route, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,8 +12,10 @@ import { PowerChart } from '@/components/charts/PowerChart';
 import { GaugeCard } from '@/components/charts/GaugeCard';
 import { CommandPanel } from '@/components/commands/CommandPanel';
 import { ConfigPanel } from '@/components/config/ConfigPanel';
+import { JourneyMap, JourneySelector, LocationHistoryTable } from '@/components/journeys';
 import { useDevice } from '@/hooks/useDevices';
 import { useTelemetry, useLocationHistory, usePowerHistory, useHealthHistory } from '@/hooks/useTelemetry';
+import { useJourneys, useJourneyDetail, useLocationHistoryFull, useLatestJourney } from '@/hooks/useJourneys';
 import { useCommands } from '@/hooks/useCommands';
 import { useDeviceAlerts, useAcknowledgeAlert } from '@/hooks/useAlerts';
 import { usePreferences } from '@/contexts/PreferencesContext';
@@ -79,6 +81,8 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const [showConfig, setShowConfig] = useState(false);
   const [timeRange, setTimeRange] = useState<number | null>(null);
   const [chartTab, setChartTab] = useState('telemetry');
+  const [locationTab, setLocationTab] = useState('current');
+  const [selectedJourneyId, setSelectedJourneyId] = useState<number | null>(null);
 
   // Set default time range from preferences once loaded
   useEffect(() => {
@@ -102,6 +106,12 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const { data: alertsData } = useDeviceAlerts(deviceUid!);
   const acknowledgeMutation = useAcknowledgeAlert();
 
+  // Journey and location history hooks
+  const { data: journeysData, isLoading: journeysLoading } = useJourneys(deviceUid!);
+  const { data: journeyDetailData, isLoading: journeyDetailLoading } = useJourneyDetail(deviceUid!, selectedJourneyId);
+  const { data: locationHistoryData, isLoading: locationHistoryLoading } = useLocationHistoryFull(deviceUid!, effectiveTimeRange);
+  const { data: latestJourney } = useLatestJourney(deviceUid!);
+
   const telemetry = telemetryData?.telemetry || [];
   const alerts = alertsData?.alerts || [];
   const activeAlerts = alerts.filter((a: Alert) => a.acknowledged === 'false' || a.acknowledged === false);
@@ -109,6 +119,11 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const power = powerData?.power || [];
   const health = healthData?.health || [];
   const lastCommand = commandsData?.commands?.[0];
+
+  // Journey data
+  const journeys = journeysData?.journeys || [];
+  const journeyPoints = journeyDetailData?.points || [];
+  const locationHistory = locationHistoryData?.locations || [];
 
   // Get latest values and sparkline data
   const latestTelemetry = telemetry[0];
@@ -138,9 +153,9 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
             </Link>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               {device.usb_powered ? (
-                <BatteryCharging className="h-5 w-5 text-blue-500" title="USB Powered" />
+                <span title="USB Powered"><BatteryCharging className="h-5 w-5 text-blue-500" /></span>
               ) : (
-                <BatteryFull className="h-5 w-5 text-green-500" title="Battery Powered" />
+                <span title="Battery Powered"><BatteryFull className="h-5 w-5 text-green-500" /></span>
               )}
               {device.name || device.serial_number || truncateDeviceUid(device.device_uid)}
             </h1>
@@ -184,30 +199,111 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main Content */}
         <div className={showConfig ? 'lg:col-span-2' : 'lg:col-span-3'}>
-          {/* Location Map */}
+          {/* Location / Journeys Section */}
           <Card className="mb-6">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Location Trail ({effectiveTimeRange}h)</CardTitle>
-              {device.location_source && (
-                (() => {
-                  const sourceInfo = getLocationSourceInfo(device.location_source);
-                  const SourceIcon = sourceInfo.icon;
-                  return (
-                    <Badge variant="outline" className={`gap-1 ${sourceInfo.bgColor} border-0`}>
-                      <SourceIcon className={`h-3 w-3 ${sourceInfo.color}`} />
-                      <span className={sourceInfo.color}>{sourceInfo.label}</span>
-                    </Badge>
-                  );
-                })()
-              )}
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Location
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Tabs value={locationTab} onValueChange={setLocationTab}>
+                  <TabsList>
+                    <TabsTrigger value="current">
+                      <MapPin className="h-3 w-3 mr-1" />
+                      Current
+                    </TabsTrigger>
+                    <TabsTrigger value="history">
+                      <Clock className="h-3 w-3 mr-1" />
+                      History
+                    </TabsTrigger>
+                    <TabsTrigger value="journeys">
+                      <Route className="h-3 w-3 mr-1" />
+                      Journeys
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                {locationTab === 'current' && device.location_source && (
+                  (() => {
+                    const sourceInfo = getLocationSourceInfo(device.location_source);
+                    const SourceIcon = sourceInfo.icon;
+                    return (
+                      <Badge variant="outline" className={`gap-1 ${sourceInfo.bgColor} border-0`}>
+                        <SourceIcon className={`h-3 w-3 ${sourceInfo.color}`} />
+                        <span className={sourceInfo.color}>{sourceInfo.label}</span>
+                      </Badge>
+                    );
+                  })()
+                )}
+              </div>
             </CardHeader>
-            <CardContent className="p-0">
-              <LocationTrail
-                locations={locations}
-                currentLocation={device.latitude && device.longitude ? { lat: device.latitude, lon: device.longitude } : undefined}
-                mapboxToken={mapboxToken}
-                className="h-[300px] rounded-b-lg overflow-hidden"
-              />
+            <CardContent className={locationTab === 'current' ? 'p-0' : ''}>
+              {locationTab === 'current' && (
+                <>
+                  {latestJourney ? (
+                    <LocationTrail
+                      locations={locations.filter(l => (l as any).journey_id === latestJourney.journey_id).map(l => ({
+                        time: l.time,
+                        lat: l.lat,
+                        lon: l.lon,
+                        source: l.source,
+                      }))}
+                      currentLocation={device.latitude && device.longitude ? { lat: device.latitude, lon: device.longitude } : undefined}
+                      mapboxToken={mapboxToken}
+                      className="h-[300px] rounded-b-lg overflow-hidden"
+                    />
+                  ) : (
+                    <LocationTrail
+                      locations={[]}
+                      currentLocation={device.latitude && device.longitude ? { lat: device.latitude, lon: device.longitude } : undefined}
+                      mapboxToken={mapboxToken}
+                      className="h-[300px] rounded-b-lg overflow-hidden"
+                    />
+                  )}
+                </>
+              )}
+              {locationTab === 'history' && (
+                <LocationHistoryTable
+                  locations={locationHistory}
+                  isLoading={locationHistoryLoading}
+                />
+              )}
+              {locationTab === 'journeys' && (
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                  <div className="lg:col-span-1">
+                    <h4 className="text-sm font-medium mb-3">Select a Journey</h4>
+                    <JourneySelector
+                      journeys={journeys}
+                      selectedJourneyId={selectedJourneyId}
+                      onSelect={setSelectedJourneyId}
+                      isLoading={journeysLoading}
+                    />
+                  </div>
+                  <div className="lg:col-span-3">
+                    <h4 className="text-sm font-medium mb-3">Journey Playback</h4>
+                    {selectedJourneyId ? (
+                      journeyDetailLoading ? (
+                        <div className="h-[400px] flex items-center justify-center border rounded-lg">
+                          <span className="text-muted-foreground">Loading journey...</span>
+                        </div>
+                      ) : (
+                        <JourneyMap
+                          points={journeyPoints}
+                          mapboxToken={mapboxToken}
+                          className="h-[500px] border rounded-lg overflow-hidden"
+                        />
+                      )
+                    ) : (
+                      <div className="h-[400px] flex items-center justify-center border rounded-lg text-muted-foreground">
+                        <div className="text-center">
+                          <Navigation className="h-8 w-8 mx-auto mb-2" />
+                          <p>Select a journey to view playback</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

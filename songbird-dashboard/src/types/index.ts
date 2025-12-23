@@ -237,6 +237,67 @@ export interface HealthResponse {
   health: HealthPoint[];
 }
 
+/**
+ * Journey (GPS tracking trip)
+ */
+export interface Journey {
+  journey_id: number;     // Unix timestamp of journey start
+  device_uid: string;
+  start_time: string;     // ISO string
+  end_time?: string;      // ISO string
+  point_count: number;
+  total_distance: number; // meters
+  status: 'active' | 'completed';
+}
+
+/**
+ * Journey point (GPS location within a journey)
+ */
+export interface JourneyPoint {
+  time: string;
+  lat: number;
+  lon: number;
+  velocity?: number;      // m/s
+  bearing?: number;       // degrees from north
+  distance?: number;      // meters from previous point
+  dop?: number;           // GPS accuracy (lower = better)
+  jcount: number;         // point number in journey (starts at 1)
+}
+
+/**
+ * Location history point (all location sources)
+ */
+export interface LocationHistoryPoint {
+  time: string;
+  lat: number;
+  lon: number;
+  source: LocationSource;
+  location_name?: string;
+  event_type?: string;
+  journey_id?: number;
+  jcount?: number;
+  velocity?: number;
+  bearing?: number;
+}
+
+export interface JourneysResponse {
+  device_uid: string;
+  journeys: Journey[];
+  count: number;
+}
+
+export interface JourneyDetailResponse {
+  journey: Journey;
+  points: JourneyPoint[];
+}
+
+export interface LocationHistoryResponse {
+  device_uid: string;
+  hours: number;
+  count: number;
+  locations: LocationHistoryPoint[];
+}
+
 export interface ConfigResponse {
   device_uid: string;
   config: Partial<DeviceConfig>;

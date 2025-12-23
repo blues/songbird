@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryMedium, BatteryLow, BatteryCharging, MapPin, AlertTriangle, Satellite, Radio, Lock } from 'lucide-react';
+import { Thermometer, Droplets, Gauge, BatteryFull, BatteryMedium, BatteryLow, BatteryCharging, MapPin, AlertTriangle, Satellite, Radio, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { DeviceStatus } from './DeviceStatus';
@@ -49,9 +49,9 @@ export function DeviceCard({ device, alertCount = 0 }: DeviceCardProps) {
             <div>
               <h3 className="font-semibold flex items-center gap-1.5">
                 {device.usb_powered ? (
-                  <BatteryCharging className="h-4 w-4 text-blue-500" title="USB Powered" />
+                  <span title="USB Powered"><BatteryCharging className="h-4 w-4 text-blue-500" /></span>
                 ) : (
-                  <BatteryFull className="h-4 w-4 text-green-500" title="Battery Powered" />
+                  <span title="Battery Powered"><BatteryFull className="h-4 w-4 text-green-500" /></span>
                 )}
                 {device.name || device.serial_number || device.device_uid}
               </h3>

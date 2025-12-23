@@ -64,6 +64,7 @@ songbird-infrastructure/
 │   ├── api-ingest/              # Event ingest from Notehub HTTP route
 │   ├── api-devices/             # Devices API
 │   ├── api-telemetry/           # Telemetry queries API
+│   ├── api-journeys/            # Journeys and location history API
 │   ├── api-commands/            # Commands API
 │   ├── api-config/              # Configuration API
 │   ├── api-alerts/              # Alerts API
@@ -260,6 +261,13 @@ Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com`
 | GET | `/v1/devices/{device_uid}/power` | Get Mojo power monitoring history |
 | GET | `/v1/devices/unassigned` | Get devices not assigned to any user |
 
+#### Journeys & Location History
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/v1/devices/{device_uid}/journeys` | List all journeys for device |
+| GET | `/v1/devices/{device_uid}/journeys/{journey_id}` | Get journey details with all points |
+| GET | `/v1/devices/{device_uid}/locations` | Get full location history (all sources) |
+
 #### Commands
 | Method | Path | Description |
 |--------|------|-------------|
@@ -322,6 +330,7 @@ Lambda function logs are available in CloudWatch Logs:
 - `/aws/lambda/songbird-api-ingest` - Event ingestion from Notehub
 - `/aws/lambda/songbird-api-devices` - Device CRUD operations
 - `/aws/lambda/songbird-api-telemetry` - Telemetry queries
+- `/aws/lambda/songbird-api-journeys` - Journeys and location history
 - `/aws/lambda/songbird-api-commands` - Command operations
 - `/aws/lambda/songbird-api-config` - Configuration management
 - `/aws/lambda/songbird-api-alerts` - Alert management
@@ -329,6 +338,19 @@ Lambda function logs are available in CloudWatch Logs:
 - `/aws/lambda/songbird-api-settings` - User preferences
 - `/aws/lambda/songbird-api-users` - User management (Admin)
 - `/aws/lambda/songbird-api-notehub` - Notehub status
+
+### DynamoDB Tables
+
+The infrastructure creates the following DynamoDB tables:
+
+| Table | Partition Key | Sort Key | Description |
+|-------|--------------|----------|-------------|
+| `songbird-devices` | `device_uid` | - | Device metadata and current state |
+| `songbird-telemetry` | `device_uid` | `timestamp` | Temperature, humidity, pressure readings |
+| `songbird-journeys` | `device_uid` | `journey_id` | Journey metadata (start/end time, distance, point count) |
+| `songbird-locations` | `device_uid` | `timestamp` | All location events (GPS, Cell, Wi-Fi) |
+| `songbird-commands` | `device_uid` | `timestamp` | Command history |
+| `songbird-alerts` | `device_uid` | `created_at` | Alert history |
 
 ### DynamoDB Queries
 
@@ -342,6 +364,17 @@ aws dynamodb query \
   --expression-attribute-values '{":uid": {"S": "dev:xxxxx"}, ":cutoff": {"N": "1700000000000"}}' \
   --scan-index-forward false \
   --limit 100
+```
+
+Query journeys for a device:
+
+```bash
+aws dynamodb query \
+  --table-name songbird-journeys \
+  --key-condition-expression "device_uid = :uid" \
+  --expression-attribute-values '{":uid": {"S": "dev:xxxxx"}}' \
+  --scan-index-forward false \
+  --limit 10
 ```
 
 ## Cleanup
