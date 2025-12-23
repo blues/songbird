@@ -201,11 +201,14 @@ export class ApiConstruct extends Construct {
       memorySize: 256,
       environment: {
         SETTINGS_TABLE: props.settingsTable.tableName,
+        NOTEHUB_PROJECT_UID: props.notehubProjectUid,
+        NOTEHUB_SECRET_ARN: notehubSecret.secretArn,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
     });
     props.settingsTable.grantReadWriteData(settingsFunction);
+    notehubSecret.grantRead(settingsFunction);
 
     // Users API (Admin operations)
     const usersFunction = new NodejsFunction(this, 'UsersFunction', {

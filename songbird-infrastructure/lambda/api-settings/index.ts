@@ -3,16 +3,55 @@
  *
  * Handles fleet defaults settings CRUD operations.
  * Admin-only endpoints are protected by checking JWT cognito:groups claim.
+ *
+ * Fleet defaults are saved to:
+ * 1. DynamoDB (for dashboard UI)
+ * 2. Notehub fleet environment variables (so devices receive the config)
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
+const secretsClient = new SecretsManagerClient({});
 
 const SETTINGS_TABLE = process.env.SETTINGS_TABLE || 'songbird-settings';
+const NOTEHUB_PROJECT_UID = process.env.NOTEHUB_PROJECT_UID;
+const NOTEHUB_SECRET_ARN = process.env.NOTEHUB_SECRET_ARN;
+
+// Cache the Notehub token
+let cachedNotehubToken: string | null = null;
+
+async function getNotehubToken(): Promise<string | null> {
+  if (!NOTEHUB_SECRET_ARN) {
+    console.warn('NOTEHUB_SECRET_ARN not configured');
+    return null;
+  }
+
+  if (cachedNotehubToken) {
+    return cachedNotehubToken;
+  }
+
+  try {
+    const command = new GetSecretValueCommand({ SecretId: NOTEHUB_SECRET_ARN });
+    const response = await secretsClient.send(command);
+
+    if (!response.SecretString) {
+      console.error('Notehub API token not found in secret');
+      return null;
+    }
+
+    const secret = JSON.parse(response.SecretString);
+    cachedNotehubToken = secret.token;
+    return cachedNotehubToken;
+  } catch (error) {
+    console.error('Error fetching Notehub token:', error);
+    return null;
+  }
+}
 
 const headers = {
   'Content-Type': 'application/json',
@@ -68,6 +107,56 @@ function isAdmin(event: APIGatewayProxyEventV2): boolean {
     return false;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Push fleet defaults to Notehub as fleet environment variables
+ * This makes the config available to all devices in the fleet
+ */
+async function pushToNotehub(fleetUid: string, config: FleetDefaults): Promise<{ success: boolean; error?: string }> {
+  if (!NOTEHUB_PROJECT_UID) {
+    console.warn('NOTEHUB_PROJECT_UID not configured, skipping Notehub push');
+    return { success: false, error: 'Notehub not configured' };
+  }
+
+  const token = await getNotehubToken();
+  if (!token) {
+    return { success: false, error: 'Could not get Notehub token' };
+  }
+
+  // Convert config values to strings for Notehub environment variables
+  const envVars: Record<string, string> = {};
+  for (const [key, value] of Object.entries(config)) {
+    if (value !== undefined && value !== null) {
+      envVars[key] = String(value);
+    }
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.notefile.net/v1/projects/${NOTEHUB_PROJECT_UID}/fleets/${fleetUid}/environment_variables`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ environment_variables: envVars }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Notehub API error:', response.status, errorText);
+      return { success: false, error: `Notehub API error: ${response.status}` };
+    }
+
+    console.log(`Successfully pushed fleet defaults to Notehub for fleet ${fleetUid}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Error pushing to Notehub:', error);
+    return { success: false, error: String(error) };
   }
 }
 
@@ -243,7 +332,7 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
       const claims = event.requestContext?.authorizer?.jwt?.claims;
       const userEmail = claims?.email || claims?.sub || 'unknown';
 
-      // Store settings
+      // Store settings in DynamoDB (for dashboard UI)
       await docClient.send(new PutCommand({
         TableName: SETTINGS_TABLE,
         Item: {
@@ -255,6 +344,9 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
         },
       }));
 
+      // Push to Notehub as fleet environment variables (so devices receive the config)
+      const notehubResult = await pushToNotehub(fleetUid, config);
+
       return {
         statusCode: 200,
         headers,
@@ -263,6 +355,8 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
           config,
           updated_at: Date.now(),
           updated_by: userEmail,
+          notehub_sync: notehubResult.success,
+          notehub_error: notehubResult.error,
         }),
       };
     }

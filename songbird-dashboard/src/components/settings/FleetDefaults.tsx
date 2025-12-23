@@ -376,7 +376,9 @@ export function FleetDefaults() {
                     {updateDefaults.isPending ? 'Saving...' : 'Save Fleet Defaults'}
                   </Button>
                   {updateDefaults.isSuccess && !hasChanges && (
-                    <span className="ml-3 text-sm text-green-600">Defaults saved!</span>
+                    <span className="ml-3 text-sm text-green-600">
+                      Defaults saved and synced to Notehub!
+                    </span>
                   )}
                   {fleetConfig?.updated_at && (
                     <p className="mt-2 text-sm text-muted-foreground">
@@ -384,6 +386,9 @@ export function FleetDefaults() {
                       {fleetConfig.updated_by && ` by ${fleetConfig.updated_by}`}
                     </p>
                   )}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Fleet defaults are saved as environment variables in Notehub and will apply to all devices in the fleet on their next sync.
+                  </p>
                 </div>
               </>
             )}
