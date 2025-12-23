@@ -127,7 +127,18 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const locationHistory = locationHistoryData?.locations || [];
 
   // Get latest values and sparkline data
-  const latestTelemetry = telemetry[0];
+  // Find first telemetry record with actual sensor data (not just location-only events)
+  const telemetryWithSensorData = telemetry.find(t =>
+    t.temperature !== undefined || t.humidity !== undefined || t.pressure !== undefined
+  );
+  // Use telemetry API data if available, otherwise fall back to device.last_telemetry
+  const latestTelemetry = telemetryWithSensorData || (device ? {
+    temperature: device.temperature,
+    humidity: device.humidity,
+    pressure: device.pressure,
+    voltage: device.voltage,
+    time: device.last_seen,
+  } : undefined);
   const sparklineTemp = telemetry.slice(0, 20).map((t) => convertTemperature(t.temperature, tempUnit) || 0);
   const sparklineHumidity = telemetry.slice(0, 20).map((t) => t.humidity || 0);
 
