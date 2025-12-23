@@ -14,7 +14,12 @@ import {
 import { useDeviceConfig, useUpdateDeviceConfig } from '@/hooks/useConfig';
 import { useIsAdmin } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { usePreferences } from '@/contexts/PreferencesContext';
 import type { DeviceConfig, OperatingMode, MotionSensitivity } from '@/types';
+
+// Temperature conversion helpers
+const celsiusToFahrenheit = (c: number) => Math.round((c * 9) / 5 + 32);
+const fahrenheitToCelsius = (f: number) => Math.round(((f - 32) * 5) / 9);
 
 interface ConfigPanelProps {
   deviceUid: string;
@@ -27,9 +32,23 @@ export function ConfigPanel({ deviceUid, assignedTo, onClose }: ConfigPanelProps
   const updateConfig = useUpdateDeviceConfig();
   const { isAdmin } = useIsAdmin();
   const { data: userProfile } = useUserProfile();
+  const { preferences } = usePreferences();
 
   // Check if user can edit: Admin OR device is assigned to them
   const canEdit = isAdmin || (userProfile?.email && assignedTo === userProfile.email);
+
+  // Temperature unit preference
+  const useFahrenheit = preferences.temp_unit === 'fahrenheit';
+  const tempUnit = useFahrenheit ? '°F' : '°C';
+
+  // Convert display temperature based on preference
+  const displayTemp = (celsius: number) => useFahrenheit ? celsiusToFahrenheit(celsius) : celsius;
+
+  // Slider ranges based on unit
+  const tempHighMin = useFahrenheit ? 68 : 20;   // 20°C = 68°F
+  const tempHighMax = useFahrenheit ? 140 : 60;  // 60°C = 140°F
+  const tempLowMin = useFahrenheit ? -4 : -20;   // -20°C = -4°F
+  const tempLowMax = useFahrenheit ? 68 : 20;    // 20°C = 68°F
 
   const [localConfig, setLocalConfig] = useState<Partial<DeviceConfig>>({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -162,33 +181,37 @@ export function ConfigPanel({ deviceUid, assignedTo, onClose }: ConfigPanelProps
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">Temp High (°C)</label>
+              <label className="text-sm text-muted-foreground">Temp High ({tempUnit})</label>
               <Slider
-                value={[localConfig.temp_alert_high_c || 35]}
-                onValueChange={([value]) =>
-                  updateLocalConfig('temp_alert_high_c', value)
-                }
-                min={20}
-                max={60}
+                value={[displayTemp(localConfig.temp_alert_high_c || 35)]}
+                onValueChange={([value]) => {
+                  // Convert back to Celsius for storage
+                  const celsius = useFahrenheit ? fahrenheitToCelsius(value) : value;
+                  updateLocalConfig('temp_alert_high_c', celsius);
+                }}
+                min={tempHighMin}
+                max={tempHighMax}
                 step={1}
                 disabled={!canEdit}
               />
-              <span className="text-xs">{localConfig.temp_alert_high_c || 35}°C</span>
+              <span className="text-xs">{displayTemp(localConfig.temp_alert_high_c || 35)}{tempUnit}</span>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">Temp Low (°C)</label>
+              <label className="text-sm text-muted-foreground">Temp Low ({tempUnit})</label>
               <Slider
-                value={[localConfig.temp_alert_low_c || 0]}
-                onValueChange={([value]) =>
-                  updateLocalConfig('temp_alert_low_c', value)
-                }
-                min={-20}
-                max={20}
+                value={[displayTemp(localConfig.temp_alert_low_c || 0)]}
+                onValueChange={([value]) => {
+                  // Convert back to Celsius for storage
+                  const celsius = useFahrenheit ? fahrenheitToCelsius(value) : value;
+                  updateLocalConfig('temp_alert_low_c', celsius);
+                }}
+                min={tempLowMin}
+                max={tempLowMax}
                 step={1}
                 disabled={!canEdit}
               />
-              <span className="text-xs">{localConfig.temp_alert_low_c || 0}°C</span>
+              <span className="text-xs">{displayTemp(localConfig.temp_alert_low_c || 0)}{tempUnit}</span>
             </div>
 
             <div className="space-y-2">

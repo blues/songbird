@@ -19,13 +19,32 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useNotehubFleets, useFleetDefaults, useUpdateFleetDefaults } from '@/hooks/useSettings';
+import { usePreferences } from '@/contexts/PreferencesContext';
 import type { FleetDefaults as FleetDefaultsType, OperatingMode, MotionSensitivity } from '@/types';
+
+// Temperature conversion helpers
+const celsiusToFahrenheit = (c: number) => Math.round((c * 9) / 5 + 32);
+const fahrenheitToCelsius = (f: number) => Math.round(((f - 32) * 5) / 9);
 
 export function FleetDefaults() {
   const { data: fleets, isLoading: fleetsLoading } = useNotehubFleets();
   const [selectedFleet, setSelectedFleet] = useState<string>('');
   const { data: fleetConfig, isLoading: configLoading } = useFleetDefaults(selectedFleet);
   const updateDefaults = useUpdateFleetDefaults();
+  const { preferences } = usePreferences();
+
+  // Temperature unit preference
+  const useFahrenheit = preferences.temp_unit === 'fahrenheit';
+  const tempUnit = useFahrenheit ? '°F' : '°C';
+
+  // Convert display temperature based on preference
+  const displayTemp = (celsius: number) => useFahrenheit ? celsiusToFahrenheit(celsius) : celsius;
+
+  // Slider ranges based on unit
+  const tempHighMin = useFahrenheit ? 14 : -10;   // -10°C = 14°F
+  const tempHighMax = useFahrenheit ? 140 : 60;   // 60°C = 140°F
+  const tempLowMin = useFahrenheit ? -40 : -40;   // -40°C = -40°F
+  const tempLowMax = useFahrenheit ? 86 : 30;     // 30°C = 86°F
 
   const [localConfig, setLocalConfig] = useState<Partial<FleetDefaultsType>>({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -206,32 +225,38 @@ export function FleetDefaults() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <div className="flex justify-between">
-                        <Label>Temp High (°C)</Label>
+                        <Label>Temp High ({tempUnit})</Label>
                         <span className="text-sm text-muted-foreground">
-                          {localConfig.temp_alert_high_c || 35}°
+                          {displayTemp(localConfig.temp_alert_high_c || 35)}{tempUnit}
                         </span>
                       </div>
                       <Slider
-                        value={[localConfig.temp_alert_high_c || 35]}
-                        onValueChange={([v]) => updateLocalConfig('temp_alert_high_c', v)}
-                        min={-10}
-                        max={60}
+                        value={[displayTemp(localConfig.temp_alert_high_c || 35)]}
+                        onValueChange={([v]) => {
+                          const celsius = useFahrenheit ? fahrenheitToCelsius(v) : v;
+                          updateLocalConfig('temp_alert_high_c', celsius);
+                        }}
+                        min={tempHighMin}
+                        max={tempHighMax}
                         step={1}
                       />
                     </div>
 
                     <div className="space-y-2">
                       <div className="flex justify-between">
-                        <Label>Temp Low (°C)</Label>
+                        <Label>Temp Low ({tempUnit})</Label>
                         <span className="text-sm text-muted-foreground">
-                          {localConfig.temp_alert_low_c || 5}°
+                          {displayTemp(localConfig.temp_alert_low_c || 5)}{tempUnit}
                         </span>
                       </div>
                       <Slider
-                        value={[localConfig.temp_alert_low_c || 5]}
-                        onValueChange={([v]) => updateLocalConfig('temp_alert_low_c', v)}
-                        min={-40}
-                        max={30}
+                        value={[displayTemp(localConfig.temp_alert_low_c || 5)]}
+                        onValueChange={([v]) => {
+                          const celsius = useFahrenheit ? fahrenheitToCelsius(v) : v;
+                          updateLocalConfig('temp_alert_low_c', celsius);
+                        }}
+                        min={tempLowMin}
+                        max={tempLowMax}
                         step={1}
                       />
                     </div>

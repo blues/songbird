@@ -217,11 +217,14 @@ A **journey** is a sequence of GPS tracking points recorded during a period of m
 The dashboard provides:
 - **Journey list**: Browse all recorded journeys with duration, distance, and point count
 - **Journey playback**: Animated map visualization with full playback controls:
-  - Play/pause with adjustable speed (1x, 2x, 5x, 10x)
+  - **Road-snapped routes**: GPS traces are automatically snapped to roads using Mapbox Map Matching API
+  - Play/pause with adjustable speed (1x, 2x, 5x, 10x) using real GPS velocity data
   - Step forward/back buttons for point-by-point navigation
-  - Clickable point markers with detailed popup (coordinates, velocity, bearing, timestamp)
+  - Toggle between snapped and raw GPS views
+  - Info overlay panel showing current point details
   - Reset button to return to journey start
 - **Location history**: View all location events from any source with filtering
+- **User preferences**: Distance units (km/miles) and temperature units (°C/°F) affect all displays
 
 ### Button Actions
 

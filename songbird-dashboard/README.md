@@ -15,7 +15,8 @@ React-based fleet management dashboard for the Songbird sales demo platform.
 - Cognito-based authentication with role-based access
 - User management (Admin only): invite users, assign groups, assign devices
 - User profile management with editable display name
-- User preferences (temperature units, map style, default time range)
+- User preferences (temperature units, time format, distance units, map style, default time range)
+- Journey playback with Mapbox road-snapping for smooth route visualization
 
 ## Technology Stack
 
@@ -181,15 +182,17 @@ Individual device view includes:
   - **Current**: Map showing current location or latest journey trail
   - **History**: Location history table with filtering by source (GPS, Cell, Wi-Fi, Triangulated)
   - **Journeys**: Journey selector and animated playback with full controls:
-    - Speed controls (1x, 2x, 5x, 10x)
+    - **Road-snapped routes**: Automatically snaps GPS traces to roads using Mapbox Map Matching API
+    - Speed controls (1x, 2x, 5x, 10x) with velocity-based animation
     - Step forward/back buttons for point-by-point navigation
-    - Clickable point markers with detailed popup (coordinates, velocity, bearing, timestamp)
-    - Auto-panning to keep popup visible in viewport
+    - Toggle between snapped and raw GPS views
+    - Info overlay panel showing current point details (coordinates, speed, heading, accuracy)
+    - Journey cards show distance in user's preferred unit (km or miles)
 - Real-time gauges (temperature, humidity, pressure, battery)
 - Historical telemetry charts (24h, 7d, 30d)
 - Power monitoring charts (Mojo voltage, temperature, mAh)
 - Command panel (ping, locate, play melody)
-- Configuration panel (mode, thresholds, audio settings)
+- Configuration panel (mode, thresholds, audio settings) with temperature display in user's preferred unit
 - Device information
 
 ## Operating Modes
@@ -250,8 +253,14 @@ Alert management dashboard:
 ### Settings
 
 Application and user settings (Admin users see additional options):
-- **Preferences**: Temperature units (Celsius/Fahrenheit), map style, default time range
+- **Preferences**:
+  - Temperature units (Celsius/Fahrenheit) - affects all temperature displays and config sliders
+  - Time format (12h/24h)
+  - Distance units (Kilometers/Miles) - affects journey distances and speed displays
+  - Map style (Street/Satellite)
+  - Default chart time range
 - **Notehub Status**: Connection status and route configuration
+- **Fleet Defaults** (Admin only): Configure default settings per fleet with temperature thresholds in user's preferred unit
 - **User Management** (Admin only): Invite new users, manage group assignments, assign devices to users
 
 ## Authentication
@@ -290,6 +299,7 @@ The dashboard communicates with the Songbird API via:
 ### Journeys & Location History
 - `GET /v1/devices/{uid}/journeys` - List all journeys for a device
 - `GET /v1/devices/{uid}/journeys/{journey_id}` - Get journey details with all points
+- `POST /v1/devices/{uid}/journeys/{journey_id}/match` - Trigger Mapbox road-snapping for a journey
 - `GET /v1/devices/{uid}/locations` - Get full location history (all sources)
 
 ### Commands
