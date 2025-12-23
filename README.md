@@ -209,12 +209,18 @@ Other modes use cell tower/Wi-Fi triangulation for location, which is lower powe
 A **journey** is a sequence of GPS tracking points recorded during a period of motion. The Notecard automatically assigns a `journey` identifier (Unix timestamp of when the journey started) to each `_track.qo` event.
 
 - **Journey start**: When `jcount` = 1 (first GPS point of a new journey)
-- **Journey end**: When a new journey starts OR the device exits transit mode
+- **Journey end**: Automatic completion when:
+  - A new journey starts (device detects new motion after stopping)
+  - Device mode changes away from transit (to demo, storage, or sleep)
 - **Journey data**: Each point includes lat/lon, velocity, bearing, distance, and accuracy (DOP)
 
 The dashboard provides:
 - **Journey list**: Browse all recorded journeys with duration, distance, and point count
-- **Journey playback**: Animated map visualization with adjustable speed (1x, 2x, 5x, 10x)
+- **Journey playback**: Animated map visualization with full playback controls:
+  - Play/pause with adjustable speed (1x, 2x, 5x, 10x)
+  - Step forward/back buttons for point-by-point navigation
+  - Clickable point markers with detailed popup (coordinates, velocity, bearing, timestamp)
+  - Reset button to return to journey start
 - **Location history**: View all location events from any source with filtering
 
 ### Button Actions

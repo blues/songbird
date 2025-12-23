@@ -188,6 +188,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Update device metadata in DynamoDB
     await updateDeviceMetadata(songbirdEvent);
 
+    // Check for mode change away from transit - complete any active journeys
+    if (songbirdEvent.body.mode && songbirdEvent.body.mode !== 'transit') {
+      await completeActiveJourneysOnModeChange(songbirdEvent.device_uid, songbirdEvent.body.mode);
+    }
+
     // Store and publish alert if this is an alert event
     if (songbirdEvent.event_type === 'alert.qo') {
       await storeAlert(songbirdEvent);
@@ -1001,4 +1006,59 @@ async function writeLocationHistory(event: SongbirdEvent): Promise<void> {
 
   await docClient.send(command);
   console.log(`Wrote location history for ${event.device_uid}: ${event.location.source} (${event.location.lat}, ${event.location.lon})`);
+}
+
+/**
+ * Complete all active journeys when device exits transit mode
+ * This ensures journeys are properly closed when mode changes to demo, storage, or sleep
+ */
+async function completeActiveJourneysOnModeChange(deviceUid: string, newMode: string): Promise<void> {
+  // Query for all active journeys for this device
+  const queryCommand = new QueryCommand({
+    TableName: JOURNEYS_TABLE,
+    IndexName: 'status-index',
+    KeyConditionExpression: '#status = :active',
+    FilterExpression: 'device_uid = :device_uid',
+    ExpressionAttributeNames: {
+      '#status': 'status',
+    },
+    ExpressionAttributeValues: {
+      ':active': 'active',
+      ':device_uid': deviceUid,
+    },
+  });
+
+  try {
+    const result = await docClient.send(queryCommand);
+
+    if (result.Items && result.Items.length > 0) {
+      console.log(`Mode changed to ${newMode} - completing ${result.Items.length} active journey(s) for ${deviceUid}`);
+
+      // Mark each active journey as completed
+      for (const journey of result.Items) {
+        const updateCommand = new UpdateCommand({
+          TableName: JOURNEYS_TABLE,
+          Key: {
+            device_uid: deviceUid,
+            journey_id: journey.journey_id,
+          },
+          UpdateExpression: 'SET #status = :status, #updated_at = :updated_at',
+          ExpressionAttributeNames: {
+            '#status': 'status',
+            '#updated_at': 'updated_at',
+          },
+          ExpressionAttributeValues: {
+            ':status': 'completed',
+            ':updated_at': Date.now(),
+          },
+        });
+
+        await docClient.send(updateCommand);
+        console.log(`Marked journey ${journey.journey_id} as completed due to mode change to ${newMode}`);
+      }
+    }
+  } catch (error) {
+    // Log but don't fail the request - journey completion is not critical
+    console.error(`Error completing active journeys on mode change: ${error}`);
+  }
 }

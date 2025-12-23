@@ -1,7 +1,7 @@
 import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import Map, { Source, Layer, Marker, NavigationControl, Popup } from 'react-map-gl';
 import type { MapRef } from 'react-map-gl';
-import { MapPin, Play, Pause, RotateCcw, FastForward, Navigation, Gauge, Target, Clock, Route } from 'lucide-react';
+import { MapPin, Play, Pause, RotateCcw, FastForward, Navigation, Gauge, Target, Clock, Route, SkipBack, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
@@ -188,6 +188,46 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
   // Handle slider change
   const handleSliderChange = (value: number[]) => {
     setCurrentIndex(value[0]);
+  };
+
+  // Step to previous point
+  const handleStepBack = () => {
+    if (currentIndex > 0) {
+      const newIndex = currentIndex - 1;
+      setCurrentIndex(newIndex);
+      // If popup is open, move it to the new point
+      if (selectedPointIndex !== null) {
+        setSelectedPointIndex(newIndex);
+        // Pan map to new point
+        if (mapRef.current) {
+          mapRef.current.easeTo({
+            center: [points[newIndex].lon, points[newIndex].lat],
+            padding: { top: 300, bottom: 50, left: 50, right: 50 },
+            duration: 300,
+          });
+        }
+      }
+    }
+  };
+
+  // Step to next point
+  const handleStepForward = () => {
+    if (currentIndex < points.length - 1) {
+      const newIndex = currentIndex + 1;
+      setCurrentIndex(newIndex);
+      // If popup is open, move it to the new point
+      if (selectedPointIndex !== null) {
+        setSelectedPointIndex(newIndex);
+        // Pan map to new point
+        if (mapRef.current) {
+          mapRef.current.easeTo({
+            center: [points[newIndex].lon, points[newIndex].lat],
+            padding: { top: 300, bottom: 50, left: 50, right: 50 },
+            duration: 300,
+          });
+        }
+      }
+    }
   };
 
   // Format velocity for display
@@ -478,6 +518,16 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
           </Button>
 
           <Button
+            variant="outline"
+            size="icon"
+            onClick={handleStepBack}
+            disabled={currentIndex === 0}
+            title="Previous point"
+          >
+            <SkipBack className="h-4 w-4" />
+          </Button>
+
+          <Button
             variant="default"
             size="icon"
             onClick={handlePlayPause}
@@ -488,6 +538,16 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
             ) : (
               <Play className="h-4 w-4" />
             )}
+          </Button>
+
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleStepForward}
+            disabled={currentIndex >= points.length - 1}
+            title="Next point"
+          >
+            <SkipForward className="h-4 w-4" />
           </Button>
 
           <Button

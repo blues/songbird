@@ -180,7 +180,11 @@ Individual device view includes:
 - **Location section** with three tabs:
   - **Current**: Map showing current location or latest journey trail
   - **History**: Location history table with filtering by source (GPS, Cell, Wi-Fi, Triangulated)
-  - **Journeys**: Journey selector and animated playback with speed controls (1x, 2x, 5x, 10x)
+  - **Journeys**: Journey selector and animated playback with full controls:
+    - Speed controls (1x, 2x, 5x, 10x)
+    - Step forward/back buttons for point-by-point navigation
+    - Clickable point markers with detailed popup (coordinates, velocity, bearing, timestamp)
+    - Auto-panning to keep popup visible in viewport
 - Real-time gauges (temperature, humidity, pressure, battery)
 - Historical telemetry charts (24h, 7d, 30d)
 - Power monitoring charts (Mojo voltage, temperature, mAh)

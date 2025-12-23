@@ -15,5 +15,7 @@ export declare class StorageConstruct extends Construct {
     readonly telemetryTable: dynamodb.Table;
     readonly alertsTable: dynamodb.Table;
     readonly settingsTable: dynamodb.Table;
+    readonly journeysTable: dynamodb.Table;
+    readonly locationsTable: dynamodb.Table;
     constructor(scope: Construct, id: string, props: StorageConstructProps);
 }
