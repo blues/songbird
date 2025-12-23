@@ -90,7 +90,7 @@ export function NotehubConnection() {
               <div>
                 <CardTitle>Notehub Connection</CardTitle>
                 <CardDescription>
-                  Connection status to blues.io Notehub
+                  Connection status to Blues Notehub
                 </CardDescription>
               </div>
             </div>

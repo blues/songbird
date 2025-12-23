@@ -83,4 +83,6 @@
 
 .mapboxgl-popup-close-button {
   @apply text-muted-foreground hover:text-foreground;
+  font-size: 20px;
+  padding: 2px 4px;
 }

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
-import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl';
+import Map, { Source, Layer, Marker, NavigationControl, Popup } from 'react-map-gl';
 import type { MapRef } from 'react-map-gl';
-import { MapPin, Play, Pause, RotateCcw, FastForward } from 'lucide-react';
+import { MapPin, Play, Pause, RotateCcw, FastForward, Navigation, Gauge, Target, Clock, Route } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +31,7 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null);
   const animationRef = useRef<number | null>(null);
   const lastFrameTimeRef = useRef<number>(0);
 
@@ -205,6 +206,28 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
     return `${directions[index]} (${bearing.toFixed(0)}°)`;
   };
 
+  // Format distance for display
+  const formatDistance = (distance?: number) => {
+    if (distance === undefined) return '--';
+    if (distance < 1000) {
+      return `${distance.toFixed(0)} m`;
+    }
+    return `${(distance / 1000).toFixed(2)} km`;
+  };
+
+  // Format DOP (GPS accuracy) for display
+  const formatDOP = (dop?: number) => {
+    if (dop === undefined) return '--';
+    if (dop <= 1) return `${dop.toFixed(1)} (Excellent)`;
+    if (dop <= 2) return `${dop.toFixed(1)} (Good)`;
+    if (dop <= 5) return `${dop.toFixed(1)} (Moderate)`;
+    if (dop <= 10) return `${dop.toFixed(1)} (Fair)`;
+    return `${dop.toFixed(1)} (Poor)`;
+  };
+
+  // Get selected point for popup
+  const selectedPoint = selectedPointIndex !== null ? points[selectedPointIndex] : null;
+
   // Default center (Austin, TX)
   const defaultCenter = { latitude: 30.2672, longitude: -97.7431 };
 
@@ -299,6 +322,108 @@ export function JourneyMap({ points, mapboxToken, className }: JourneyMapProps) 
                 stroke="white"
               />
             </Marker>
+          )}
+
+          {/* Clickable point markers */}
+          {points.map((point, index) => (
+            <Marker
+              key={`point-${index}`}
+              longitude={point.lon}
+              latitude={point.lat}
+              anchor="center"
+              onClick={(e) => {
+                e.originalEvent.stopPropagation();
+                setSelectedPointIndex(index);
+                // Pan map to ensure popup is visible (with top padding for popup height)
+                if (mapRef.current) {
+                  mapRef.current.easeTo({
+                    center: [point.lon, point.lat],
+                    padding: { top: 300, bottom: 50, left: 50, right: 50 },
+                    duration: 300,
+                  });
+                }
+              }}
+            >
+              <div
+                className={`w-2.5 h-2.5 rounded-full border border-white shadow cursor-pointer transition-all hover:scale-150 ${
+                  index === 0
+                    ? 'bg-green-500'
+                    : index === points.length - 1
+                    ? 'bg-red-500'
+                    : index <= currentIndex
+                    ? 'bg-blue-500'
+                    : 'bg-slate-400'
+                }`}
+              />
+            </Marker>
+          ))}
+
+          {/* Point detail popup */}
+          {selectedPoint && selectedPointIndex !== null && (
+            <Popup
+              longitude={selectedPoint.lon}
+              latitude={selectedPoint.lat}
+              anchor="bottom"
+              offset={15}
+              closeOnClick={false}
+              onClose={() => setSelectedPointIndex(null)}
+              className="journey-point-popup"
+            >
+              <div className="p-2 min-w-[200px]">
+                <div className="flex items-center justify-between mb-2 pb-2 border-b">
+                  <span className="font-semibold text-sm">Point {selectedPoint.jcount}</span>
+                  <Badge variant="outline" className="text-xs ml-4">
+                    {selectedPointIndex + 1} / {points.length}
+                  </Badge>
+                </div>
+
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-3 w-3 text-muted-foreground" />
+                    <span>{new Date(selectedPoint.time).toLocaleString()}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-3 w-3 text-muted-foreground" />
+                    <span>{selectedPoint.lat.toFixed(6)}, {selectedPoint.lon.toFixed(6)}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Gauge className="h-3 w-3 text-muted-foreground" />
+                    <span>Speed: {formatVelocity(selectedPoint.velocity)}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Navigation className="h-3 w-3 text-muted-foreground" />
+                    <span>Heading: {formatBearing(selectedPoint.bearing)}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Route className="h-3 w-3 text-muted-foreground" />
+                    <span>Distance: {formatDistance(selectedPoint.distance)}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Target className="h-3 w-3 text-muted-foreground" />
+                    <span>Accuracy: {formatDOP(selectedPoint.dop)}</span>
+                  </div>
+                </div>
+
+                <div className="mt-2 pt-2 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={() => {
+                      setCurrentIndex(selectedPointIndex);
+                      setSelectedPointIndex(null);
+                    }}
+                  >
+                    Jump to this point
+                  </Button>
+                </div>
+              </div>
+            </Popup>
           )}
         </Map>
       </div>
