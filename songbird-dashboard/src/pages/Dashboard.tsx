@@ -100,11 +100,11 @@ export function Dashboard({ mapboxToken, selectedFleet }: DashboardProps) {
                     onClick={() => handleDeviceSelect(item.device_uid)}
                   >
                     <div className="text-lg">
-                      {item.type === 'location' && '📍'}
                       {item.type === 'alert' && '⚠️'}
-                      {item.type === 'command' && '📡'}
                       {item.type === 'health' && '💓'}
-                      {item.type === 'status' && '🔄'}
+                      {item.type === 'command' && '📡'}
+                      {item.type === 'journey' && '🗺️'}
+                      {item.type === 'mode_change' && '🔄'}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">

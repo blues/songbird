@@ -296,8 +296,11 @@ Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com`
 |--------|------|-------------|
 | GET | `/v1/settings` | Get user settings/preferences |
 | PUT | `/v1/settings` | Update user settings/preferences |
-| GET | `/v1/activity` | Get recent activity feed |
+| GET | `/v1/activity` | Get recent activity feed (alerts, health, commands, journeys, mode changes) |
 | GET | `/v1/notehub/status` | Get Notehub connection status |
+| GET | `/v1/settings/fleet-defaults` | List all fleet defaults (Admin only) |
+| GET | `/v1/settings/fleet-defaults/{fleet}` | Get fleet defaults |
+| PUT | `/v1/settings/fleet-defaults/{fleet}` | Update fleet defaults and sync to Notehub (Admin only) |
 
 #### User Management (Admin only)
 | Method | Path | Description |

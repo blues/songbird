@@ -53,7 +53,8 @@
       "Bash(aws s3 ls:*)",
       "Bash(aws secretsmanager describe-secret:*)",
       "Bash(aws secretsmanager list-secrets:*)",
-      "Bash(aws secretsmanager put-secret-value:*)"
+      "Bash(aws secretsmanager put-secret-value:*)",
+      "Bash(aws dynamodb list-tables:*)"
     ],
     "deny": [],
     "ask": []

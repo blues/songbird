@@ -182,6 +182,8 @@ export class ApiConstruct extends Construct {
         TELEMETRY_TABLE: props.telemetryTable.tableName,
         ALERTS_TABLE: props.alertsTable.tableName,
         DEVICES_TABLE: props.devicesTable.tableName,
+        COMMANDS_TABLE: commandsTable.tableName,
+        JOURNEYS_TABLE: props.journeysTable.tableName,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
@@ -189,6 +191,8 @@ export class ApiConstruct extends Construct {
     props.telemetryTable.grantReadData(activityFunction);
     props.alertsTable.grantReadData(activityFunction);
     props.devicesTable.grantReadData(activityFunction);
+    commandsTable.grantReadData(activityFunction);
+    props.journeysTable.grantReadData(activityFunction);
 
     // Settings API
     const settingsFunction = new NodejsFunction(this, 'SettingsFunction', {

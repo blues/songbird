@@ -6,7 +6,7 @@
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, UpdateCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, UpdateCommand, QueryCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
@@ -183,6 +183,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Write to location history table for all events with location
     if (songbirdEvent.location) {
       await writeLocationHistory(songbirdEvent);
+    }
+
+    // Track mode changes BEFORE updating device metadata (so we can compare old vs new)
+    if (songbirdEvent.body.mode) {
+      await trackModeChange(songbirdEvent);
     }
 
     // Update device metadata in DynamoDB
@@ -1060,5 +1065,57 @@ async function completeActiveJourneysOnModeChange(deviceUid: string, newMode: st
   } catch (error) {
     // Log but don't fail the request - journey completion is not critical
     console.error(`Error completing active journeys on mode change: ${error}`);
+  }
+}
+
+/**
+ * Check if mode has changed and write a mode_change event to telemetry table
+ * This allows the activity feed to show mode changes
+ */
+async function trackModeChange(event: SongbirdEvent): Promise<void> {
+  if (!event.body.mode) {
+    return; // No mode in event, nothing to track
+  }
+
+  try {
+    // Get current device mode from devices table
+    const getCommand = new GetCommand({
+      TableName: DEVICES_TABLE,
+      Key: { device_uid: event.device_uid },
+      ProjectionExpression: 'current_mode',
+    });
+
+    const result = await docClient.send(getCommand);
+    const previousMode = result.Item?.current_mode;
+
+    // If mode has changed (or device is new), record the change
+    if (previousMode && previousMode !== event.body.mode) {
+      const timestamp = event.timestamp * 1000; // Convert to milliseconds
+      const ttl = Math.floor(Date.now() / 1000) + TTL_SECONDS;
+
+      const record: Record<string, any> = {
+        device_uid: event.device_uid,
+        timestamp,
+        ttl,
+        data_type: 'mode_change',
+        event_type: event.event_type,
+        event_type_timestamp: `mode_change#${timestamp}`,
+        serial_number: event.serial_number || 'unknown',
+        fleet: event.fleet || 'default',
+        previous_mode: previousMode,
+        new_mode: event.body.mode,
+      };
+
+      const putCommand = new PutCommand({
+        TableName: TELEMETRY_TABLE,
+        Item: record,
+      });
+
+      await docClient.send(putCommand);
+      console.log(`Recorded mode change for ${event.device_uid}: ${previousMode} -> ${event.body.mode}`);
+    }
+  } catch (error) {
+    // Log but don't fail the request - mode tracking is not critical
+    console.error(`Error tracking mode change: ${error}`);
   }
 }

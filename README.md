@@ -76,6 +76,7 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
 | **Alert Management** | Temperature threshold alerts with acknowledgment workflow |
 | **User Management** | Role-based access with Admin, Sales, Field Engineering, Viewer groups |
 | **Device Assignment** | Assign devices to users for accountability tracking |
+| **Fleet Defaults** | Configure default settings per fleet, synced to Notehub environment variables |
 | **Transit Lock** | Double-click button to lock device in transit mode for shipping |
 | **Journey Tracking** | Record and playback GPS journeys with velocity and bearing data |
 | **Location History** | View all location events with filtering by source (GPS, Cell, Wi-Fi) |

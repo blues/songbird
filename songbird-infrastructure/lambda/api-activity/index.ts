@@ -4,12 +4,12 @@
  * Returns a unified activity feed combining:
  * - Alerts (from alerts table)
  * - Health events (from telemetry table)
- * - Location updates (from telemetry table)
- * - Device status changes (derived from device last_seen)
+ * - Commands (from commands table)
+ * - Journey start/end events (from journeys table)
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 const ddbClient = new DynamoDBClient({});
@@ -18,10 +18,12 @@ const docClient = DynamoDBDocumentClient.from(ddbClient);
 const TELEMETRY_TABLE = process.env.TELEMETRY_TABLE!;
 const ALERTS_TABLE = process.env.ALERTS_TABLE!;
 const DEVICES_TABLE = process.env.DEVICES_TABLE!;
+const COMMANDS_TABLE = process.env.COMMANDS_TABLE!;
+const JOURNEYS_TABLE = process.env.JOURNEYS_TABLE!;
 
 interface ActivityItem {
   id: string;
-  type: 'alert' | 'health' | 'location' | 'status';
+  type: 'alert' | 'health' | 'command' | 'journey' | 'mode_change';
   device_uid: string;
   device_name?: string;
   message: string;
@@ -50,16 +52,14 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const limit = parseInt(queryParams.limit || '50');
 
     // Fetch activities from all sources in parallel
-    const [alerts, healthEvents, locationEvents, devices] = await Promise.all([
+    const [alerts, healthEvents, commands, journeys, modeChanges, devices] = await Promise.all([
       getRecentAlerts(hours, limit),
       getRecentHealthEvents(hours, limit),
-      getRecentLocationEvents(hours, limit),
+      getRecentCommands(hours, limit),
+      getRecentJourneys(hours, limit),
+      getRecentModeChanges(hours, limit),
       getDevices(),
     ]);
-
-    // Filter location events to only show significant changes
-    const significantLocationEvents = filterSignificantLocationChanges(locationEvents);
-
 
     // Create device name lookup
     const deviceNames: Record<string, string> = {};
@@ -97,23 +97,73 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       },
     }));
 
-    // Transform location events to activity items (only significant changes)
-    const locationActivities: ActivityItem[] = significantLocationEvents.map((event) => ({
-      id: `location-${event.device_uid}-${event.timestamp}`,
-      type: 'location',
-      device_uid: event.device_uid,
-      device_name: deviceNames[event.device_uid],
-      message: formatLocationMessage(event, deviceNames[event.device_uid]),
-      timestamp: new Date(event.timestamp).toISOString(),
+    // Transform commands to activity items
+    const commandActivities: ActivityItem[] = commands.map((cmd) => ({
+      id: `command-${cmd.command_id}`,
+      type: 'command',
+      device_uid: cmd.device_uid,
+      device_name: deviceNames[cmd.device_uid],
+      message: formatCommandMessage(cmd),
+      timestamp: new Date(cmd.created_at).toISOString(),
       data: {
-        lat: event.latitude,
-        lon: event.longitude,
-        source: event.location_source,
+        cmd: cmd.cmd,
+        status: cmd.status,
+        ack_status: cmd.ack_status,
+      },
+    }));
+
+    // Transform journeys to activity items (start and end events)
+    const journeyActivities: ActivityItem[] = [];
+    for (const journey of journeys) {
+      // Journey start event
+      journeyActivities.push({
+        id: `journey-start-${journey.device_uid}-${journey.journey_id}`,
+        type: 'journey',
+        device_uid: journey.device_uid,
+        device_name: deviceNames[journey.device_uid],
+        message: 'Journey started',
+        timestamp: new Date(journey.start_time).toISOString(),
+        data: {
+          journey_id: journey.journey_id,
+          event: 'start',
+        },
+      });
+
+      // Journey end event (only if completed)
+      if (journey.status === 'completed' && journey.end_time) {
+        journeyActivities.push({
+          id: `journey-end-${journey.device_uid}-${journey.journey_id}`,
+          type: 'journey',
+          device_uid: journey.device_uid,
+          device_name: deviceNames[journey.device_uid],
+          message: formatJourneyEndMessage(journey),
+          timestamp: new Date(journey.end_time).toISOString(),
+          data: {
+            journey_id: journey.journey_id,
+            event: 'end',
+            point_count: journey.point_count,
+            total_distance: journey.total_distance,
+          },
+        });
+      }
+    }
+
+    // Transform mode changes to activity items
+    const modeChangeActivities: ActivityItem[] = modeChanges.map((change) => ({
+      id: `mode-${change.device_uid}-${change.timestamp}`,
+      type: 'mode_change',
+      device_uid: change.device_uid,
+      device_name: deviceNames[change.device_uid],
+      message: formatModeChangeMessage(change),
+      timestamp: new Date(change.timestamp).toISOString(),
+      data: {
+        previous_mode: change.previous_mode,
+        new_mode: change.new_mode,
       },
     }));
 
     // Merge all activities and sort by timestamp (newest first)
-    const allActivities = [...alertActivities, ...healthActivities, ...locationActivities]
+    const allActivities = [...alertActivities, ...healthActivities, ...commandActivities, ...journeyActivities, ...modeChangeActivities]
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, limit);
 
@@ -194,23 +244,17 @@ async function getRecentHealthEvents(hours: number, limit: number): Promise<any[
   return allItems.slice(0, limit * 2);
 }
 
-async function getRecentLocationEvents(hours: number, limit: number): Promise<any[]> {
+async function getRecentCommands(hours: number, limit: number): Promise<any[]> {
   const cutoffTime = Date.now() - hours * 60 * 60 * 1000;
   const allItems: any[] = [];
   let lastEvaluatedKey: Record<string, any> | undefined;
 
-  // Paginate through ALL results - DynamoDB Scan doesn't return items in order,
-  // so we must scan everything to ensure we get the most recent events
   do {
     const command = new ScanCommand({
-      TableName: TELEMETRY_TABLE,
-      FilterExpression: '#ts > :cutoff AND event_type = :event_type',
-      ExpressionAttributeNames: {
-        '#ts': 'timestamp',
-      },
+      TableName: COMMANDS_TABLE,
+      FilterExpression: 'created_at > :cutoff',
       ExpressionAttributeValues: {
         ':cutoff': cutoffTime,
-        ':event_type': '_geolocate.qo',
       },
       ExclusiveStartKey: lastEvaluatedKey,
     });
@@ -218,12 +262,36 @@ async function getRecentLocationEvents(hours: number, limit: number): Promise<an
     const result = await docClient.send(command);
     allItems.push(...(result.Items || []));
     lastEvaluatedKey = result.LastEvaluatedKey;
+
+    if (allItems.length >= limit * 2) break;
   } while (lastEvaluatedKey);
 
-  // Sort by timestamp descending and return the most recent items
-  return allItems
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, limit * 2);
+  return allItems.slice(0, limit * 2);
+}
+
+async function getRecentJourneys(hours: number, limit: number): Promise<any[]> {
+  const cutoffTime = Date.now() - hours * 60 * 60 * 1000;
+  const allItems: any[] = [];
+  let lastEvaluatedKey: Record<string, any> | undefined;
+
+  do {
+    const command = new ScanCommand({
+      TableName: JOURNEYS_TABLE,
+      FilterExpression: 'start_time > :cutoff',
+      ExpressionAttributeValues: {
+        ':cutoff': cutoffTime,
+      },
+      ExclusiveStartKey: lastEvaluatedKey,
+    });
+
+    const result = await docClient.send(command);
+    allItems.push(...(result.Items || []));
+    lastEvaluatedKey = result.LastEvaluatedKey;
+
+    if (allItems.length >= limit * 2) break;
+  } while (lastEvaluatedKey);
+
+  return allItems.slice(0, limit * 2);
 }
 
 async function getDevices(): Promise<any[]> {
@@ -277,104 +345,82 @@ function formatHealthMessage(event: any): string {
   return label;
 }
 
-function formatLocationMessage(event: any, deviceName?: string): string {
-  const sourceLabels: Record<string, string> = {
-    gps: 'GPS location',
-    triangulation: 'Triangulated location',
-    cell: 'Cell tower location',
-    tower: 'Cell tower location',
-    wifi: 'Wi-Fi location',
+function formatCommandMessage(cmd: any): string {
+  const cmdLabels: Record<string, string> = {
+    ping: 'Ping command',
+    locate: 'Locate command',
+    play_melody: 'Play melody command',
+    test_audio: 'Test audio command',
+    set_volume: 'Set volume command',
   };
 
-  const sourceLabel = sourceLabels[event.location_source] || 'Location update';
-  return `${sourceLabel} received`;
+  const label = cmdLabels[cmd.cmd] || cmd.cmd || 'Command';
+  const statusLabels: Record<string, string> = {
+    queued: 'queued',
+    sent: 'sent',
+    ok: 'acknowledged',
+    error: 'failed',
+    ignored: 'ignored',
+  };
+
+  const status = statusLabels[cmd.ack_status || cmd.status] || cmd.status;
+  return `${label} ${status}`;
 }
 
-/**
- * Calculate distance between two lat/lon points using Haversine formula
- * Returns distance in meters
- */
-function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371000; // Earth's radius in meters
-  const toRad = (deg: number) => deg * Math.PI / 180;
+function formatJourneyEndMessage(journey: any): string {
+  const distance = journey.total_distance || 0;
+  const points = journey.point_count || 0;
 
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
+  // Format distance in km or m
+  let distanceStr: string;
+  if (distance >= 1000) {
+    distanceStr = `${(distance / 1000).toFixed(1)} km`;
+  } else {
+    distanceStr = `${Math.round(distance)} m`;
+  }
 
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  return `Journey ended: ${distanceStr}, ${points} points`;
 }
 
-/**
- * Filter location events to only include meaningful changes per device.
- * A location is considered "changed" if:
- * - It's the first event for that device
- * - The location source changed
- * - The distance moved is > 100 meters
- *
- * Always includes the most recent event per device so users see current status.
- */
-function filterSignificantLocationChanges(events: any[]): any[] {
-  // Sort by device_uid, then timestamp ascending (oldest first)
-  const sorted = [...events].sort((a, b) => {
-    if (a.device_uid !== b.device_uid) {
-      return a.device_uid.localeCompare(b.device_uid);
-    }
-    return a.timestamp - b.timestamp;
-  });
+async function getRecentModeChanges(hours: number, limit: number): Promise<any[]> {
+  const cutoffTime = Date.now() - hours * 60 * 60 * 1000;
+  const allItems: any[] = [];
+  let lastEvaluatedKey: Record<string, any> | undefined;
 
-  const significantEvents: any[] = [];
-  const lastSignificantByDevice: Record<string, any> = {};
-  const mostRecentByDevice: Record<string, any> = {};
+  do {
+    const command = new ScanCommand({
+      TableName: TELEMETRY_TABLE,
+      FilterExpression: '#ts > :cutoff AND data_type = :data_type',
+      ExpressionAttributeNames: {
+        '#ts': 'timestamp',
+      },
+      ExpressionAttributeValues: {
+        ':cutoff': cutoffTime,
+        ':data_type': 'mode_change',
+      },
+      ExclusiveStartKey: lastEvaluatedKey,
+    });
 
-  for (const event of sorted) {
-    const deviceUid = event.device_uid;
+    const result = await docClient.send(command);
+    allItems.push(...(result.Items || []));
+    lastEvaluatedKey = result.LastEvaluatedKey;
 
-    // Track the most recent event for each device
-    mostRecentByDevice[deviceUid] = event;
+    if (allItems.length >= limit * 2) break;
+  } while (lastEvaluatedKey);
 
-    const lastSignificant = lastSignificantByDevice[deviceUid];
+  return allItems.slice(0, limit * 2);
+}
 
-    if (!lastSignificant) {
-      // First event for this device
-      significantEvents.push(event);
-      lastSignificantByDevice[deviceUid] = event;
-      continue;
-    }
+function formatModeChangeMessage(change: any): string {
+  const modeLabels: Record<string, string> = {
+    demo: 'Demo',
+    transit: 'Transit',
+    storage: 'Storage',
+    sleep: 'Sleep',
+  };
 
-    // Check if location source changed
-    if (event.location_source !== lastSignificant.location_source) {
-      significantEvents.push(event);
-      lastSignificantByDevice[deviceUid] = event;
-      continue;
-    }
+  const prevLabel = modeLabels[change.previous_mode] || change.previous_mode;
+  const newLabel = modeLabels[change.new_mode] || change.new_mode;
 
-    // Check if moved more than 100 meters
-    const distance = haversineDistance(
-      lastSignificant.latitude, lastSignificant.longitude,
-      event.latitude, event.longitude
-    );
-
-    if (distance > 100) {
-      significantEvents.push(event);
-      lastSignificantByDevice[deviceUid] = event;
-    }
-  }
-
-  // Ensure the most recent event for each device is included
-  for (const deviceUid of Object.keys(mostRecentByDevice)) {
-    const mostRecent = mostRecentByDevice[deviceUid];
-    const alreadyIncluded = significantEvents.some(
-      (e) => e.device_uid === deviceUid && e.timestamp === mostRecent.timestamp
-    );
-    if (!alreadyIncluded) {
-      significantEvents.push(mostRecent);
-    }
-  }
-
-  return significantEvents;
+  return `Mode changed: ${prevLabel} → ${newLabel}`;
 }

@@ -172,7 +172,12 @@ The dashboard is deployed to S3 and served via CloudFront. After building:
 The main dashboard shows:
 - Summary statistics (total devices, online/offline, alerts)
 - Fleet map with device markers
-- Recent activity feed
+- Recent activity feed showing:
+  - ⚠️ Alerts (temperature, humidity, battery, motion)
+  - 💓 Health events (boot, reboot, sync, USB connection)
+  - 📡 Commands (ping, locate, play_melody with status)
+  - 🗺️ Journey start/end events (with distance for completed journeys)
+  - 🔄 Mode changes (Demo → Transit, etc.)
 - Device card grid
 
 ### Device Detail
@@ -260,7 +265,7 @@ Application and user settings (Admin users see additional options):
   - Map style (Street/Satellite)
   - Default chart time range
 - **Notehub Status**: Connection status and route configuration
-- **Fleet Defaults** (Admin only): Configure default settings per fleet with temperature thresholds in user's preferred unit
+- **Fleet Defaults** (Admin only): Configure default settings per fleet (mode, intervals, alert thresholds, features). Settings are saved to DynamoDB and synced to Notehub as fleet environment variables, applying to all devices on their next sync.
 - **User Management** (Admin only): Invite new users, manage group assignments, assign devices to users
 
 ## Authentication
@@ -316,8 +321,11 @@ The dashboard communicates with the Songbird API via:
 ### Settings & Activity
 - `GET /v1/settings` - Get user settings/preferences
 - `PUT /v1/settings` - Update user settings/preferences
-- `GET /v1/activity` - Get recent activity feed
+- `GET /v1/activity` - Get recent activity feed (alerts, health, commands, journeys, mode changes)
 - `GET /v1/notehub/status` - Get Notehub connection status
+- `GET /v1/settings/fleet-defaults` - List all fleet defaults (Admin only)
+- `GET /v1/settings/fleet-defaults/{fleet}` - Get fleet defaults
+- `PUT /v1/settings/fleet-defaults/{fleet}` - Update fleet defaults and sync to Notehub (Admin only)
 
 ### User Management (Admin only)
 - `GET /v1/users` - List all users
