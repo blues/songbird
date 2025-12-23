@@ -257,7 +257,7 @@ framework = arduino
 
 ; Library dependencies
 lib_deps =
-    blues/Blues Wireless Notecard@^1.6.0
+    blues/Blues Notecard@^1.6.0
     adafruit/Adafruit BME280 Library@^2.2.2
     adafruit/Adafruit Unified Sensor@^1.1.9
     stm32duino/STM32duino FreeRTOS@^10.3.2
@@ -293,7 +293,7 @@ build_flags =
 
 | Library | Version | Purpose |
 |---------|---------|---------|
-| Blues Wireless Notecard | ^1.6.0 | Notecard communication |
+| Blues Notecard | ^1.6.0 | Notecard communication |
 | Adafruit BME280 Library | ^2.2.2 | Environmental sensor |
 | Adafruit Unified Sensor | ^1.1.9 | Sensor abstraction (BME280 dependency) |
 | STM32duino FreeRTOS | ^10.3.2 | Real-time operating system for multitasking |

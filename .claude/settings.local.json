@@ -54,7 +54,11 @@
       "Bash(aws secretsmanager describe-secret:*)",
       "Bash(aws secretsmanager list-secrets:*)",
       "Bash(aws secretsmanager put-secret-value:*)",
-      "Bash(aws dynamodb list-tables:*)"
+      "Bash(aws dynamodb list-tables:*)",
+      "Bash(aws cloudformation list-stacks:*)",
+      "Bash(aws acm:*)",
+      "Bash(jq:*)",
+      "Bash(aws cloudfront update-distribution:*)"
     ],
     "deny": [],
     "ask": []

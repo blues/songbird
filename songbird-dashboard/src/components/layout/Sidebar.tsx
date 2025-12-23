@@ -45,7 +45,7 @@ export function Sidebar() {
       <div className="border-t p-4">
         <div className="text-xs text-muted-foreground">
           <div className="font-medium">Songbird v1.0.0</div>
-          <div>Blues Wireless Demo</div>
+          <div>Blues Inc. Tracker Demo</div>
         </div>
       </div>
     </aside>
