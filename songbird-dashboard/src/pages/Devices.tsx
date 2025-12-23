@@ -34,6 +34,7 @@ import {
 import { DeviceStatus } from '@/components/devices/DeviceStatus';
 import { useDevices } from '@/hooks/useDevices';
 import { useActiveAlerts } from '@/hooks/useAlerts';
+import { useNotehubFleets } from '@/hooks/useSettings';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import {
   formatTemperature,
@@ -70,14 +71,34 @@ export function Devices() {
 
   const { data: devicesData, isLoading } = useDevices();
   const { data: alertsData } = useActiveAlerts();
+  const { data: notehubFleetsData } = useNotehubFleets();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [fleetFilter, setFleetFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   const devices = devicesData?.devices || [];
   const activeAlerts = alertsData?.alerts || [];
+  const notehubFleets = notehubFleetsData || [];
+
+  // Build fleet list from Notehub API and device data
+  const fleets = useMemo(() => {
+    const fleetMap: Record<string, string> = {};
+    // Add fleets from Notehub API
+    for (const fleet of notehubFleets) {
+      fleetMap[fleet.uid] = fleet.name;
+    }
+    // Add any additional fleets from devices (fallback)
+    for (const device of devices) {
+      const fleetId = (device as any).fleet || device.fleet_uid;
+      if (fleetId && !fleetMap[fleetId]) {
+        fleetMap[fleetId] = device.fleet_name || fleetId;
+      }
+    }
+    return Object.entries(fleetMap).map(([uid, name]) => ({ uid, name }));
+  }, [notehubFleets, devices]);
 
   // Build alert counts by device
   const alertsByDevice = useMemo(() => {
@@ -110,6 +131,14 @@ export function Devices() {
       result = result.filter((d) => d.status === statusFilter);
     }
 
+    // Fleet filter
+    if (fleetFilter !== 'all') {
+      result = result.filter((d) => {
+        const fleetId = (d as any).fleet || d.fleet_uid;
+        return fleetId === fleetFilter;
+      });
+    }
+
     // Sort
     result.sort((a, b) => {
       let comparison = 0;
@@ -140,7 +169,7 @@ export function Devices() {
     });
 
     return result;
-  }, [devices, searchQuery, statusFilter, sortField, sortDirection]);
+  }, [devices, searchQuery, statusFilter, fleetFilter, sortField, sortDirection]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -211,6 +240,23 @@ export function Devices() {
             <SelectItem value="offline">Offline</SelectItem>
           </SelectContent>
         </Select>
+        <Select
+          value={fleetFilter}
+          onValueChange={setFleetFilter}
+          disabled={fleets.length === 0}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Fleet" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Fleets</SelectItem>
+            {fleets.map((fleet) => (
+              <SelectItem key={fleet.uid} value={fleet.uid}>
+                {fleet.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Device Table */}
@@ -270,7 +316,7 @@ export function Devices() {
             ) : filteredDevices.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  {searchQuery || statusFilter !== 'all'
+                  {searchQuery || statusFilter !== 'all' || fleetFilter !== 'all'
                     ? 'No devices match your filters'
                     : 'No devices found'}
                 </TableCell>
