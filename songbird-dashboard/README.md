@@ -180,6 +180,22 @@ The main dashboard shows:
   - 🔄 Mode changes (Demo → Transit, etc.)
 - Device card grid
 
+### Fleet Map
+
+Full-screen map view with:
+- **Collapsible device drawer** (left side):
+  - Device count statistics (total, online, offline)
+  - Fleet filter dropdown to show devices from specific fleets
+  - Search filter to find devices by name, serial number, or location
+  - Scrollable device list - click to fly to device location
+- **Interactive map**:
+  - Color-coded markers (green=online, red=offline)
+  - Click marker for device popup with:
+    - Device name, status, and mode
+    - Location details with source indicator (GPS, Cell, Wi-Fi, Triangulation)
+    - Latest telemetry (temperature, battery)
+    - Quick action buttons: Ping, Locate, View Details
+
 ### Device Detail
 
 Individual device view includes:

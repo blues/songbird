@@ -9,6 +9,7 @@ import { Layout } from '@/components/layout/Layout';
 import { Dashboard } from '@/pages/Dashboard';
 import { Devices } from '@/pages/Devices';
 import { DeviceDetail } from '@/pages/DeviceDetail';
+import { Map } from '@/pages/Map';
 import { Alerts } from '@/pages/Alerts';
 import { Commands } from '@/pages/Commands';
 import { Settings } from '@/pages/Settings';
@@ -157,7 +158,7 @@ function App() {
                 <Route
                   path="/map"
                   element={
-                    <Dashboard
+                    <Map
                       mapboxToken={mapboxToken}
                       selectedFleet={selectedFleet}
                     />
