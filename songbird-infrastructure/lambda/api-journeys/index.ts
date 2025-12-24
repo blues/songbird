@@ -184,7 +184,10 @@ async function getJourneyDetail(
     matched_route: journeyItem.matched_route, // GeoJSON LineString if map-matched
   };
 
-  const points = (pointsResult.Items || []).map((item) => ({
+  // Sort points by timestamp (GSI doesn't guarantee order within same journey_id)
+  const sortedItems = (pointsResult.Items || []).sort((a, b) => a.timestamp - b.timestamp);
+
+  const points = sortedItems.map((item) => ({
     time: new Date(item.timestamp).toISOString(),
     lat: item.latitude,
     lon: item.longitude,
@@ -234,7 +237,9 @@ async function matchJourney(
   });
 
   const pointsResult = await docClient.send(pointsCommand);
-  const points = pointsResult.Items || [];
+
+  // Sort points by timestamp (GSI doesn't guarantee order within same journey_id)
+  const points = (pointsResult.Items || []).sort((a, b) => a.timestamp - b.timestamp);
 
   if (points.length < 2) {
     return {

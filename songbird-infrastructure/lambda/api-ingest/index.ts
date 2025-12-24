@@ -100,6 +100,8 @@ interface NotehubEvent {
   tri_timezone?: string;
   tri_points?: number;  // Number of reference points used for triangulation
   fleets?: string[];
+  // GPS timestamp for _track.qo events
+  where_when?: number;  // Unix timestamp when GPS fix was captured (more accurate than 'when' for tracking)
   // Session fields (_session.qo) - may appear at top level or in body
   firmware_host?: string;     // JSON string with host firmware info
   firmware_notecard?: string; // JSON string with Notecard firmware info
@@ -127,8 +129,14 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     console.log('Processing Notehub event:', JSON.stringify(notehubEvent));
 
     // Transform to internal format
-    // Use 'when' if available, otherwise fall back to 'received' (as integer seconds)
-    const eventTimestamp = notehubEvent.when || Math.floor(notehubEvent.received);
+    // For _track.qo events, use 'where_when' which is when the GPS fix was captured
+    // For other events, use 'when' if available, otherwise fall back to 'received'
+    let eventTimestamp: number;
+    if (notehubEvent.file === '_track.qo' && notehubEvent.where_when) {
+      eventTimestamp = notehubEvent.where_when;
+    } else {
+      eventTimestamp = notehubEvent.when || Math.floor(notehubEvent.received);
+    }
 
     // Extract location - prefer GPS (best_lat/best_lon), fall back to triangulation
     const location = extractLocation(notehubEvent);

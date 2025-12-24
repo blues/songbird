@@ -103,7 +103,6 @@ export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMat
   const [showMatchedRoute, setShowMatchedRoute] = useState(true);
 
   const mapRef = useRef<MapRef>(null);
-  const [hasInitialized, setHasInitialized] = useState(false);
   const [hasTriggeredMatch, setHasTriggeredMatch] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -268,16 +267,31 @@ export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMat
     }
   }, [bounds]);
 
-  // Initialize map view
+  // Track previous points to detect journey changes
+  const prevPointsRef = useRef<JourneyPoint[]>([]);
+
+  // Reset state and fit map when journey changes (points array changes)
   useEffect(() => {
-    if (points.length > 0 && !hasInitialized) {
+    // Check if this is a new journey (different points array)
+    const pointsChanged = points !== prevPointsRef.current && points.length > 0;
+
+    if (pointsChanged) {
+      // Reset playback state
+      setCurrentIndex(0);
+      setAnimationProgress(0);
+      setIsPlaying(false);
+      setSelectedPointIndex(null);
+      setHasTriggeredMatch(false);
+
+      // Fit map to new journey after a short delay to ensure map is ready
       const timer = setTimeout(() => {
         fitMapToJourney();
-        setHasInitialized(true);
-      }, 100);
+      }, 150);
+
+      prevPointsRef.current = points;
       return () => clearTimeout(timer);
     }
-  }, [points, hasInitialized, fitMapToJourney]);
+  }, [points, fitMapToJourney]);
 
   // Auto-trigger map matching when journey loads
   useEffect(() => {
@@ -292,11 +306,6 @@ export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMat
       onMatchRoute();
     }
   }, [points.length, matchedRoute, isMatching, hasTriggeredMatch, onMatchRoute]);
-
-  // Reset trigger flag when journey changes
-  useEffect(() => {
-    setHasTriggeredMatch(false);
-  }, [points]);
 
   // Animation loop for playback - uses real GPS velocity
   useEffect(() => {
