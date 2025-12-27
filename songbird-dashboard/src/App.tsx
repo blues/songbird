@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Amplify } from 'aws-amplify';
 import { Authenticator } from '@aws-amplify/ui-react';
+import type { AuthenticatorProps } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
 
 import { Layout } from '@/components/layout/Layout';
@@ -100,6 +101,26 @@ function App() {
 
   const mapboxToken = config.mapboxToken || import.meta.env.VITE_MAPBOX_TOKEN || '';
 
+  // Custom Authenticator components for branding
+  const authenticatorComponents: AuthenticatorProps['components'] = {
+    Header() {
+      return (
+        <div className="flex flex-col items-center pt-8 pb-4">
+          <img src="/songbird-logo.svg" alt="Songbird" className="h-16 w-16 mb-3" />
+          <h1 className="text-2xl font-bold text-foreground">Songbird</h1>
+          <p className="text-sm text-muted-foreground">Fleet Management Dashboard</p>
+        </div>
+      );
+    },
+    Footer() {
+      return (
+        <div className="text-center py-4 text-xs text-muted-foreground">
+          Powered by Blues Inc.
+        </div>
+      );
+    },
+  };
+
   // Wrapper component to use hooks inside QueryClientProvider
   function AppLayout({
     user,
@@ -125,7 +146,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Authenticator>
+      <Authenticator components={authenticatorComponents}>
         {({ signOut, user }) => (
           <PreferencesProvider>
             <BrowserRouter>

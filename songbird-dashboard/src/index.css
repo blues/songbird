@@ -86,3 +86,175 @@
   font-size: 20px;
   padding: 2px 4px;
 }
+
+/* AWS Amplify Authenticator Theming */
+[data-amplify-authenticator] {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, hsl(210, 40%, 98%) 0%, hsl(217, 91%, 97%) 100%);
+  --amplify-colors-brand-primary-10: hsl(217, 91%, 97%);
+  --amplify-colors-brand-primary-20: hsl(214, 95%, 93%);
+  --amplify-colors-brand-primary-40: hsl(213, 97%, 87%);
+  --amplify-colors-brand-primary-60: hsl(212, 96%, 78%);
+  --amplify-colors-brand-primary-80: hsl(217, 91%, 60%);
+  --amplify-colors-brand-primary-90: hsl(221, 83%, 53%);
+  --amplify-colors-brand-primary-100: hsl(224, 76%, 48%);
+  --amplify-colors-background-primary: hsl(0, 0%, 100%);
+  --amplify-colors-background-secondary: hsl(210, 40%, 98%);
+  --amplify-colors-font-primary: hsl(222, 84%, 5%);
+  --amplify-colors-font-secondary: hsl(215, 16%, 47%);
+  --amplify-colors-border-primary: hsl(214, 32%, 91%);
+  --amplify-colors-border-focus: hsl(221, 83%, 53%);
+  --amplify-radii-small: 0.375rem;
+  --amplify-radii-medium: 0.5rem;
+  --amplify-radii-large: 0.75rem;
+  --amplify-space-small: 0.75rem;
+  --amplify-space-medium: 1rem;
+  --amplify-space-large: 1.5rem;
+  --amplify-fonts-default-variable: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --amplify-fonts-default-static: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Authenticator container */
+[data-amplify-authenticator] [data-amplify-container] {
+  @apply max-w-md mx-auto w-full px-4;
+}
+
+/* Router/card wrapper - the main white box */
+[data-amplify-authenticator] [data-amplify-router] {
+  @apply bg-white rounded-xl shadow-xl border border-border overflow-hidden;
+}
+
+/* Tabs container - full width separator */
+[data-amplify-authenticator] .amplify-tabs {
+  @apply border-b border-border bg-muted/30;
+}
+
+/* Tab list */
+[data-amplify-authenticator] .amplify-tabs__list {
+  @apply flex w-full;
+}
+
+/* Individual tab items */
+[data-amplify-authenticator] .amplify-tabs__item {
+  @apply flex-1 py-3 px-4 text-center font-medium text-muted-foreground
+         border-b-2 border-transparent transition-all duration-200
+         hover:text-foreground hover:bg-muted/50;
+}
+
+[data-amplify-authenticator] .amplify-tabs__item--active {
+  @apply text-foreground bg-white border-b-2;
+  border-color: hsl(221, 83%, 53%);
+}
+
+/* Tab panel (form area) */
+[data-amplify-authenticator] .amplify-tabs__panel {
+  @apply p-6;
+}
+
+/* Form styling */
+[data-amplify-authenticator] [data-amplify-form] {
+  @apply space-y-4;
+}
+
+/* Field groups */
+[data-amplify-authenticator] .amplify-flex {
+  @apply space-y-1;
+}
+
+/* Labels */
+[data-amplify-authenticator] .amplify-label {
+  @apply text-sm font-medium text-foreground;
+}
+
+/* Input fields */
+[data-amplify-authenticator] .amplify-input {
+  @apply w-full px-3 py-2 rounded-lg border border-border bg-background
+         focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary
+         transition-all duration-200;
+}
+
+[data-amplify-authenticator] .amplify-input:hover {
+  @apply border-muted-foreground/50;
+}
+
+/* Password field wrapper - only when it has the show/hide button */
+[data-amplify-authenticator] .amplify-field-group:has(.amplify-field-group__outer-end) {
+  @apply flex items-stretch;
+  gap: 0;
+}
+
+[data-amplify-authenticator] .amplify-field-group:has(.amplify-field-group__outer-end) .amplify-input {
+  @apply flex-1 rounded-r-none;
+  border-right: none;
+  margin-right: 0;
+}
+
+[data-amplify-authenticator] .amplify-field-group__outer-end {
+  @apply flex items-center px-3 border border-border rounded-r-lg bg-muted/30;
+  border-left: none;
+  margin-left: -1px;
+}
+
+[data-amplify-authenticator] .amplify-field-group__outer-end .amplify-button {
+  @apply p-0 text-muted-foreground hover:text-foreground transition-colors;
+  background: none;
+  border: none;
+}
+
+/* Primary button styling */
+[data-amplify-authenticator] .amplify-button--primary {
+  @apply w-full py-2.5 px-4 rounded-lg font-medium text-white
+         transition-all duration-200 shadow-sm hover:shadow-md;
+  background-color: hsl(221, 83%, 53%);
+}
+
+[data-amplify-authenticator] .amplify-button--primary:hover {
+  background-color: hsl(221, 83%, 45%);
+}
+
+[data-amplify-authenticator] .amplify-button--primary:active {
+  transform: translateY(1px);
+}
+
+/* Link button styling */
+[data-amplify-authenticator] .amplify-button--link {
+  @apply text-sm font-medium transition-colors;
+  color: hsl(221, 83%, 53%);
+}
+
+[data-amplify-authenticator] .amplify-button--link:hover {
+  color: hsl(221, 83%, 40%);
+  text-decoration: underline;
+}
+
+/* Error alert styling */
+[data-amplify-authenticator] .amplify-alert--error {
+  @apply p-3 rounded-lg text-sm;
+  background-color: hsl(0, 84%, 95%);
+  color: hsl(0, 84%, 40%);
+  border: 1px solid hsl(0, 84%, 85%);
+}
+
+/* Header text */
+[data-amplify-authenticator] .amplify-heading {
+  @apply text-lg font-semibold text-foreground;
+}
+
+/* Footer/subtext */
+[data-amplify-authenticator] .amplify-text {
+  @apply text-sm text-muted-foreground;
+}
+
+/* Divider */
+[data-amplify-authenticator] .amplify-divider {
+  @apply my-4 border-t border-border;
+}
+
+/* Footer links section */
+[data-amplify-authenticator] [data-amplify-footer] {
+  @apply pt-4 border-t border-border mt-4 text-center;
+}
