@@ -665,6 +665,14 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
     expressionAttributeValues[':usb_powered'] = event.session.usb_powered;
   }
 
+  // Update USB power status from _health.qo voltage_mode field
+  // This is more frequently reported than _session.qo and gives real-time power status
+  if (event.body.voltage_mode !== undefined) {
+    updateExpressions.push('#usb_powered = :usb_powered');
+    expressionAttributeNames['#usb_powered'] = 'usb_powered';
+    expressionAttributeValues[':usb_powered'] = event.body.voltage_mode === 'usb';
+  }
+
   updateExpressions.push('#created_at = if_not_exists(#created_at, :created_at)');
   expressionAttributeNames['#created_at'] = 'created_at';
   expressionAttributeValues[':created_at'] = now;
