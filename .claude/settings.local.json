@@ -61,7 +61,8 @@
       "Bash(aws cloudfront update-distribution:*)",
       "Bash(for ts in 1766452525 1766504568 1766508652 1766527743 1766533013)",
       "Bash(do)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

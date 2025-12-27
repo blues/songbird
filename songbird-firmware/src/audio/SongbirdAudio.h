@@ -29,8 +29,10 @@
  * Initializes the SparkFun Qwiic Buzzer over I2C.
  * Must be called before any audio functions.
  * Requires I2C bus to be initialized first.
+ *
+ * @return true if initialization successful, false if buzzer not found
  */
-void audioInit(void);
+bool audioInit(void);
 
 /**
  * @brief Play a single tone (blocking)

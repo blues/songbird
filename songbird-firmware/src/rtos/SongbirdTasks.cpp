@@ -522,10 +522,16 @@ void SensorTask(void* pvParameters) {
     DEBUG_SERIAL.println("[SensorTask] Starting");
     #endif
 
-    // Initialize sensor
-    if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
-        sensorsInit();
-        syncReleaseI2C();
+    // Note: Sensors are now initialized in main.cpp setup() for reliability
+    // at low battery voltage. If init failed there, try again here.
+    if (!sensorsIsAvailable()) {
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.println("[SensorTask] Sensors not available, attempting init...");
+        #endif
+        if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
+            sensorsInit();
+            syncReleaseI2C();
+        }
     }
 
     TickType_t lastWakeTime = xTaskGetTickCount();

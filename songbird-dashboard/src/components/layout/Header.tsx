@@ -47,12 +47,12 @@ export function Header({
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center">
         {/* Logo */}
-        <div className="flex items-center gap-2 mr-4">
-          <span className="text-2xl">🐦</span>
+        <Link to="/" className="flex items-center gap-2 mr-4 hover:opacity-80 transition-opacity">
+          <img src="/songbird-logo.svg" alt="Songbird" className="h-8 w-8" />
           <span className="font-bold text-lg hidden sm:inline-block">
-            Songbird Dashboard
+            Songbird
           </span>
-        </div>
+        </Link>
 
         {/* Fleet Selector */}
         {fleets.length > 0 && (

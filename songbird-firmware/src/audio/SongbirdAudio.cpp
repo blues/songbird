@@ -91,7 +91,7 @@ static inline bool useRtosPrimitives(void) {
 // Initialization
 // =============================================================================
 
-void audioInit(void) {
+bool audioInit(void) {
     // Note: Called during setup() before FreeRTOS starts, so no mutex needed.
     // I2C bus is already initialized by main.cpp before this is called.
 
@@ -101,10 +101,13 @@ void audioInit(void) {
         #ifdef DEBUG_MODE
         DEBUG_SERIAL.println("[Audio] Qwiic Buzzer initialized");
         #endif
+        return true;
     } else {
+        s_initialized = false;
         #ifdef DEBUG_MODE
         DEBUG_SERIAL.println("[Audio] Qwiic Buzzer not found!");
         #endif
+        return false;
     }
 }
 

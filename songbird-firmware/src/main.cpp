@@ -85,15 +85,35 @@ void setup() {
 
     pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-    // Initialize I2C
+    // Initialize I2C at standard speed for reliable startup
+    // (Fast mode can be unreliable at lower battery voltages)
     Wire.begin();
-    Wire.setClock(400000);  // 400kHz I2C
+    Wire.setClock(100000);  // 100kHz - more reliable at low voltage
 
-    DEBUG_SERIAL.println("[Init] GPIO and I2C initialized");
+    DEBUG_SERIAL.println("[Init] GPIO and I2C initialized (100kHz)");
 
-    // Initialize audio system (before RTOS)
-    audioInit();
+    // Small delay to allow I2C peripherals to stabilize after power-on
+    delay(50);
+
+    // Initialize audio system with retry (before RTOS)
+    if (!audioInit()) {
+        DEBUG_SERIAL.println("[Init] Audio init failed, retrying...");
+        delay(100);
+        audioInit();  // Second attempt
+    }
     DEBUG_SERIAL.println("[Init] Audio initialized");
+
+    // Initialize sensors with retry (before RTOS)
+    if (!sensorsInit()) {
+        DEBUG_SERIAL.println("[Init] Sensors init failed, retrying...");
+        delay(100);
+        sensorsInit();  // Second attempt
+    }
+    DEBUG_SERIAL.println("[Init] Sensors initialized");
+
+    // Switch to fast mode now that peripherals are initialized
+    Wire.setClock(400000);  // 400kHz for normal operation
+    DEBUG_SERIAL.println("[Init] I2C switched to 400kHz");
 
     // Initialize Notecard
     if (!notecardInit()) {
