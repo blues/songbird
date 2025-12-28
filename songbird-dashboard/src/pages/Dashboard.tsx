@@ -110,7 +110,7 @@ export function Dashboard({ mapboxToken, selectedFleet }: DashboardProps) {
                       <p className="text-sm font-medium truncate">
                         {item.device_name || item.device_uid}
                       </p>
-                      <p className="text-xs text-muted-foreground truncate">
+                      <p className="text-xs text-muted-foreground break-words">
                         {item.message}
                       </p>
                       <p className="text-xs text-muted-foreground">
