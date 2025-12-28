@@ -77,9 +77,10 @@ static void queueImmediateTrackNote(OperatingMode mode) {
         data.valid = true;
         data.timestamp = (uint32_t)time(NULL);
 
-        // Queue the track note
+        // Queue the track note with forced sync for immediate delivery
         NoteQueueItem noteItem;
         noteItem.type = NOTE_TYPE_TRACK;
+        noteItem.forceSync = true;  // Mode changes should sync immediately
         memcpy(&noteItem.data.track, &data, sizeof(SensorData));
         syncQueueNote(&noteItem);
 
@@ -686,6 +687,7 @@ void SensorTask(void* pvParameters) {
             // Queue track note
             NoteQueueItem noteItem;
             noteItem.type = NOTE_TYPE_TRACK;
+            noteItem.forceSync = false;  // Regular sensor readings use mode-based sync
             memcpy(&noteItem.data.track, &data, sizeof(SensorData));
             syncQueueNote(&noteItem);
         }
@@ -860,7 +862,7 @@ void NotecardTask(void* pvParameters) {
             if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
                 switch (item.type) {
                     case NOTE_TYPE_TRACK:
-                        notecardSendTrackNote(&item.data.track, config.mode);
+                        notecardSendTrackNote(&item.data.track, config.mode, item.forceSync);
                         break;
 
                     case NOTE_TYPE_ALERT:

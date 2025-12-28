@@ -117,9 +117,10 @@ bool notecardIsSyncing(void);
  *
  * @param data Sensor data to include in note
  * @param mode Current operating mode
+ * @param forceSync If true, sync immediately regardless of mode (for mode changes)
  * @return true if note queued successfully
  */
-bool notecardSendTrackNote(const SensorData* data, OperatingMode mode);
+bool notecardSendTrackNote(const SensorData* data, OperatingMode mode, bool forceSync = false);
 
 /**
  * @brief Send an alert note to alert.qo

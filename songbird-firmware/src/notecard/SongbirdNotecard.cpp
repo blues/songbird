@@ -373,14 +373,15 @@ bool notecardIsSyncing(void) {
 // Note Operations
 // =============================================================================
 
-bool notecardSendTrackNote(const SensorData* data, OperatingMode mode) {
+bool notecardSendTrackNote(const SensorData* data, OperatingMode mode, bool forceSync) {
     if (!s_initialized || data == NULL) {
         return false;
     }
 
     J* req = s_notecard.newRequest("note.add");
     JAddStringToObject(req, "file", NOTEFILE_TRACK);
-    JAddBoolToObject(req, "sync", mode == MODE_DEMO);  // Immediate sync in demo mode
+    // Immediate sync in demo mode or when forced (e.g., mode changes)
+    JAddBoolToObject(req, "sync", mode == MODE_DEMO || forceSync);
 
     J* body = JCreateObject();
     JAddNumberToObject(body, "temp", data->temperature);

@@ -67,6 +67,7 @@ typedef enum {
 // Note queue item
 typedef struct {
     NoteType type;
+    bool forceSync;             // Force immediate sync (e.g., for mode changes)
     union {
         SensorData track;
         Alert alert;
