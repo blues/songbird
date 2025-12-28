@@ -49,6 +49,52 @@ static const uint32_t SINGLE_CLICK_DELAY_MS = 700;   // Delay before single-clic
 static const uint32_t TRIPLE_CLICK_TIMEOUT_MS = 1000; // Total window for triple-click
 
 // =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * @brief Queue an immediate track.qo note with current sensor readings
+ *
+ * Called when mode changes to immediately report the new mode along with
+ * all current sensor readings. Must be called while holding I2C mutex.
+ *
+ * @param mode The new operating mode to report
+ */
+static void queueImmediateTrackNote(OperatingMode mode) {
+    SensorData data;
+    memset(&data, 0, sizeof(data));
+
+    // Read current sensor values
+    if (sensorsRead(&data)) {
+        // Add battery voltage (ignore USB power status for now)
+        bool usbPowered = false;
+        data.voltage = notecardGetVoltage(&usbPowered);
+
+        // Add motion status
+        data.motion = notecardGetMotion();
+
+        // Mark data as valid
+        data.valid = true;
+        data.timestamp = (uint32_t)time(NULL);
+
+        // Queue the track note
+        NoteQueueItem noteItem;
+        noteItem.type = NOTE_TYPE_TRACK;
+        memcpy(&noteItem.data.track, &data, sizeof(SensorData));
+        syncQueueNote(&noteItem);
+
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.print("[MainTask] Queued immediate track.qo for mode change to: ");
+        DEBUG_SERIAL.println(envGetModeName(mode));
+        #endif
+    } else {
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.println("[MainTask] Failed to read sensors for immediate track note");
+        #endif
+    }
+}
+
+// =============================================================================
 // Task Creation
 // =============================================================================
 
@@ -280,12 +326,14 @@ void MainTask(void* pvParameters) {
                 memcpy(&s_currentConfig, &newConfig, sizeof(SongbirdConfig));
                 syncReleaseConfig();
 
-                // If mode changed, reconfigure Notecard
+                // If mode changed, reconfigure Notecard and send immediate track note
                 // Note: GPS and tracking are configured inside notecardConfigure()
                 if (oldMode != newConfig.mode) {
                     stateSetMode(newConfig.mode);
                     if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
                         notecardConfigure(newConfig.mode);
+                        // Queue immediate track.qo with new mode and current readings
+                        queueImmediateTrackNote(newConfig.mode);
                         syncReleaseI2C();
                     }
                 }
@@ -367,6 +415,7 @@ void MainTask(void* pvParameters) {
                     }
                     if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
                         notecardConfigure(previousMode);
+                        queueImmediateTrackNote(previousMode);
                         syncReleaseI2C();
                     }
 
@@ -389,6 +438,7 @@ void MainTask(void* pvParameters) {
                     }
                     if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
                         notecardConfigure(MODE_DEMO);
+                        queueImmediateTrackNote(MODE_DEMO);
                         syncReleaseI2C();
                     }
 
@@ -429,6 +479,7 @@ void MainTask(void* pvParameters) {
                     }
                     if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
                         notecardConfigure(previousMode);
+                        queueImmediateTrackNote(previousMode);
                         syncReleaseI2C();
                     }
 
@@ -451,6 +502,7 @@ void MainTask(void* pvParameters) {
                     }
                     if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
                         notecardConfigure(MODE_TRANSIT);
+                        queueImmediateTrackNote(MODE_TRANSIT);
                         syncReleaseI2C();
                     }
 
