@@ -159,6 +159,15 @@ bool notecardConfigure(OperatingMode mode) {
         // Continue anyway - triangulation is optional but improves location coverage
     }
 
+    // Configure voltage monitoring for LiPo battery
+    // This must be done before GPS/tracking to ensure accurate battery readings
+    if (!notecardConfigureVoltage()) {
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.println("[Notecard] Warning: Voltage configuration failed");
+        #endif
+        // Continue anyway - voltage readings will still work, just less accurate
+    }
+
     // Configure GPS mode based on operating mode
     if (!notecardConfigureGPS(mode)) {
         #ifdef DEBUG_MODE
@@ -652,6 +661,46 @@ float notecardGetVoltage(bool* usbPowered) {
     s_notecard.deleteResponse(rsp);
 
     return voltage;
+}
+
+bool notecardConfigureVoltage(void) {
+    if (!s_initialized) {
+        return false;
+    }
+
+    // Configure voltage monitoring for LiPo battery
+    // See: https://dev.blues.io/api-reference/notecard-api/card-requests/#card-voltage
+    J* req = s_notecard.newRequest("card.voltage");
+
+    // Set mode to "lipo" for accurate LiPo battery discharge curve
+    // This enables voltage-variable behaviors based on battery state
+    JAddStringToObject(req, "mode", "lipo");
+
+    // Enable voltage alerts - Notecard will generate _health.qo events
+    // when battery reaches low/critical levels
+    JAddBoolToObject(req, "alert", true);
+
+    // Sync immediately when voltage alerts occur
+    // This ensures low battery warnings reach the cloud right away
+    JAddBoolToObject(req, "sync", true);
+
+    J* rsp = s_notecard.requestAndResponse(req);
+    if (rsp == NULL || s_notecard.responseError(rsp)) {
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.println("[Notecard] card.voltage config failed");
+        #endif
+        if (rsp) s_notecard.deleteResponse(rsp);
+        NC_ERROR();
+        return false;
+    }
+
+    s_notecard.deleteResponse(rsp);
+
+    #ifdef DEBUG_MODE
+    DEBUG_SERIAL.println("[Notecard] Voltage monitoring configured (lipo mode, alerts enabled)");
+    #endif
+
+    return true;
 }
 
 bool notecardConfigureMojo(bool enabled, OperatingMode mode) {

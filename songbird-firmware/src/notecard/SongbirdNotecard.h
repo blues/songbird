@@ -182,6 +182,21 @@ bool notecardGetCommand(Command* cmd);
 float notecardGetVoltage(bool* usbPowered);
 
 /**
+ * @brief Configure voltage monitoring for LiPo battery
+ *
+ * Sets the Notecard to use the LiPo discharge curve for accurate
+ * battery percentage calculations. Also enables low battery alerts
+ * with immediate sync to ensure warnings reach the cloud promptly.
+ *
+ * This should be called once at startup.
+ *
+ * Caller must hold I2C mutex.
+ *
+ * @return true if configured successfully
+ */
+bool notecardConfigureVoltage(void);
+
+/**
  * @brief Configure Mojo power monitoring
  *
  * Enables or disables periodic Mojo power readings via card.power.
