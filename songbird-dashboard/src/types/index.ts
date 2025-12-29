@@ -295,9 +295,20 @@ export interface JourneysResponse {
   count: number;
 }
 
+/**
+ * Power consumption data for a journey
+ */
+export interface JourneyPower {
+  start_mah: number;
+  end_mah: number;
+  consumed_mah: number;
+  reading_count: number;
+}
+
 export interface JourneyDetailResponse {
   journey: Journey;
   points: JourneyPoint[];
+  power?: JourneyPower;
 }
 
 /**

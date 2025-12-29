@@ -19,6 +19,7 @@ const docClient = DynamoDBDocumentClient.from(ddbClient);
 const JOURNEYS_TABLE = process.env.JOURNEYS_TABLE!;
 const LOCATIONS_TABLE = process.env.LOCATIONS_TABLE!;
 const DEVICES_TABLE = process.env.DEVICES_TABLE!;
+const TELEMETRY_TABLE = process.env.TELEMETRY_TABLE!;
 const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN;
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -180,10 +181,13 @@ async function getJourneyDetail(
 
   const pointsResult = await docClient.send(pointsCommand);
 
+  const startTime = journeyItem.start_time;
+  const endTime = journeyItem.end_time || Date.now();
+
   const journey = {
     journey_id: journeyItem.journey_id,
     device_uid: journeyItem.device_uid,
-    start_time: new Date(journeyItem.start_time).toISOString(),
+    start_time: new Date(startTime).toISOString(),
     end_time: journeyItem.end_time ? new Date(journeyItem.end_time).toISOString() : undefined,
     point_count: journeyItem.point_count || 0,
     total_distance: journeyItem.total_distance || 0,
@@ -205,12 +209,16 @@ async function getJourneyDetail(
     jcount: item.jcount,
   }));
 
+  // Get power consumption for this journey
+  const power = await getJourneyPowerConsumption(deviceUid, startTime, endTime);
+
   return {
     statusCode: 200,
     headers,
     body: JSON.stringify({
       journey,
       points,
+      power,
     }),
   };
 }
@@ -585,5 +593,71 @@ async function deleteJourney(
       journey_id: journeyId,
       points_deleted: locationPoints.length,
     }),
+  };
+}
+
+/**
+ * Get power consumption during a journey timeframe
+ * Queries power telemetry data and calculates mAh consumed
+ */
+async function getJourneyPowerConsumption(
+  deviceUid: string,
+  startTime: number,
+  endTime: number
+): Promise<{
+  start_mah: number;
+  end_mah: number;
+  consumed_mah: number;
+  reading_count: number;
+} | null> {
+  // Query power telemetry using the event-type-index GSI
+  const startKey = `power#${startTime}`;
+  const endKey = `power#${endTime}`;
+
+  const command = new QueryCommand({
+    TableName: TELEMETRY_TABLE,
+    IndexName: 'event-type-index',
+    KeyConditionExpression: 'device_uid = :device_uid AND event_type_timestamp BETWEEN :start AND :end',
+    ExpressionAttributeValues: {
+      ':device_uid': deviceUid,
+      ':start': startKey,
+      ':end': endKey,
+    },
+    ScanIndexForward: true, // Chronological order
+  });
+
+  const result = await docClient.send(command);
+  const powerReadings = result.Items || [];
+
+  // Need at least 2 readings to calculate consumption
+  if (powerReadings.length < 2) {
+    return null;
+  }
+
+  // Filter for readings that have milliamp_hours
+  const validReadings = powerReadings.filter((r) => typeof r.milliamp_hours === 'number');
+
+  if (validReadings.length < 2) {
+    return null;
+  }
+
+  const firstReading = validReadings[0];
+  const lastReading = validReadings[validReadings.length - 1];
+
+  const startMah = firstReading.milliamp_hours;
+  const endMah = lastReading.milliamp_hours;
+
+  // Calculate consumption (handle counter reset edge case)
+  let consumedMah = endMah - startMah;
+  if (consumedMah < 0) {
+    // Counter was reset during journey - can't calculate accurately
+    return null;
+  }
+
+  return {
+    start_mah: Math.round(startMah * 100) / 100,
+    end_mah: Math.round(endMah * 100) / 100,
+    consumed_mah: Math.round(consumedMah * 100) / 100,
+    reading_count: validReadings.length,
   };
 }

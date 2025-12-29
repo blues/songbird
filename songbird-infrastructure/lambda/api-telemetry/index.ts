@@ -86,23 +86,41 @@ async function getTelemetryHistory(
   const cutoffKey = `telemetry#${cutoffTime}`;
   const endKey = `telemetry#${Date.now() + 1000}`; // Slightly in future to include latest
 
-  const command = new QueryCommand({
-    TableName: TELEMETRY_TABLE,
-    IndexName: 'event-type-index',
-    KeyConditionExpression: 'device_uid = :device_uid AND event_type_timestamp BETWEEN :start AND :end',
-    ExpressionAttributeValues: {
-      ':device_uid': deviceUid,
-      ':start': cutoffKey,
-      ':end': endKey,
-    },
-    ScanIndexForward: false, // Newest first
-    Limit: limit,
-  });
+  // For higher limits, fetch all data in range then apply limit at the end
+  // This ensures we get the complete time range, not just the N most recent
+  const fetchAll = limit > 1000;
 
-  const result = await docClient.send(command);
+  let allItems: Record<string, any>[] = [];
+  let lastEvaluatedKey: Record<string, any> | undefined;
+
+  do {
+    const command = new QueryCommand({
+      TableName: TELEMETRY_TABLE,
+      IndexName: 'event-type-index',
+      KeyConditionExpression: 'device_uid = :device_uid AND event_type_timestamp BETWEEN :start AND :end',
+      ExpressionAttributeValues: {
+        ':device_uid': deviceUid,
+        ':start': cutoffKey,
+        ':end': endKey,
+      },
+      ScanIndexForward: true, // Chronological order (oldest first)
+      ...(fetchAll ? {} : { Limit: limit }),
+      ...(lastEvaluatedKey ? { ExclusiveStartKey: lastEvaluatedKey } : {}),
+    });
+
+    const result = await docClient.send(command);
+    allItems = allItems.concat(result.Items || []);
+    lastEvaluatedKey = result.LastEvaluatedKey;
+
+    // Stop if we have enough items or if fetchAll is false
+    if (!fetchAll || allItems.length >= limit) break;
+  } while (lastEvaluatedKey);
+
+  // Apply limit and reverse to get newest-first order for frontend
+  const items = allItems.slice(-limit).reverse();
 
   // Transform to API response format
-  const telemetry = (result.Items || []).map((item) => ({
+  const telemetry = items.map((item) => ({
     time: new Date(item.timestamp).toISOString(),
     temperature: item.temperature,
     humidity: item.humidity,

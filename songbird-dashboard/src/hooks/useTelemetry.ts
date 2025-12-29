@@ -7,11 +7,12 @@ import { getTelemetry, getLocationHistory, getPowerHistory, getHealthHistory } f
 
 /**
  * Hook to fetch telemetry data
+ * @param limit - Max records to fetch. Use higher limit (e.g., 5000) when viewing historical data
  */
-export function useTelemetry(deviceUid: string, hours: number = 24) {
+export function useTelemetry(deviceUid: string, hours: number = 24, limit: number = 1000) {
   return useQuery({
-    queryKey: ['telemetry', deviceUid, hours],
-    queryFn: () => getTelemetry(deviceUid, hours),
+    queryKey: ['telemetry', deviceUid, hours, limit],
+    queryFn: () => getTelemetry(deviceUid, hours, limit),
     refetchInterval: 30_000, // Poll every 30 seconds
     staleTime: 15_000,
     enabled: !!deviceUid,

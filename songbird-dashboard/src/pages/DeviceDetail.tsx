@@ -96,22 +96,45 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   // Use 24h as fallback until preferences are loaded
   const effectiveTimeRange = timeRange ?? 24;
 
+  // Get journeys data first to calculate time range for journey viewing
+  const { data: journeysData, isLoading: journeysLoading } = useJourneys(deviceUid!);
+  const journeys = journeysData?.journeys || [];
+
+  // Find selected journey to calculate needed time range
+  const selectedJourney = selectedJourneyId
+    ? journeys.find(j => j.journey_id === selectedJourneyId)
+    : null;
+
+  // Calculate time range needed to cover the journey (if viewing one)
+  const journeyTimeRangeHours = selectedJourney
+    ? Math.ceil((Date.now() - new Date(selectedJourney.start_time).getTime()) / (1000 * 60 * 60)) + 1
+    : null;
+
+  // Use journey time range when viewing a journey, otherwise use user's selected range
+  const dataTimeRange = (locationTab === 'journeys' && journeyTimeRangeHours)
+    ? Math.max(journeyTimeRangeHours, effectiveTimeRange)
+    : effectiveTimeRange;
+
+  // Use higher limit when viewing journeys to ensure we get all data in the time range
+  // Default 1000 limit can miss older data when there are many recent records
+  const telemetryLimit = (locationTab === 'journeys' && selectedJourneyId) ? 5000 : 1000;
+
   const { data: device, isLoading: deviceLoading } = useDevice(deviceUid!);
   const { data: telemetryData, isLoading: telemetryLoading } = useTelemetry(
     deviceUid!,
-    effectiveTimeRange
+    dataTimeRange,
+    telemetryLimit
   );
-  const { data: locationData } = useLocationHistory(deviceUid!, effectiveTimeRange);
-  const { data: powerData, isLoading: powerLoading } = usePowerHistory(deviceUid!, effectiveTimeRange);
-  const { data: healthData, isLoading: healthLoading } = useHealthHistory(deviceUid!, Math.max(effectiveTimeRange, 168)); // At least 7 days for health
+  const { data: locationData } = useLocationHistory(deviceUid!, dataTimeRange);
+  const { data: powerData, isLoading: powerLoading } = usePowerHistory(deviceUid!, dataTimeRange);
+  const { data: healthData, isLoading: healthLoading } = useHealthHistory(deviceUid!, Math.max(dataTimeRange, 168)); // At least 7 days for health
   const { data: commandsData } = useCommands(deviceUid!);
   const { data: alertsData } = useDeviceAlerts(deviceUid!);
   const acknowledgeMutation = useAcknowledgeAlert();
 
   // Journey and location history hooks
-  const { data: journeysData, isLoading: journeysLoading } = useJourneys(deviceUid!);
   const { data: journeyDetailData, isLoading: journeyDetailLoading } = useJourneyDetail(deviceUid!, selectedJourneyId);
-  const { data: locationHistoryData, isLoading: locationHistoryLoading } = useLocationHistoryFull(deviceUid!, effectiveTimeRange);
+  const { data: locationHistoryData, isLoading: locationHistoryLoading } = useLocationHistoryFull(deviceUid!, dataTimeRange);
   const { data: latestJourney } = useLatestJourney(deviceUid!);
   const mapMatchMutation = useMapMatch(deviceUid!, selectedJourneyId);
   const deleteJourneyMutation = useDeleteJourney();
@@ -138,9 +161,45 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const lastCommand = commandsData?.commands?.[0];
 
   // Journey data
-  const journeys = journeysData?.journeys || [];
   const journeyPoints = journeyDetailData?.points || [];
   const locationHistory = locationHistoryData?.locations || [];
+
+  // Determine if we're viewing a journey (for filtering and UI)
+  const isViewingJourney = locationTab === 'journeys' && selectedJourney;
+
+  // Filter data to journey timeframe when a journey is selected
+  const filteredTelemetry = isViewingJourney && selectedJourney
+    ? telemetry.filter(t => {
+        const time = new Date(t.time).getTime();
+        const startTime = new Date(selectedJourney.start_time).getTime();
+        const endTime = selectedJourney.end_time
+          ? new Date(selectedJourney.end_time).getTime()
+          : Date.now();
+        return time >= startTime && time <= endTime;
+      })
+    : telemetry;
+
+  const filteredPower = isViewingJourney && selectedJourney
+    ? power.filter(p => {
+        const time = new Date(p.time).getTime();
+        const startTime = new Date(selectedJourney.start_time).getTime();
+        const endTime = selectedJourney.end_time
+          ? new Date(selectedJourney.end_time).getTime()
+          : Date.now();
+        return time >= startTime && time <= endTime;
+      })
+    : power;
+
+  const filteredHealth = isViewingJourney && selectedJourney
+    ? health.filter(h => {
+        const time = new Date(h.time).getTime();
+        const startTime = new Date(selectedJourney.start_time).getTime();
+        const endTime = selectedJourney.end_time
+          ? new Date(selectedJourney.end_time).getTime()
+          : Date.now();
+        return time >= startTime && time <= endTime;
+      })
+    : health;
 
   // Get latest values and sparkline data
   // Find first telemetry record with actual sensor data (not just location-only events)
@@ -331,6 +390,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                           matchedRoute={journeyDetailData?.journey?.matched_route}
                           onMatchRoute={() => mapMatchMutation.mutate()}
                           isMatching={mapMatchMutation.isPending}
+                          power={journeyDetailData?.power}
                         />
                       )
                     ) : (
@@ -402,7 +462,16 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
           {/* Historical Charts */}
           <Card className="mb-6 overflow-hidden">
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle className="whitespace-nowrap">Historical Data</CardTitle>
+              <CardTitle className="whitespace-nowrap flex items-center gap-2">
+                {isViewingJourney ? (
+                  <>
+                    <Route className="h-5 w-5" />
+                    Journey Data
+                  </>
+                ) : (
+                  'Historical Data'
+                )}
+              </CardTitle>
               <div className="flex flex-wrap gap-2 sm:gap-4">
                 <Tabs value={chartTab} onValueChange={setChartTab}>
                   <TabsList className="h-auto flex-wrap">
@@ -420,17 +489,19 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
-                <Tabs value={String(effectiveTimeRange)} onValueChange={(v) => setTimeRange(Number(v))}>
-                  <TabsList className="h-auto flex-wrap">
-                    <TabsTrigger value="1" className="text-xs sm:text-sm px-2 sm:px-3">1h</TabsTrigger>
-                    <TabsTrigger value="4" className="text-xs sm:text-sm px-2 sm:px-3">4h</TabsTrigger>
-                    <TabsTrigger value="8" className="text-xs sm:text-sm px-2 sm:px-3">8h</TabsTrigger>
-                    <TabsTrigger value="12" className="text-xs sm:text-sm px-2 sm:px-3">12h</TabsTrigger>
-                    <TabsTrigger value="24" className="text-xs sm:text-sm px-2 sm:px-3">24h</TabsTrigger>
-                    <TabsTrigger value="48" className="text-xs sm:text-sm px-2 sm:px-3">48h</TabsTrigger>
-                    <TabsTrigger value="168" className="text-xs sm:text-sm px-2 sm:px-3">7d</TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                {!isViewingJourney && (
+                  <Tabs value={String(effectiveTimeRange)} onValueChange={(v) => setTimeRange(Number(v))}>
+                    <TabsList className="h-auto flex-wrap">
+                      <TabsTrigger value="1" className="text-xs sm:text-sm px-2 sm:px-3">1h</TabsTrigger>
+                      <TabsTrigger value="4" className="text-xs sm:text-sm px-2 sm:px-3">4h</TabsTrigger>
+                      <TabsTrigger value="8" className="text-xs sm:text-sm px-2 sm:px-3">8h</TabsTrigger>
+                      <TabsTrigger value="12" className="text-xs sm:text-sm px-2 sm:px-3">12h</TabsTrigger>
+                      <TabsTrigger value="24" className="text-xs sm:text-sm px-2 sm:px-3">24h</TabsTrigger>
+                      <TabsTrigger value="48" className="text-xs sm:text-sm px-2 sm:px-3">48h</TabsTrigger>
+                      <TabsTrigger value="168" className="text-xs sm:text-sm px-2 sm:px-3">7d</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                )}
               </div>
             </CardHeader>
             <CardContent>
@@ -440,9 +511,9 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                     <div className="h-[300px] flex items-center justify-center">
                       <span className="text-muted-foreground">Loading chart...</span>
                     </div>
-                  ) : telemetry.length > 0 ? (
+                  ) : filteredTelemetry.length > 0 ? (
                     <TelemetryChart
-                      data={telemetry}
+                      data={filteredTelemetry}
                       showTemperature
                       showHumidity
                       height={300}
@@ -450,7 +521,9 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                     />
                   ) : (
                     <div className="h-[300px] flex items-center justify-center">
-                      <span className="text-muted-foreground">No telemetry data available</span>
+                      <span className="text-muted-foreground">
+                        {isViewingJourney ? 'No telemetry data during this journey' : 'No telemetry data available'}
+                      </span>
                     </div>
                   )}
                 </>
@@ -461,11 +534,13 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                     <div className="h-[300px] flex items-center justify-center">
                       <span className="text-muted-foreground">Loading chart...</span>
                     </div>
-                  ) : power.length > 0 ? (
-                    <PowerChart data={power} height={350} />
+                  ) : filteredPower.length > 0 ? (
+                    <PowerChart data={filteredPower} height={350} />
                   ) : (
                     <div className="h-[300px] flex items-center justify-center">
-                      <span className="text-muted-foreground">No power data available (Mojo required)</span>
+                      <span className="text-muted-foreground">
+                        {isViewingJourney ? 'No power data during this journey' : 'No power data available (Mojo required)'}
+                      </span>
                     </div>
                   )}
                 </>
@@ -476,9 +551,9 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                     <div className="h-[300px] flex items-center justify-center">
                       <span className="text-muted-foreground">Loading health events...</span>
                     </div>
-                  ) : health.length > 0 ? (
+                  ) : filteredHealth.length > 0 ? (
                     <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                      {health.map((event: HealthPoint, index: number) => (
+                      {filteredHealth.map((event: HealthPoint, index: number) => (
                         <div
                           key={`${event.time}-${index}`}
                           className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30"
@@ -518,7 +593,9 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                     </div>
                   ) : (
                     <div className="h-[300px] flex items-center justify-center">
-                      <span className="text-muted-foreground">No health events recorded</span>
+                      <span className="text-muted-foreground">
+                        {isViewingJourney ? 'No health events during this journey' : 'No health events recorded'}
+                      </span>
                     </div>
                   )}
                 </>

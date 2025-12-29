@@ -1,12 +1,12 @@
 import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import Map, { Source, Layer, Marker, NavigationControl, Popup } from 'react-map-gl';
 import type { MapRef } from 'react-map-gl';
-import { MapPin, Play, Pause, RotateCcw, FastForward, Navigation, Gauge, Target, Clock, Route, SkipBack, SkipForward, Waypoints, Loader2 } from 'lucide-react';
+import { MapPin, Play, Pause, RotateCcw, FastForward, Navigation, Gauge, Target, Clock, Route, SkipBack, SkipForward, Waypoints, Loader2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { usePreferences } from '@/contexts/PreferencesContext';
-import type { JourneyPoint, GeoJSONLineString } from '@/types';
+import type { JourneyPoint, GeoJSONLineString, JourneyPower } from '@/types';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 const MAP_STYLES = {
@@ -23,6 +23,7 @@ interface JourneyMapProps {
   matchedRoute?: GeoJSONLineString;
   onMatchRoute?: () => void;
   isMatching?: boolean;
+  power?: JourneyPower;
 }
 
 /**
@@ -97,7 +98,7 @@ function getPositionAtDistance(
   return { lon: last[0], lat: last[1] };
 }
 
-export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMatchRoute, isMatching }: JourneyMapProps) {
+export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMatchRoute, isMatching, power }: JourneyMapProps) {
   const { preferences } = usePreferences();
   const mapStyle = MAP_STYLES[preferences.map_style] || MAP_STYLES.street;
   const [showMatchedRoute, setShowMatchedRoute] = useState(true);
@@ -802,6 +803,17 @@ export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMat
                 <span>{formatDOP(currentPoint.dop)}</span>
               </div>
             </div>
+
+            {/* Power consumption */}
+            {power && (
+              <div className="mt-2 pt-2 border-t">
+                <div className="flex items-center gap-2 text-xs">
+                  <Zap className="h-3 w-3 text-yellow-500 flex-shrink-0" />
+                  <span className="font-medium">{power.consumed_mah.toFixed(2)} mAh</span>
+                  <span className="text-muted-foreground">consumed</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -810,7 +822,7 @@ export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMat
       <div className="p-4 border-t bg-background">
         {/* Current point info */}
         <div className="flex items-center justify-between mb-3 text-sm">
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
             <Badge variant="outline">
               Point {currentIndex + 1} / {points.length}
             </Badge>
@@ -823,6 +835,12 @@ export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMat
                   Heading: {formatBearing(currentPoint.bearing)}
                 </span>
               </>
+            )}
+            {power && (
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <Zap className="h-3 w-3 text-yellow-500" />
+                {power.consumed_mah.toFixed(2)} mAh
+              </span>
             )}
           </div>
           {currentPoint && (

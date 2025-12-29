@@ -313,6 +313,7 @@ export class ApiConstruct extends Construct {
         JOURNEYS_TABLE: props.journeysTable.tableName,
         LOCATIONS_TABLE: props.locationsTable.tableName,
         DEVICES_TABLE: props.devicesTable.tableName,
+        TELEMETRY_TABLE: props.telemetryTable.tableName,
         MAPBOX_TOKEN: 'pk.eyJ1IjoiYnJhbmRvbnNhdHJvbSIsImEiOiJjbWphb2oyaW8wN2k3M3Bwd3lrdnpjOHhtIn0.Syc0GM_ia3Dz7HreQ6-ImQ',
       },
       bundling: { minify: true, sourceMap: true },
@@ -321,6 +322,7 @@ export class ApiConstruct extends Construct {
     props.journeysTable.grantReadWriteData(journeysFunction); // Need write for matched_route and delete
     props.locationsTable.grantReadWriteData(journeysFunction); // Need write for cascade delete
     props.devicesTable.grantReadData(journeysFunction); // Need read for owner check
+    props.telemetryTable.grantReadData(journeysFunction); // Need read for power consumption
 
     // ==========================================================================
     // HTTP API Gateway
