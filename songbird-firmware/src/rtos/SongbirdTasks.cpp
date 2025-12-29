@@ -66,7 +66,7 @@ static void queueImmediateTrackNote(OperatingMode mode) {
 
     // Read current sensor values
     if (sensorsRead(&data)) {
-        // Add battery voltage (ignore USB power status for now)
+        // Get battery voltage for alert checking (not sent in track.qo)
         bool usbPowered = false;
         data.voltage = notecardGetVoltage(&usbPowered);
 
@@ -611,7 +611,9 @@ void SensorTask(void* pvParameters) {
         if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
             readSuccess = sensorsRead(&data);
 
-            // Get battery voltage and USB power status
+            // Get battery voltage for alert checking and USB power status
+            // Note: voltage is used for firmware alerts but not sent in track.qo
+            // Battery info is reported to cloud via _log.qo (Mojo) and _health.qo
             bool usbPowered = false;
             data.voltage = notecardGetVoltage(&usbPowered);
 

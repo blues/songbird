@@ -72,13 +72,13 @@ export interface Device {
 
 /**
  * Telemetry data point
+ * Note: voltage is no longer included; battery info comes from power data (_log.qo)
  */
 export interface TelemetryPoint {
   time: string;
   temperature?: number;
   humidity?: number;
   pressure?: number;
-  voltage?: number;
   motion?: boolean;
 }
 

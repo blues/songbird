@@ -17,7 +17,6 @@ interface TelemetryChartProps {
   showTemperature?: boolean;
   showHumidity?: boolean;
   showPressure?: boolean;
-  showVoltage?: boolean;
   height?: number;
   tempUnit?: 'C' | 'F';
 }
@@ -27,7 +26,6 @@ export function TelemetryChart({
   showTemperature = true,
   showHumidity = true,
   showPressure = false,
-  showVoltage = false,
   height = 300,
   tempUnit = 'C',
 }: TelemetryChartProps) {
@@ -136,19 +134,6 @@ export function TelemetryChart({
             dataKey="pressure"
             name="Pressure (hPa)"
             stroke="#a855f7"
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 4 }}
-          />
-        )}
-
-        {showVoltage && (
-          <Line
-            yAxisId="humidity"
-            type="monotone"
-            dataKey="voltage"
-            name="Voltage (V)"
-            stroke="#22c55e"
             strokeWidth={2}
             dot={false}
             activeDot={{ r: 4 }}

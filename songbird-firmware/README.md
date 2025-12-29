@@ -272,6 +272,34 @@ Mojo data is automatically logged to Notehub. To enable automatic power logging:
 
 Power data will appear in the `_power.qo` notefile.
 
+## Battery Voltage Monitoring
+
+Battery voltage data flows through Notehub system events rather than being sent in the telemetry (`track.qo`) notefile. This approach has several benefits:
+
+- **Reduced data transfer**: Battery readings are sampled and logged by the Notecard automatically
+- **Accurate LiPo tracking**: The Notecard uses a LiPo discharge curve for accurate battery percentage
+- **Low battery alerts**: The Notecard can trigger immediate syncs when battery is low
+- **Unified data source**: Battery info comes from `_log.qo` (Mojo) or `_health.qo` (Notecard) events
+
+### How It Works
+
+1. **Firmware configures voltage monitoring** via `card.voltage` with LiPo mode and alerts enabled
+2. **Notecard monitors battery** and reports via system Notefiles
+3. **Firmware reads voltage locally** for low battery alert threshold checks
+4. **Dashboard retrieves battery** from device metadata (populated from `_log.qo` and `_health.qo`)
+
+### Data Sources
+
+| Source | Notefile | Data | When |
+|--------|----------|------|------|
+| Mojo (if present) | `_log.qo` | voltage, temperature, mAh | Per mode interval |
+| Notecard | `_health.qo` | voltage, voltage_mode | On sync/health events |
+| Notecard | `_session.qo` | usb power status | On session start |
+
+### Low Battery Alerts
+
+The firmware still generates `low_battery` alerts locally when voltage falls below the configured threshold (`DEFAULT_VOLTAGE_ALERT_LOW = 3.4V`). These alerts are sent via `alert.qo` with immediate sync.
+
 ## User Button
 
 The user button on the Notecarrier supports three functions via single-click, double-click, and triple-click:
@@ -373,7 +401,7 @@ The device accepts commands via the `command.qi` notefile in the format `{"cmd":
 
 | Notefile | Direction | Description |
 |----------|-----------|-------------|
-| `track.qo` | Outbound | Telemetry data (temp, humidity, pressure, voltage, motion) |
+| `track.qo` | Outbound | Telemetry data (temp, humidity, pressure, motion) |
 | `_track.qo` | Outbound | GPS tracking data (location, velocity, bearing, distance) - Transit mode only |
 | `_geolocate.qo` | Outbound | Triangulated location (cell tower/Wi-Fi) |
 | `alert.qo` | Outbound | Alert notifications (threshold violations) |

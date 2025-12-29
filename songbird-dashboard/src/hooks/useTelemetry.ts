@@ -46,7 +46,6 @@ export function useLatestTelemetry(deviceUid: string) {
       temperature: latest.temperature,
       humidity: latest.humidity,
       pressure: latest.pressure,
-      voltage: latest.voltage,
       time: latest.time,
     } : undefined,
   };

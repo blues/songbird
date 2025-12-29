@@ -120,12 +120,12 @@ async function getTelemetryHistory(
   const items = allItems.slice(-limit).reverse();
 
   // Transform to API response format
+  // Note: voltage is no longer included in track.qo telemetry; battery info comes from power API
   const telemetry = items.map((item) => ({
     time: new Date(item.timestamp).toISOString(),
     temperature: item.temperature,
     humidity: item.humidity,
     pressure: item.pressure,
-    voltage: item.voltage,
     motion: item.motion,
   }));
 

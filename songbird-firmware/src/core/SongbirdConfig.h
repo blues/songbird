@@ -286,7 +286,7 @@ typedef struct {
     float temperature;      // Celsius
     float humidity;         // Percent (0-100)
     float pressure;         // hPa
-    float voltage;          // Battery voltage
+    float voltage;          // Battery voltage (for alert checking, not sent in track.qo)
     bool motion;            // Motion detected since last read
     bool valid;             // Data is valid (sensor read succeeded)
     uint32_t timestamp;     // Unix timestamp

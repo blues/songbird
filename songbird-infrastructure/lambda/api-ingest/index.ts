@@ -49,7 +49,7 @@ interface NotehubEvent {
     temp?: number;
     humidity?: number;
     pressure?: number;
-    voltage?: number;
+    // Note: voltage is no longer sent in track.qo; battery info comes from _log.qo and _health.qo
     motion?: boolean | number;
     mode?: string;
     transit_locked?: boolean;
@@ -353,7 +353,8 @@ interface SongbirdEvent {
     temp?: number;
     humidity?: number;
     pressure?: number;
-    voltage?: number;
+    // Note: voltage is no longer sent in track.qo; battery info comes from _log.qo and _health.qo
+    voltage?: number;      // Still present in _log.qo (Mojo) and _health.qo events
     motion?: boolean | number;
     mode?: string;
     transit_locked?: boolean;
@@ -415,9 +416,8 @@ async function writeTelemetry(event: SongbirdEvent, dataType: string): Promise<v
   if (event.body.pressure !== undefined) {
     record.pressure = event.body.pressure;
   }
-  if (event.body.voltage !== undefined) {
-    record.voltage = event.body.voltage;
-  }
+  // Note: voltage is no longer included in track.qo telemetry
+  // Battery info comes from _log.qo (Mojo) and _health.qo events
   if (event.body.motion !== undefined) {
     record.motion = event.body.motion;
   }
@@ -460,7 +460,6 @@ async function writePowerTelemetry(event: SongbirdEvent): Promise<void> {
   }
 
   if (record.mojo_voltage !== undefined ||
-      record.mojo_temperature !== undefined ||
       record.milliamp_hours !== undefined) {
     const command = new PutCommand({
       TableName: TELEMETRY_TABLE,
@@ -622,7 +621,7 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
       temp: event.body.temp,
       humidity: event.body.humidity,
       pressure: event.body.pressure,
-      voltage: event.body.voltage,
+      // Note: voltage is no longer sent in track.qo; use last_voltage from _log.qo/_health.qo
       motion: event.body.motion,
       timestamp: event.timestamp,
     };
@@ -637,6 +636,12 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
       milliamp_hours: event.body.milliamp_hours,
       timestamp: event.timestamp,
     };
+    // Update device voltage from Mojo power monitoring
+    if (event.body.voltage !== undefined) {
+      updateExpressions.push('#voltage = :voltage');
+      expressionAttributeNames['#voltage'] = 'voltage';
+      expressionAttributeValues[':voltage'] = event.body.voltage;
+    }
   }
 
   // Update firmware versions from _session.qo events
@@ -671,6 +676,14 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
     updateExpressions.push('#usb_powered = :usb_powered');
     expressionAttributeNames['#usb_powered'] = 'usb_powered';
     expressionAttributeValues[':usb_powered'] = event.body.voltage_mode === 'usb';
+  }
+
+  // Update device voltage from _health.qo events (fallback when Mojo is not available)
+  // Only update if we haven't already set voltage from _log.qo in this event
+  if (event.event_type === '_health.qo' && event.body.voltage !== undefined && !expressionAttributeValues[':voltage']) {
+    updateExpressions.push('#voltage = :voltage');
+    expressionAttributeNames['#voltage'] = 'voltage';
+    expressionAttributeValues[':voltage'] = event.body.voltage;
   }
 
   updateExpressions.push('#created_at = if_not_exists(#created_at, :created_at)');

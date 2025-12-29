@@ -265,8 +265,13 @@ function transformDevice(item: any): any {
     device.temperature = item.last_telemetry.temp;
     device.humidity = item.last_telemetry.humidity;
     device.pressure = item.last_telemetry.pressure;
-    device.voltage = item.last_telemetry.voltage;
+    // Note: voltage no longer comes from last_telemetry; it's set from _log.qo/_health.qo
     device.motion = item.last_telemetry.motion;
+  }
+
+  // Voltage comes from device.voltage field (set from _log.qo or _health.qo events)
+  if (item.voltage !== undefined) {
+    device.voltage = item.voltage;
   }
 
   // Flatten last_power (Mojo data)
@@ -313,8 +318,8 @@ function calculateStats(devices: any[]): Record<string, any> {
       stats.offline++;
     }
 
-    // Low battery check
-    if (device.last_telemetry?.voltage && device.last_telemetry.voltage < 3.4) {
+    // Low battery check (voltage comes from _log.qo/_health.qo, stored in device.voltage)
+    if (device.voltage && device.voltage < 3.4) {
       stats.low_battery++;
     }
 

@@ -276,6 +276,15 @@ The dashboard displays location data from multiple sources:
 
 The location trail map shows pins with different colors/icons to indicate the location source, so users can understand the accuracy level of each data point.
 
+### Battery Monitoring
+
+Battery voltage is displayed in the dashboard from device metadata rather than telemetry readings. The data comes from:
+
+- **Mojo power monitor** (`_log.qo`): If present, provides voltage, temperature, and mAh consumed
+- **Notecard health events** (`_health.qo`): Provides voltage and voltage mode as a fallback
+
+This approach reduces data transfer (battery is sampled by the Notecard, not sent with every telemetry reading) and provides accurate LiPo battery tracking with the Notecard's built-in discharge curve.
+
 ### Transit Lock
 
 Devices can be physically locked into transit mode by double-clicking the user button on the device. When transit lock is active:

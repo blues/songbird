@@ -160,7 +160,7 @@ bool notecardConfigure(OperatingMode mode) {
     }
 
     // Configure voltage monitoring for LiPo battery
-    // This must be done before GPS/tracking to ensure accurate battery readings
+    // This enables accurate battery percentage and low battery alerts
     if (!notecardConfigureVoltage()) {
         #ifdef DEBUG_MODE
         DEBUG_SERIAL.println("[Notecard] Warning: Voltage configuration failed");
@@ -205,7 +205,6 @@ bool notecardSetupTemplates(void) {
         JAddNumberToObject(body, "temp", TFLOAT32);
         JAddNumberToObject(body, "humidity", TFLOAT32);
         JAddNumberToObject(body, "pressure", TFLOAT32);
-        JAddNumberToObject(body, "voltage", TFLOAT32);
         JAddNumberToObject(body, "_time", TINT32);
         JAddBoolToObject(body, "motion", TBOOL);
         JAddStringToObject(body, "mode", "xxxxxxxxxxxx");  // 12 char max
@@ -396,7 +395,6 @@ bool notecardSendTrackNote(const SensorData* data, OperatingMode mode, bool forc
     JAddNumberToObject(body, "temp", data->temperature);
     JAddNumberToObject(body, "humidity", data->humidity);
     JAddNumberToObject(body, "pressure", data->pressure);
-    JAddNumberToObject(body, "voltage", data->voltage);
     JAddBoolToObject(body, "motion", data->motion);
 
     const char* modeStr = "unknown";
@@ -675,6 +673,9 @@ bool notecardConfigureVoltage(void) {
     // Set mode to "lipo" for accurate LiPo battery discharge curve
     // This enables voltage-variable behaviors based on battery state
     JAddStringToObject(req, "mode", "lipo");
+
+    // Enable USB power detection
+    JAddBoolToObject(req, "usb", true);
 
     // Enable voltage alerts - Notecard will generate _health.qo events
     // when battery reaches low/critical levels
