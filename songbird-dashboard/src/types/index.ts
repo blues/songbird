@@ -34,8 +34,9 @@ export type LocationSource = 'gps' | 'cell' | 'wifi' | 'triangulation' | 'tower'
  * Device interface
  */
 export interface Device {
-  device_uid: string;
   serial_number: string;
+  device_uid: string;
+  device_uid_history?: string[];
   name?: string;
   fleet_uid?: string;
   fleet_name?: string;

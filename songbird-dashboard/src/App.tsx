@@ -173,7 +173,7 @@ function App() {
                   element={<Devices />}
                 />
                 <Route
-                  path="/devices/:deviceUid"
+                  path="/devices/:serialNumber"
                   element={<DeviceDetail mapboxToken={mapboxToken} />}
                 />
                 <Route

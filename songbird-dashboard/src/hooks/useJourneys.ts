@@ -9,16 +9,16 @@ import { getJourneys, getJourneyDetail, getLocationHistoryFull, matchJourney, de
  * Hook to fetch all journeys for a device
  */
 export function useJourneys(
-  deviceUid: string,
+  serialNumber: string,
   status?: 'active' | 'completed',
   limit: number = 50
 ) {
   return useQuery({
-    queryKey: ['journeys', deviceUid, status, limit],
-    queryFn: () => getJourneys(deviceUid, status, limit),
+    queryKey: ['journeys', serialNumber, status, limit],
+    queryFn: () => getJourneys(serialNumber, status, limit),
     refetchInterval: 30_000, // Poll every 30 seconds
     staleTime: 15_000,
-    enabled: !!deviceUid,
+    enabled: !!serialNumber,
   });
 }
 
@@ -26,15 +26,15 @@ export function useJourneys(
  * Hook to fetch a specific journey with all its points
  */
 export function useJourneyDetail(
-  deviceUid: string,
+  serialNumber: string,
   journeyId: number | null
 ) {
   return useQuery({
-    queryKey: ['journey', deviceUid, journeyId],
-    queryFn: () => getJourneyDetail(deviceUid, journeyId!),
+    queryKey: ['journey', serialNumber, journeyId],
+    queryFn: () => getJourneyDetail(serialNumber, journeyId!),
     refetchInterval: 30_000, // Poll every 30 seconds for active journeys
     staleTime: 15_000,
-    enabled: !!deviceUid && journeyId !== null,
+    enabled: !!serialNumber && journeyId !== null,
   });
 }
 
@@ -42,24 +42,24 @@ export function useJourneyDetail(
  * Hook to fetch location history from all sources
  */
 export function useLocationHistoryFull(
-  deviceUid: string,
+  serialNumber: string,
   hours: number = 24,
   source?: 'gps' | 'cell' | 'triangulation'
 ) {
   return useQuery({
-    queryKey: ['locations', deviceUid, hours, source],
-    queryFn: () => getLocationHistoryFull(deviceUid, hours, source),
+    queryKey: ['locations', serialNumber, hours, source],
+    queryFn: () => getLocationHistoryFull(serialNumber, hours, source),
     refetchInterval: 30_000,
     staleTime: 15_000,
-    enabled: !!deviceUid,
+    enabled: !!serialNumber,
   });
 }
 
 /**
  * Hook to get the most recent journey
  */
-export function useLatestJourney(deviceUid: string) {
-  const { data, ...rest } = useJourneys(deviceUid, undefined, 1);
+export function useLatestJourney(serialNumber: string) {
+  const { data, ...rest } = useJourneys(serialNumber, undefined, 1);
 
   return {
     ...rest,
@@ -71,17 +71,17 @@ export function useLatestJourney(deviceUid: string) {
  * Hook to trigger map matching for a journey
  * Returns snapped-to-road route from Mapbox Map Matching API
  */
-export function useMapMatch(deviceUid: string, journeyId: number | null) {
+export function useMapMatch(serialNumber: string, journeyId: number | null) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: () => {
       if (!journeyId) throw new Error('Journey ID required');
-      return matchJourney(deviceUid, journeyId);
+      return matchJourney(serialNumber, journeyId);
     },
     onSuccess: () => {
       // Invalidate the journey detail query to refetch with matched_route
-      queryClient.invalidateQueries({ queryKey: ['journey', deviceUid, journeyId] });
+      queryClient.invalidateQueries({ queryKey: ['journey', serialNumber, journeyId] });
     },
   });
 }
@@ -94,13 +94,13 @@ export function useDeleteJourney() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ deviceUid, journeyId }: { deviceUid: string; journeyId: number }) =>
-      deleteJourney(deviceUid, journeyId),
-    onSuccess: (_, { deviceUid }) => {
+    mutationFn: ({ serialNumber, journeyId }: { serialNumber: string; journeyId: number }) =>
+      deleteJourney(serialNumber, journeyId),
+    onSuccess: (_, { serialNumber }) => {
       // Invalidate journeys list to refetch
-      queryClient.invalidateQueries({ queryKey: ['journeys', deviceUid] });
+      queryClient.invalidateQueries({ queryKey: ['journeys', serialNumber] });
       // Also invalidate location history since points were deleted
-      queryClient.invalidateQueries({ queryKey: ['locations', deviceUid] });
+      queryClient.invalidateQueries({ queryKey: ['locations', serialNumber] });
     },
   });
 }

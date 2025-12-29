@@ -63,7 +63,11 @@
       "Bash(do)",
       "Bash(done)",
       "Bash(ls:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(aws apigatewayv2 get-apis:*)",
+      "Bash(aws apigatewayv2 get-routes:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(npx tsx:*)"
     ],
     "deny": [],
     "ask": []

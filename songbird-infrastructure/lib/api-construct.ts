@@ -29,6 +29,7 @@ export interface ApiConstructProps {
   settingsTable: dynamodb.Table;
   journeysTable: dynamodb.Table;
   locationsTable: dynamodb.Table;
+  deviceAliasesTable: dynamodb.Table;
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
   notehubProjectUid: string;
@@ -91,11 +92,13 @@ export class ApiConstruct extends Construct {
       memorySize: 256,
       environment: {
         DEVICES_TABLE: props.devicesTable.tableName,
+        DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
     });
     props.devicesTable.grantReadWriteData(devicesFunction);
+    props.deviceAliasesTable.grantReadData(devicesFunction);
 
     // Telemetry API
     const telemetryFunction = new NodejsFunction(this, 'TelemetryFunction', {
@@ -108,11 +111,13 @@ export class ApiConstruct extends Construct {
       memorySize: 256,
       environment: {
         TELEMETRY_TABLE: props.telemetryTable.tableName,
+        DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
     });
     props.telemetryTable.grantReadData(telemetryFunction);
+    props.deviceAliasesTable.grantReadData(telemetryFunction);
 
     // Commands API
     const commandsFunction = new NodejsFunction(this, 'CommandsFunction', {
@@ -127,12 +132,14 @@ export class ApiConstruct extends Construct {
         COMMANDS_TABLE: commandsTable.tableName,
         NOTEHUB_PROJECT_UID: props.notehubProjectUid,
         NOTEHUB_SECRET_ARN: notehubSecret.secretArn,
+        DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
     });
     commandsTable.grantReadWriteData(commandsFunction);
     notehubSecret.grantRead(commandsFunction);
+    props.deviceAliasesTable.grantReadData(commandsFunction);
 
     // Config API
     const configFunction = new NodejsFunction(this, 'ConfigFunction', {
@@ -146,11 +153,13 @@ export class ApiConstruct extends Construct {
       environment: {
         NOTEHUB_PROJECT_UID: props.notehubProjectUid,
         NOTEHUB_SECRET_ARN: notehubSecret.secretArn,
+        DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
     });
     notehubSecret.grantRead(configFunction);
+    props.deviceAliasesTable.grantReadData(configFunction);
 
     // Alerts API
     const alertsFunction = new NodejsFunction(this, 'AlertsFunction', {
@@ -163,11 +172,13 @@ export class ApiConstruct extends Construct {
       memorySize: 256,
       environment: {
         ALERTS_TABLE: props.alertsTable.tableName,
+        DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
     });
     props.alertsTable.grantReadWriteData(alertsFunction);
+    props.deviceAliasesTable.grantReadData(alertsFunction);
 
     // Activity Feed API
     const activityFunction = new NodejsFunction(this, 'ActivityFunction', {
@@ -184,6 +195,7 @@ export class ApiConstruct extends Construct {
         DEVICES_TABLE: props.devicesTable.tableName,
         COMMANDS_TABLE: commandsTable.tableName,
         JOURNEYS_TABLE: props.journeysTable.tableName,
+        DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
@@ -193,6 +205,7 @@ export class ApiConstruct extends Construct {
     props.devicesTable.grantReadData(activityFunction);
     commandsTable.grantReadData(activityFunction);
     props.journeysTable.grantReadData(activityFunction);
+    props.deviceAliasesTable.grantReadData(activityFunction);
 
     // Settings API
     const settingsFunction = new NodejsFunction(this, 'SettingsFunction', {
@@ -282,6 +295,7 @@ export class ApiConstruct extends Construct {
         ALERT_TOPIC_ARN: props.alertTopic.topicArn,
         JOURNEYS_TABLE: props.journeysTable.tableName,
         LOCATIONS_TABLE: props.locationsTable.tableName,
+        DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
@@ -293,6 +307,7 @@ export class ApiConstruct extends Construct {
     props.alertTopic.grantPublish(ingestFunction);
     props.journeysTable.grantReadWriteData(ingestFunction);
     props.locationsTable.grantReadWriteData(ingestFunction);
+    props.deviceAliasesTable.grantReadWriteData(ingestFunction);
 
     // Mapbox API Token Secret (for map matching)
     const mapboxSecret = new secretsmanager.Secret(this, 'MapboxApiToken', {
@@ -314,6 +329,7 @@ export class ApiConstruct extends Construct {
         LOCATIONS_TABLE: props.locationsTable.tableName,
         DEVICES_TABLE: props.devicesTable.tableName,
         TELEMETRY_TABLE: props.telemetryTable.tableName,
+        DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
         MAPBOX_TOKEN: 'pk.eyJ1IjoiYnJhbmRvbnNhdHJvbSIsImEiOiJjbWphb2oyaW8wN2k3M3Bwd3lrdnpjOHhtIn0.Syc0GM_ia3Dz7HreQ6-ImQ',
       },
       bundling: { minify: true, sourceMap: true },
@@ -323,6 +339,7 @@ export class ApiConstruct extends Construct {
     props.locationsTable.grantReadWriteData(journeysFunction); // Need write for cascade delete
     props.devicesTable.grantReadData(journeysFunction); // Need read for owner check
     props.telemetryTable.grantReadData(journeysFunction); // Need read for power consumption
+    props.deviceAliasesTable.grantReadData(journeysFunction);
 
     // ==========================================================================
     // HTTP API Gateway
@@ -373,7 +390,7 @@ export class ApiConstruct extends Construct {
     });
 
     this.api.addRoutes({
-      path: '/v1/devices/{device_uid}',
+      path: '/v1/devices/{serial_number}',
       methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.PATCH],
       integration: devicesIntegration,
       authorizer,
@@ -386,28 +403,28 @@ export class ApiConstruct extends Construct {
     );
 
     this.api.addRoutes({
-      path: '/v1/devices/{device_uid}/telemetry',
+      path: '/v1/devices/{serial_number}/telemetry',
       methods: [apigateway.HttpMethod.GET],
       integration: telemetryIntegration,
       authorizer,
     });
 
     this.api.addRoutes({
-      path: '/v1/devices/{device_uid}/location',
+      path: '/v1/devices/{serial_number}/location',
       methods: [apigateway.HttpMethod.GET],
       integration: telemetryIntegration,
       authorizer,
     });
 
     this.api.addRoutes({
-      path: '/v1/devices/{device_uid}/power',
+      path: '/v1/devices/{serial_number}/power',
       methods: [apigateway.HttpMethod.GET],
       integration: telemetryIntegration,
       authorizer,
     });
 
     this.api.addRoutes({
-      path: '/v1/devices/{device_uid}/health',
+      path: '/v1/devices/{serial_number}/health',
       methods: [apigateway.HttpMethod.GET],
       integration: telemetryIntegration,
       authorizer,
@@ -437,7 +454,7 @@ export class ApiConstruct extends Construct {
 
     // Device-specific commands
     this.api.addRoutes({
-      path: '/v1/devices/{device_uid}/commands',
+      path: '/v1/devices/{serial_number}/commands',
       methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
       integration: commandsIntegration,
       authorizer,
@@ -450,7 +467,7 @@ export class ApiConstruct extends Construct {
     );
 
     this.api.addRoutes({
-      path: '/v1/devices/{device_uid}/config',
+      path: '/v1/devices/{serial_number}/config',
       methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.PUT],
       integration: configIntegration,
       authorizer,
@@ -620,14 +637,14 @@ export class ApiConstruct extends Construct {
     );
 
     this.api.addRoutes({
-      path: '/v1/devices/{device_uid}/journeys',
+      path: '/v1/devices/{serial_number}/journeys',
       methods: [apigateway.HttpMethod.GET],
       integration: journeysIntegration,
       authorizer,
     });
 
     this.api.addRoutes({
-      path: '/v1/devices/{device_uid}/journeys/{journey_id}',
+      path: '/v1/devices/{serial_number}/journeys/{journey_id}',
       methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.DELETE],
       integration: journeysIntegration,
       authorizer,
@@ -635,14 +652,14 @@ export class ApiConstruct extends Construct {
 
     // Map matching endpoint for journeys
     this.api.addRoutes({
-      path: '/v1/devices/{device_uid}/journeys/{journey_id}/match',
+      path: '/v1/devices/{serial_number}/journeys/{journey_id}/match',
       methods: [apigateway.HttpMethod.POST],
       integration: journeysIntegration,
       authorizer,
     });
 
     this.api.addRoutes({
-      path: '/v1/devices/{device_uid}/locations',
+      path: '/v1/devices/{serial_number}/locations',
       methods: [apigateway.HttpMethod.GET],
       integration: journeysIntegration,
       authorizer,

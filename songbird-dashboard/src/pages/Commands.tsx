@@ -174,18 +174,28 @@ export function Commands() {
   const devices = devicesData?.devices || [];
   const commands = commandsData?.commands || [];
 
-  const handleDeleteCommand = (commandId: string, deviceUid: string) => {
-    deleteMutation.mutate({ commandId, deviceUid });
-  };
-
-  // Create a map for device names
+  // Create maps for device names and serial numbers
   const deviceNameMap = new Map<string, string>();
+  const deviceSerialMap = new Map<string, string>();
   devices.forEach((d: Device) => {
     deviceNameMap.set(d.device_uid, d.name || d.serial_number || d.device_uid);
+    if (d.serial_number) {
+      deviceSerialMap.set(d.device_uid, d.serial_number);
+    }
   });
 
+  const handleDeleteCommand = (commandId: string, deviceUid: string) => {
+    const serialNumber = deviceSerialMap.get(deviceUid);
+    if (serialNumber) {
+      deleteMutation.mutate({ commandId, serialNumber });
+    }
+  };
+
   const handleDeviceClick = (deviceUid: string) => {
-    navigate(`/devices/${deviceUid}`);
+    const serialNumber = deviceSerialMap.get(deviceUid);
+    if (serialNumber) {
+      navigate(`/devices/${serialNumber}`);
+    }
   };
 
   const isSending = pingMutation.isPending || locateMutation.isPending || melodyMutation.isPending;
@@ -202,15 +212,20 @@ export function Commands() {
   };
 
   const sendToDevice = async (deviceUid: string) => {
+    const serialNumber = deviceSerialMap.get(deviceUid);
+    if (!serialNumber) {
+      console.error('No serial number found for device:', deviceUid);
+      return;
+    }
     switch (commandType) {
       case 'ping':
-        await pingMutation.mutateAsync(deviceUid);
+        await pingMutation.mutateAsync(serialNumber);
         break;
       case 'locate':
-        await locateMutation.mutateAsync({ deviceUid, durationSec: 30 });
+        await locateMutation.mutateAsync({ serialNumber, durationSec: 30 });
         break;
       case 'play_melody':
-        await melodyMutation.mutateAsync({ deviceUid, melody: selectedMelody });
+        await melodyMutation.mutateAsync({ serialNumber, melody: selectedMelody });
         break;
     }
   };

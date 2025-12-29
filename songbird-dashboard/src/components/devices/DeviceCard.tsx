@@ -42,7 +42,7 @@ export function DeviceCard({ device, alertCount = 0 }: DeviceCardProps) {
   const battery = formatBattery(device.voltage);
 
   return (
-    <Link to={`/devices/${device.device_uid}`}>
+    <Link to={`/devices/${device.serial_number}`}>
       <Card className="hover:shadow-md transition-shadow cursor-pointer">
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between">

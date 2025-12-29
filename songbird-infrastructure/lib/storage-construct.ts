@@ -21,6 +21,7 @@ export class StorageConstruct extends Construct {
   public readonly settingsTable: dynamodb.Table;
   public readonly journeysTable: dynamodb.Table;
   public readonly locationsTable: dynamodb.Table;
+  public readonly deviceAliasesTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: StorageConstructProps) {
     super(scope, id);
@@ -268,6 +269,39 @@ export class StorageConstruct extends Construct {
       sortKey: {
         name: 'journey_id',
         type: dynamodb.AttributeType.NUMBER,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // ==========================================================================
+    // DynamoDB Table for Device Aliases (serial_number -> device_uid mapping)
+    // ==========================================================================
+    // This table enables Notecard swapping: when a Notecard is replaced,
+    // the serial_number remains stable while device_uid changes.
+    // All historical data is preserved and merged using this mapping.
+    this.deviceAliasesTable = new dynamodb.Table(this, 'DeviceAliasesTable', {
+      tableName: 'songbird-device-aliases',
+
+      // Primary key: serial_number (the stable device identifier)
+      partitionKey: {
+        name: 'serial_number',
+        type: dynamodb.AttributeType.STRING,
+      },
+
+      // Billing mode - on-demand for unpredictable usage
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+
+      // Remove table on stack deletion (demo environment)
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // GSI for looking up serial_number by device_uid
+    // Used when we receive an event and need to find the associated serial_number
+    this.deviceAliasesTable.addGlobalSecondaryIndex({
+      indexName: 'device-uid-index',
+      partitionKey: {
+        name: 'device_uid',
+        type: dynamodb.AttributeType.STRING,
       },
       projectionType: dynamodb.ProjectionType.ALL,
     });

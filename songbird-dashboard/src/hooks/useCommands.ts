@@ -29,13 +29,13 @@ export function useAllCommands(deviceUid?: string) {
 /**
  * Hook to fetch command history for a specific device
  */
-export function useCommands(deviceUid: string) {
+export function useCommands(serialNumber: string) {
   return useQuery({
-    queryKey: ['commands', deviceUid],
-    queryFn: () => getCommands(deviceUid),
+    queryKey: ['commands', serialNumber],
+    queryFn: () => getCommands(serialNumber),
     refetchInterval: 10_000, // Poll frequently for command updates
     staleTime: 5_000,
-    enabled: !!deviceUid,
+    enabled: !!serialNumber,
   });
 }
 
@@ -46,9 +46,9 @@ export function useSendPing() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (deviceUid: string) => sendPing(deviceUid),
-    onSuccess: (_, deviceUid) => {
-      queryClient.invalidateQueries({ queryKey: ['commands', deviceUid] });
+    mutationFn: (serialNumber: string) => sendPing(serialNumber),
+    onSuccess: (_, serialNumber) => {
+      queryClient.invalidateQueries({ queryKey: ['commands', serialNumber] });
       queryClient.invalidateQueries({ queryKey: ['allCommands'] });
     },
   });
@@ -61,10 +61,10 @@ export function useSendLocate() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ deviceUid, durationSec = 30 }: { deviceUid: string; durationSec?: number }) =>
-      sendLocate(deviceUid, durationSec),
-    onSuccess: (_, { deviceUid }) => {
-      queryClient.invalidateQueries({ queryKey: ['commands', deviceUid] });
+    mutationFn: ({ serialNumber, durationSec = 30 }: { serialNumber: string; durationSec?: number }) =>
+      sendLocate(serialNumber, durationSec),
+    onSuccess: (_, { serialNumber }) => {
+      queryClient.invalidateQueries({ queryKey: ['commands', serialNumber] });
       queryClient.invalidateQueries({ queryKey: ['allCommands'] });
     },
   });
@@ -77,10 +77,10 @@ export function useSendPlayMelody() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ deviceUid, melody }: { deviceUid: string; melody: string }) =>
-      sendPlayMelody(deviceUid, melody),
-    onSuccess: (_, { deviceUid }) => {
-      queryClient.invalidateQueries({ queryKey: ['commands', deviceUid] });
+    mutationFn: ({ serialNumber, melody }: { serialNumber: string; melody: string }) =>
+      sendPlayMelody(serialNumber, melody),
+    onSuccess: (_, { serialNumber }) => {
+      queryClient.invalidateQueries({ queryKey: ['commands', serialNumber] });
       queryClient.invalidateQueries({ queryKey: ['allCommands'] });
     },
   });
@@ -94,16 +94,16 @@ export function useSendTestAudio() {
 
   return useMutation({
     mutationFn: ({
-      deviceUid,
+      serialNumber,
       frequency,
       durationMs,
     }: {
-      deviceUid: string;
+      serialNumber: string;
       frequency: number;
       durationMs: number;
-    }) => sendTestAudio(deviceUid, frequency, durationMs),
-    onSuccess: (_, { deviceUid }) => {
-      queryClient.invalidateQueries({ queryKey: ['commands', deviceUid] });
+    }) => sendTestAudio(serialNumber, frequency, durationMs),
+    onSuccess: (_, { serialNumber }) => {
+      queryClient.invalidateQueries({ queryKey: ['commands', serialNumber] });
       queryClient.invalidateQueries({ queryKey: ['allCommands'] });
     },
   });
@@ -116,10 +116,10 @@ export function useSendSetVolume() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ deviceUid, volume }: { deviceUid: string; volume: number }) =>
-      sendSetVolume(deviceUid, volume),
-    onSuccess: (_, { deviceUid }) => {
-      queryClient.invalidateQueries({ queryKey: ['commands', deviceUid] });
+    mutationFn: ({ serialNumber, volume }: { serialNumber: string; volume: number }) =>
+      sendSetVolume(serialNumber, volume),
+    onSuccess: (_, { serialNumber }) => {
+      queryClient.invalidateQueries({ queryKey: ['commands', serialNumber] });
       queryClient.invalidateQueries({ queryKey: ['allCommands'] });
     },
   });
@@ -132,10 +132,10 @@ export function useDeleteCommand() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ commandId, deviceUid }: { commandId: string; deviceUid: string }) =>
-      deleteCommand(commandId, deviceUid),
-    onSuccess: (_, { deviceUid }) => {
-      queryClient.invalidateQueries({ queryKey: ['commands', deviceUid] });
+    mutationFn: ({ commandId, serialNumber }: { commandId: string; serialNumber: string }) =>
+      deleteCommand(commandId, serialNumber),
+    onSuccess: (_, { serialNumber }) => {
+      queryClient.invalidateQueries({ queryKey: ['commands', serialNumber] });
       queryClient.invalidateQueries({ queryKey: ['allCommands'] });
     },
   });

@@ -26,19 +26,19 @@ export async function getAllCommands(deviceUid?: string): Promise<AllCommandsRes
 /**
  * Get command history for a device
  */
-export async function getCommands(deviceUid: string): Promise<CommandsResponse> {
-  return apiGet<CommandsResponse>(`/v1/devices/${deviceUid}/commands`);
+export async function getCommands(serialNumber: string): Promise<CommandsResponse> {
+  return apiGet<CommandsResponse>(`/v1/devices/${serialNumber}/commands`);
 }
 
 /**
  * Send a command to a device
  */
 export async function sendCommand(
-  deviceUid: string,
+  serialNumber: string,
   cmd: CommandType,
   params?: Record<string, unknown>
 ): Promise<CommandResponse> {
-  return apiPost<CommandResponse>(`/v1/devices/${deviceUid}/commands`, {
+  return apiPost<CommandResponse>(`/v1/devices/${serialNumber}/commands`, {
     cmd,
     params,
   });
@@ -47,49 +47,49 @@ export async function sendCommand(
 /**
  * Send a ping command
  */
-export async function sendPing(deviceUid: string): Promise<CommandResponse> {
-  return sendCommand(deviceUid, 'ping');
+export async function sendPing(serialNumber: string): Promise<CommandResponse> {
+  return sendCommand(serialNumber, 'ping');
 }
 
 /**
  * Send a locate command
  */
 export async function sendLocate(
-  deviceUid: string,
+  serialNumber: string,
   durationSec: number = 30
 ): Promise<CommandResponse> {
-  return sendCommand(deviceUid, 'locate', { duration_sec: durationSec });
+  return sendCommand(serialNumber, 'locate', { duration_sec: durationSec });
 }
 
 /**
  * Send a play melody command
  */
 export async function sendPlayMelody(
-  deviceUid: string,
+  serialNumber: string,
   melody: string
 ): Promise<CommandResponse> {
-  return sendCommand(deviceUid, 'play_melody', { melody });
+  return sendCommand(serialNumber, 'play_melody', { melody });
 }
 
 /**
  * Send a test audio command
  */
 export async function sendTestAudio(
-  deviceUid: string,
+  serialNumber: string,
   frequency: number,
   durationMs: number
 ): Promise<CommandResponse> {
-  return sendCommand(deviceUid, 'test_audio', { frequency, duration_ms: durationMs });
+  return sendCommand(serialNumber, 'test_audio', { frequency, duration_ms: durationMs });
 }
 
 /**
  * Send a set volume command
  */
 export async function sendSetVolume(
-  deviceUid: string,
+  serialNumber: string,
   volume: number
 ): Promise<CommandResponse> {
-  return sendCommand(deviceUid, 'set_volume', { volume });
+  return sendCommand(serialNumber, 'set_volume', { volume });
 }
 
 /**

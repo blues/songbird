@@ -36,7 +36,7 @@ interface FleetMapProps {
   devices: Device[];
   mapboxToken: string;
   selectedDeviceId?: string;
-  onDeviceSelect?: (deviceUid: string) => void;
+  onDeviceSelect?: (serialNumber: string) => void;
   className?: string;
 }
 
@@ -136,7 +136,7 @@ export function FleetMap({
             anchor="bottom"
             onClick={(e) => {
               e.originalEvent.stopPropagation();
-              onDeviceSelect?.(device.device_uid);
+              onDeviceSelect?.(device.serial_number);
             }}
           >
             <div

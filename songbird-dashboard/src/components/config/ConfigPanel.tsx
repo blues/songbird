@@ -22,13 +22,13 @@ const celsiusToFahrenheit = (c: number) => Math.round((c * 9) / 5 + 32);
 const fahrenheitToCelsius = (f: number) => Math.round(((f - 32) * 5) / 9);
 
 interface ConfigPanelProps {
-  deviceUid: string;
+  serialNumber: string;
   assignedTo?: string; // Email of the user the device is assigned to
   onClose?: () => void;
 }
 
-export function ConfigPanel({ deviceUid, assignedTo, onClose }: ConfigPanelProps) {
-  const { data: configData, isLoading } = useDeviceConfig(deviceUid);
+export function ConfigPanel({ serialNumber, assignedTo, onClose }: ConfigPanelProps) {
+  const { data: configData, isLoading } = useDeviceConfig(serialNumber);
   const updateConfig = useUpdateDeviceConfig();
   const { isAdmin } = useIsAdmin();
   const { data: userProfile } = useUserProfile();
@@ -71,7 +71,7 @@ export function ConfigPanel({ deviceUid, assignedTo, onClose }: ConfigPanelProps
 
   const handleApply = () => {
     updateConfig.mutate(
-      { deviceUid, config: localConfig },
+      { serialNumber, config: localConfig },
       {
         onSuccess: () => {
           setHasChanges(false);

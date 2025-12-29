@@ -9,7 +9,7 @@ import { getAlerts, getAlert, acknowledgeAlert } from '@/api/alerts';
  * Hook to fetch all alerts
  */
 export function useAlerts(params?: {
-  device_uid?: string;
+  serial_number?: string;
   acknowledged?: boolean;
   limit?: number;
 }) {
@@ -34,11 +34,11 @@ export function useActiveAlerts() {
 /**
  * Hook to fetch alerts for a specific device
  */
-export function useDeviceAlerts(deviceUid: string) {
+export function useDeviceAlerts(serialNumber: string) {
   return useQuery({
-    queryKey: ['alerts', { device_uid: deviceUid }],
-    queryFn: () => getAlerts({ device_uid: deviceUid }),
-    enabled: !!deviceUid,
+    queryKey: ['alerts', { serial_number: serialNumber }],
+    queryFn: () => getAlerts({ serial_number: serialNumber }),
+    enabled: !!serialNumber,
     refetchInterval: 30_000,
   });
 }

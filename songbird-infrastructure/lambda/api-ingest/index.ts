@@ -9,6 +9,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, UpdateCommand, QueryCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { handleDeviceAlias } from '../shared/device-lookup';
 
 // Initialize clients
 const ddbClient = new DynamoDBClient({});
@@ -127,6 +128,29 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     const notehubEvent: NotehubEvent = JSON.parse(event.body);
     console.log('Processing Notehub event:', JSON.stringify(notehubEvent));
+
+    // Reject events without serial number
+    if (!notehubEvent.sn || notehubEvent.sn.trim() === '') {
+      console.error(`Rejecting event - no serial number set for device ${notehubEvent.device}`);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Serial number (sn) is required. Configure the device serial number in Notehub.' }),
+      };
+    }
+
+    // Handle device alias (create if new, detect Notecard swaps)
+    const aliasResult = await handleDeviceAlias(notehubEvent.sn, notehubEvent.device);
+
+    // If a Notecard swap was detected, write an event for the activity feed
+    if (aliasResult.isSwap && aliasResult.oldDeviceUid) {
+      await writeNotecardSwapEvent(
+        notehubEvent.sn,
+        aliasResult.oldDeviceUid,
+        notehubEvent.device,
+        notehubEvent.when || Math.floor(notehubEvent.received)
+      );
+    }
 
     // Transform to internal format
     // For _track.qo events, use 'where_when' which is when the GPS fix was captured
@@ -1147,4 +1171,37 @@ async function trackModeChange(event: SongbirdEvent): Promise<void> {
     // Log but don't fail the request - mode tracking is not critical
     console.error(`Error tracking mode change: ${error}`);
   }
+}
+
+/**
+ * Write a Notecard swap event to the telemetry table for the activity feed
+ */
+async function writeNotecardSwapEvent(
+  serialNumber: string,
+  oldDeviceUid: string,
+  newDeviceUid: string,
+  timestamp: number
+): Promise<void> {
+  const timestampMs = timestamp * 1000;
+  const ttl = Math.floor(Date.now() / 1000) + TTL_SECONDS;
+
+  const record = {
+    device_uid: newDeviceUid,
+    serial_number: serialNumber,
+    timestamp: timestampMs,
+    ttl,
+    data_type: 'notecard_swap',
+    event_type: 'notecard_swap',
+    event_type_timestamp: `notecard_swap#${timestampMs}`,
+    old_device_uid: oldDeviceUid,
+    new_device_uid: newDeviceUid,
+  };
+
+  const command = new PutCommand({
+    TableName: TELEMETRY_TABLE,
+    Item: record,
+  });
+
+  await docClient.send(command);
+  console.log(`Recorded Notecard swap for ${serialNumber}: ${oldDeviceUid} -> ${newDeviceUid}`);
 }

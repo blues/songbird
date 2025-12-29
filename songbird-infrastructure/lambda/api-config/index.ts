@@ -2,18 +2,35 @@
  * Config API Lambda
  *
  * Manages device configuration via Notehub environment variables:
- * - GET /devices/{device_uid}/config - Get current config
- * - PUT /devices/{device_uid}/config - Update config
+ * - GET /devices/{serial_number}/config - Get current config
+ * - PUT /devices/{serial_number}/config - Update config
  * - PUT /fleets/{fleet_uid}/config - Update fleet-wide config
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 
 const secretsClient = new SecretsManagerClient({});
+const dynamoClient = new DynamoDBClient({});
+const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
 const NOTEHUB_PROJECT_UID = process.env.NOTEHUB_PROJECT_UID!;
 const NOTEHUB_SECRET_ARN = process.env.NOTEHUB_SECRET_ARN!;
+const DEVICE_ALIASES_TABLE = process.env.DEVICE_ALIASES_TABLE || 'songbird-device-aliases';
+
+/**
+ * Resolve serial number to device_uid using the aliases table
+ */
+async function resolveDeviceUid(serialNumber: string): Promise<string | null> {
+  const result = await docClient.send(new GetCommand({
+    TableName: DEVICE_ALIASES_TABLE,
+    Key: { serial_number: serialNumber },
+  }));
+
+  return result.Item?.device_uid || null;
+}
 
 // Cache the token to avoid fetching on every request
 let cachedToken: string | null = null;
@@ -81,15 +98,25 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       return { statusCode: 200, headers: corsHeaders, body: '' };
     }
 
-    const deviceUid = event.pathParameters?.device_uid;
+    const serialNumber = event.pathParameters?.serial_number;
     const fleetUid = event.pathParameters?.fleet_uid;
 
-    if (method === 'GET' && deviceUid) {
-      return await getDeviceConfig(deviceUid, corsHeaders);
-    }
+    if ((method === 'GET' || method === 'PUT') && serialNumber) {
+      // Resolve serial number to device_uid
+      const deviceUid = await resolveDeviceUid(serialNumber);
+      if (!deviceUid) {
+        return {
+          statusCode: 404,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: 'Device not found for serial number' }),
+        };
+      }
 
-    if (method === 'PUT' && deviceUid) {
-      return await updateDeviceConfig(deviceUid, event.body, corsHeaders);
+      if (method === 'GET') {
+        return await getDeviceConfig(deviceUid, serialNumber, corsHeaders);
+      } else {
+        return await updateDeviceConfig(deviceUid, serialNumber, event.body, corsHeaders);
+      }
     }
 
     if (method === 'PUT' && fleetUid) {
@@ -113,6 +140,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
 async function getDeviceConfig(
   deviceUid: string,
+  serialNumber: string,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
   try {
@@ -147,6 +175,7 @@ async function getDeviceConfig(
       statusCode: 200,
       headers,
       body: JSON.stringify({
+        serial_number: serialNumber,
         device_uid: deviceUid,
         config: parsedConfig,
         schema: CONFIG_SCHEMA,
@@ -164,6 +193,7 @@ async function getDeviceConfig(
 
 async function updateDeviceConfig(
   deviceUid: string,
+  serialNumber: string,
   body: string | null,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
@@ -217,6 +247,7 @@ async function updateDeviceConfig(
       statusCode: 200,
       headers,
       body: JSON.stringify({
+        serial_number: serialNumber,
         device_uid: deviceUid,
         config: updates,
         message: 'Configuration updated. Changes will take effect on next device sync.',

@@ -15,7 +15,7 @@ import { formatRelativeTime } from '@/utils/formatters';
 import type { Command } from '@/types';
 
 interface CommandPanelProps {
-  deviceUid: string;
+  serialNumber: string;
   audioEnabled: boolean;
   lastCommand?: Command;
 }
@@ -29,7 +29,7 @@ const melodies = [
 ];
 
 export function CommandPanel({
-  deviceUid,
+  serialNumber,
   audioEnabled,
   lastCommand,
 }: CommandPanelProps) {
@@ -46,15 +46,15 @@ export function CommandPanel({
     melodyMutation.isPending;
 
   const handlePing = () => {
-    pingMutation.mutate(deviceUid);
+    pingMutation.mutate(serialNumber);
   };
 
   const handleLocate = () => {
-    locateMutation.mutate({ deviceUid, durationSec: locateDuration });
+    locateMutation.mutate({ serialNumber, durationSec: locateDuration });
   };
 
   const handlePlayMelody = () => {
-    melodyMutation.mutate({ deviceUid, melody: selectedMelody });
+    melodyMutation.mutate({ serialNumber, melody: selectedMelody });
   };
 
   return (

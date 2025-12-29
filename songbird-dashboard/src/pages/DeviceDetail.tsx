@@ -76,7 +76,7 @@ interface DeviceDetailProps {
 }
 
 export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
-  const { deviceUid } = useParams<{ deviceUid: string }>();
+  const { serialNumber } = useParams<{ serialNumber: string }>();
   const { preferences } = usePreferences();
   const tempUnit = preferences.temp_unit === 'fahrenheit' ? 'F' : 'C';
 
@@ -97,7 +97,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const effectiveTimeRange = timeRange ?? 24;
 
   // Get journeys data first to calculate time range for journey viewing
-  const { data: journeysData, isLoading: journeysLoading } = useJourneys(deviceUid!);
+  const { data: journeysData, isLoading: journeysLoading } = useJourneys(serialNumber!);
   const journeys = journeysData?.journeys || [];
 
   // Find selected journey to calculate needed time range
@@ -119,24 +119,24 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   // Default 1000 limit can miss older data when there are many recent records
   const telemetryLimit = (locationTab === 'journeys' && selectedJourneyId) ? 5000 : 1000;
 
-  const { data: device, isLoading: deviceLoading } = useDevice(deviceUid!);
+  const { data: device, isLoading: deviceLoading } = useDevice(serialNumber!);
   const { data: telemetryData, isLoading: telemetryLoading } = useTelemetry(
-    deviceUid!,
+    serialNumber!,
     dataTimeRange,
     telemetryLimit
   );
-  const { data: locationData } = useLocationHistory(deviceUid!, dataTimeRange);
-  const { data: powerData, isLoading: powerLoading } = usePowerHistory(deviceUid!, dataTimeRange);
-  const { data: healthData, isLoading: healthLoading } = useHealthHistory(deviceUid!, Math.max(dataTimeRange, 168)); // At least 7 days for health
-  const { data: commandsData } = useCommands(deviceUid!);
-  const { data: alertsData } = useDeviceAlerts(deviceUid!);
+  const { data: locationData } = useLocationHistory(serialNumber!, dataTimeRange);
+  const { data: powerData, isLoading: powerLoading } = usePowerHistory(serialNumber!, dataTimeRange);
+  const { data: healthData, isLoading: healthLoading } = useHealthHistory(serialNumber!, Math.max(dataTimeRange, 168)); // At least 7 days for health
+  const { data: commandsData } = useCommands(serialNumber!);
+  const { data: alertsData } = useDeviceAlerts(serialNumber!);
   const acknowledgeMutation = useAcknowledgeAlert();
 
   // Journey and location history hooks
-  const { data: journeyDetailData, isLoading: journeyDetailLoading } = useJourneyDetail(deviceUid!, selectedJourneyId);
-  const { data: locationHistoryData, isLoading: locationHistoryLoading } = useLocationHistoryFull(deviceUid!, dataTimeRange);
-  const { data: latestJourney } = useLatestJourney(deviceUid!);
-  const mapMatchMutation = useMapMatch(deviceUid!, selectedJourneyId);
+  const { data: journeyDetailData, isLoading: journeyDetailLoading } = useJourneyDetail(serialNumber!, selectedJourneyId);
+  const { data: locationHistoryData, isLoading: locationHistoryLoading } = useLocationHistoryFull(serialNumber!, dataTimeRange);
+  const { data: latestJourney } = useLatestJourney(serialNumber!);
+  const mapMatchMutation = useMapMatch(serialNumber!, selectedJourneyId);
   const deleteJourneyMutation = useDeleteJourney();
 
   // Check if user can delete journeys (admin or device owner)
@@ -366,7 +366,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                       isLoading={journeysLoading}
                       canDelete={!!canDeleteJourneys}
                       onDelete={(journeyId) => {
-                        deleteJourneyMutation.mutate({ deviceUid: deviceUid!, journeyId });
+                        deleteJourneyMutation.mutate({ serialNumber: serialNumber!, journeyId });
                         // Clear selection if we deleted the selected journey
                         if (selectedJourneyId === journeyId) {
                           setSelectedJourneyId(null);
@@ -605,7 +605,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
 
           {/* Command Panel */}
           <CommandPanel
-            deviceUid={device.device_uid}
+            serialNumber={device.serial_number}
             audioEnabled={device.audio_enabled !== false}
             lastCommand={lastCommand}
           />
@@ -736,7 +736,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
         {showConfig && (
           <div className="lg:col-span-1">
             <ConfigPanel
-              deviceUid={device.device_uid}
+              serialNumber={device.serial_number}
               assignedTo={device.assigned_to}
               onClose={() => setShowConfig(false)}
             />

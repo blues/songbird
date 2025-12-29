@@ -2,15 +2,19 @@
  * Telemetry API Lambda
  *
  * Queries DynamoDB for device telemetry data:
- * - GET /devices/{device_uid}/telemetry - Get telemetry history
- * - GET /devices/{device_uid}/location - Get location history
- * - GET /devices/{device_uid}/power - Get Mojo power history
- * - GET /devices/{device_uid}/health - Get health event history
+ * - GET /devices/{serial_number}/telemetry - Get telemetry history
+ * - GET /devices/{serial_number}/location - Get location history
+ * - GET /devices/{serial_number}/power - Get Mojo power history
+ * - GET /devices/{serial_number}/health - Get health event history
+ *
+ * Note: When a Notecard is swapped, historical data is merged from all device_uids
+ * associated with the serial_number.
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { resolveDevice } from '../shared/device-lookup';
 
 const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient);
@@ -35,12 +39,22 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       return { statusCode: 200, headers: corsHeaders, body: '' };
     }
 
-    const deviceUid = event.pathParameters?.device_uid;
-    if (!deviceUid) {
+    const serialNumber = event.pathParameters?.serial_number;
+    if (!serialNumber) {
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'device_uid required' }),
+        body: JSON.stringify({ error: 'serial_number required' }),
+      };
+    }
+
+    // Resolve serial_number to all associated device_uids
+    const resolved = await resolveDevice(serialNumber);
+    if (!resolved) {
+      return {
+        statusCode: 404,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Device not found' }),
       };
     }
 
@@ -50,19 +64,20 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const hours = parseInt(queryParams.hours || '24');
     const limit = parseInt(queryParams.limit || '1000');
 
+    // All queries now use all_device_uids to get merged history
     if (path.endsWith('/location')) {
-      return await getLocationHistory(deviceUid, hours, limit, corsHeaders);
+      return await getLocationHistory(resolved.serial_number, resolved.all_device_uids, hours, limit, corsHeaders);
     }
 
     if (path.endsWith('/power')) {
-      return await getPowerHistory(deviceUid, hours, limit, corsHeaders);
+      return await getPowerHistory(resolved.serial_number, resolved.all_device_uids, hours, limit, corsHeaders);
     }
 
     if (path.endsWith('/health')) {
-      return await getHealthHistory(deviceUid, hours, limit, corsHeaders);
+      return await getHealthHistory(resolved.serial_number, resolved.all_device_uids, hours, limit, corsHeaders);
     }
 
-    return await getTelemetryHistory(deviceUid, hours, limit, corsHeaders);
+    return await getTelemetryHistory(resolved.serial_number, resolved.all_device_uids, hours, limit, corsHeaders);
   } catch (error) {
     console.error('Error:', error);
     return {
@@ -73,51 +88,68 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   }
 };
 
+/**
+ * Query telemetry for multiple device_uids and merge results
+ */
+async function queryForAllDeviceUids(
+  deviceUids: string[],
+  dataType: string,
+  cutoffTime: number,
+  limit: number
+): Promise<Record<string, any>[]> {
+  const cutoffKey = `${dataType}#${cutoffTime}`;
+  const endKey = `${dataType}#${Date.now() + 1000}`;
+  const fetchAll = limit > 1000;
+
+  // Query all device_uids in parallel
+  const queryPromises = deviceUids.map(async (deviceUid) => {
+    let items: Record<string, any>[] = [];
+    let lastEvaluatedKey: Record<string, any> | undefined;
+
+    do {
+      const command = new QueryCommand({
+        TableName: TELEMETRY_TABLE,
+        IndexName: 'event-type-index',
+        KeyConditionExpression: 'device_uid = :device_uid AND event_type_timestamp BETWEEN :start AND :end',
+        ExpressionAttributeValues: {
+          ':device_uid': deviceUid,
+          ':start': cutoffKey,
+          ':end': endKey,
+        },
+        ScanIndexForward: true,
+        ...(fetchAll ? {} : { Limit: limit }),
+        ...(lastEvaluatedKey ? { ExclusiveStartKey: lastEvaluatedKey } : {}),
+      });
+
+      const result = await docClient.send(command);
+      items = items.concat(result.Items || []);
+      lastEvaluatedKey = result.LastEvaluatedKey;
+
+      if (!fetchAll || items.length >= limit) break;
+    } while (lastEvaluatedKey);
+
+    return items;
+  });
+
+  const allResults = await Promise.all(queryPromises);
+
+  // Merge all results and sort by timestamp
+  const merged = allResults.flat().sort((a, b) => a.timestamp - b.timestamp);
+
+  // Apply limit and reverse for newest-first
+  return merged.slice(-limit).reverse();
+}
+
 async function getTelemetryHistory(
-  deviceUid: string,
+  serialNumber: string,
+  deviceUids: string[],
   hours: number,
   limit: number,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
   const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
 
-  // Use the event-type-index GSI to efficiently query by data_type
-  // The sort key is formatted as {data_type}#{timestamp}
-  const cutoffKey = `telemetry#${cutoffTime}`;
-  const endKey = `telemetry#${Date.now() + 1000}`; // Slightly in future to include latest
-
-  // For higher limits, fetch all data in range then apply limit at the end
-  // This ensures we get the complete time range, not just the N most recent
-  const fetchAll = limit > 1000;
-
-  let allItems: Record<string, any>[] = [];
-  let lastEvaluatedKey: Record<string, any> | undefined;
-
-  do {
-    const command = new QueryCommand({
-      TableName: TELEMETRY_TABLE,
-      IndexName: 'event-type-index',
-      KeyConditionExpression: 'device_uid = :device_uid AND event_type_timestamp BETWEEN :start AND :end',
-      ExpressionAttributeValues: {
-        ':device_uid': deviceUid,
-        ':start': cutoffKey,
-        ':end': endKey,
-      },
-      ScanIndexForward: true, // Chronological order (oldest first)
-      ...(fetchAll ? {} : { Limit: limit }),
-      ...(lastEvaluatedKey ? { ExclusiveStartKey: lastEvaluatedKey } : {}),
-    });
-
-    const result = await docClient.send(command);
-    allItems = allItems.concat(result.Items || []);
-    lastEvaluatedKey = result.LastEvaluatedKey;
-
-    // Stop if we have enough items or if fetchAll is false
-    if (!fetchAll || allItems.length >= limit) break;
-  } while (lastEvaluatedKey);
-
-  // Apply limit and reverse to get newest-first order for frontend
-  const items = allItems.slice(-limit).reverse();
+  const items = await queryForAllDeviceUids(deviceUids, 'telemetry', cutoffTime, limit);
 
   // Transform to API response format
   // Note: voltage is no longer included in track.qo telemetry; battery info comes from power API
@@ -133,7 +165,7 @@ async function getTelemetryHistory(
     statusCode: 200,
     headers,
     body: JSON.stringify({
-      device_uid: deviceUid,
+      serial_number: serialNumber,
       hours,
       count: telemetry.length,
       telemetry,
@@ -142,35 +174,18 @@ async function getTelemetryHistory(
 }
 
 async function getLocationHistory(
-  deviceUid: string,
+  serialNumber: string,
+  deviceUids: string[],
   hours: number,
   limit: number,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
   const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
 
-  // Use the event-type-index GSI to efficiently query telemetry records
-  const cutoffKey = `telemetry#${cutoffTime}`;
-  const endKey = `telemetry#${Date.now() + 1000}`;
+  const items = await queryForAllDeviceUids(deviceUids, 'telemetry', cutoffTime, limit);
 
-  const command = new QueryCommand({
-    TableName: TELEMETRY_TABLE,
-    IndexName: 'event-type-index',
-    KeyConditionExpression: 'device_uid = :device_uid AND event_type_timestamp BETWEEN :start AND :end',
-    FilterExpression: 'attribute_exists(latitude)',
-    ExpressionAttributeValues: {
-      ':device_uid': deviceUid,
-      ':start': cutoffKey,
-      ':end': endKey,
-    },
-    ScanIndexForward: false, // Newest first
-    Limit: limit,
-  });
-
-  const result = await docClient.send(command);
-
-  // Transform to API response format
-  const locations = (result.Items || [])
+  // Transform to API response format - filter to only items with location
+  const locations = items
     .filter((item) => item.latitude !== undefined && item.longitude !== undefined)
     .map((item) => ({
       time: new Date(item.timestamp).toISOString(),
@@ -183,7 +198,7 @@ async function getLocationHistory(
     statusCode: 200,
     headers,
     body: JSON.stringify({
-      device_uid: deviceUid,
+      serial_number: serialNumber,
       hours,
       count: locations.length,
       locations,
@@ -192,34 +207,18 @@ async function getLocationHistory(
 }
 
 async function getPowerHistory(
-  deviceUid: string,
+  serialNumber: string,
+  deviceUids: string[],
   hours: number,
   limit: number,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
   const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
 
-  // Use the event-type-index GSI to efficiently query power records
-  const cutoffKey = `power#${cutoffTime}`;
-  const endKey = `power#${Date.now() + 1000}`;
-
-  const command = new QueryCommand({
-    TableName: TELEMETRY_TABLE,
-    IndexName: 'event-type-index',
-    KeyConditionExpression: 'device_uid = :device_uid AND event_type_timestamp BETWEEN :start AND :end',
-    ExpressionAttributeValues: {
-      ':device_uid': deviceUid,
-      ':start': cutoffKey,
-      ':end': endKey,
-    },
-    ScanIndexForward: false, // Newest first
-    Limit: limit,
-  });
-
-  const result = await docClient.send(command);
+  const items = await queryForAllDeviceUids(deviceUids, 'power', cutoffTime, limit);
 
   // Transform to API response format
-  const power = (result.Items || []).map((item) => ({
+  const power = items.map((item) => ({
     time: new Date(item.timestamp).toISOString(),
     voltage: item.mojo_voltage,
     milliamp_hours: item.milliamp_hours,
@@ -229,7 +228,7 @@ async function getPowerHistory(
     statusCode: 200,
     headers,
     body: JSON.stringify({
-      device_uid: deviceUid,
+      serial_number: serialNumber,
       hours,
       count: power.length,
       power,
@@ -238,34 +237,18 @@ async function getPowerHistory(
 }
 
 async function getHealthHistory(
-  deviceUid: string,
+  serialNumber: string,
+  deviceUids: string[],
   hours: number,
   limit: number,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
   const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
 
-  // Use the event-type-index GSI to efficiently query health records
-  const cutoffKey = `health#${cutoffTime}`;
-  const endKey = `health#${Date.now() + 1000}`;
-
-  const command = new QueryCommand({
-    TableName: TELEMETRY_TABLE,
-    IndexName: 'event-type-index',
-    KeyConditionExpression: 'device_uid = :device_uid AND event_type_timestamp BETWEEN :start AND :end',
-    ExpressionAttributeValues: {
-      ':device_uid': deviceUid,
-      ':start': cutoffKey,
-      ':end': endKey,
-    },
-    ScanIndexForward: false, // Newest first
-    Limit: limit,
-  });
-
-  const result = await docClient.send(command);
+  const items = await queryForAllDeviceUids(deviceUids, 'health', cutoffTime, limit);
 
   // Transform to API response format
-  const health = (result.Items || []).map((item) => ({
+  const health = items.map((item) => ({
     time: new Date(item.timestamp).toISOString(),
     method: item.method,
     text: item.text,
@@ -278,7 +261,7 @@ async function getHealthHistory(
     statusCode: 200,
     headers,
     body: JSON.stringify({
-      device_uid: deviceUid,
+      serial_number: serialNumber,
       hours,
       count: health.length,
       health,
