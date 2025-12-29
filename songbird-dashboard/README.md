@@ -21,6 +21,7 @@ React-based fleet management dashboard for the Songbird sales demo platform.
 - Journey deletion (Admin/device owner only)
 - Responsive UI with container queries for adaptive layouts
 - GitHub Actions CI/CD for automated deployments
+- **Notecard swapping**: Swap Notecard hardware while preserving device identity and history (serial number-based routing)
 
 ## Technology Stack
 
@@ -354,33 +355,35 @@ The display name is stored in the Cognito `name` attribute and shown in the head
 
 The dashboard communicates with the Songbird API via:
 
+**Note**: All device-specific endpoints use the device's `serial_number` as the path parameter. This enables Notecard hardware swapping while preserving device identity and history. The API automatically merges data from all Notecards that have been associated with a device.
+
 ### Devices
 - `GET /v1/devices` - List all devices
-- `GET /v1/devices/{uid}` - Get device details
-- `PATCH /v1/devices/{uid}` - Update device metadata
-- `GET /v1/devices/{uid}/telemetry` - Get telemetry history
-- `GET /v1/devices/{uid}/location` - Get location history
-- `GET /v1/devices/{uid}/power` - Get Mojo power monitoring history
-- `GET /v1/devices/{uid}/config` - Get device config
-- `PUT /v1/devices/{uid}/config` - Update device config
+- `GET /v1/devices/{serial_number}` - Get device details
+- `PATCH /v1/devices/{serial_number}` - Update device metadata
+- `GET /v1/devices/{serial_number}/telemetry` - Get telemetry history
+- `GET /v1/devices/{serial_number}/location` - Get location history
+- `GET /v1/devices/{serial_number}/power` - Get Mojo power monitoring history
+- `GET /v1/devices/{serial_number}/health` - Get device health history
+- `GET /v1/devices/{serial_number}/config` - Get device config
+- `PUT /v1/devices/{serial_number}/config` - Update device config
 - `GET /v1/devices/unassigned` - Get devices not assigned to any user
 
 ### Journeys & Location History
-- `GET /v1/devices/{uid}/journeys` - List all journeys for a device
-- `GET /v1/devices/{uid}/journeys/{journey_id}` - Get journey details with all points
-- `DELETE /v1/devices/{uid}/journeys/{journey_id}` - Delete a journey (Admin or device owner only)
-- `POST /v1/devices/{uid}/journeys/{journey_id}/match` - Trigger Mapbox road-snapping for a journey
-- `GET /v1/devices/{uid}/locations` - Get full location history (all sources)
+- `GET /v1/devices/{serial_number}/journeys` - List all journeys for a device
+- `GET /v1/devices/{serial_number}/journeys/{journey_id}` - Get journey details with all points
+- `DELETE /v1/devices/{serial_number}/journeys/{journey_id}` - Delete a journey (Admin or device owner only)
+- `POST /v1/devices/{serial_number}/journeys/{journey_id}/match` - Trigger Mapbox road-snapping for a journey
+- `GET /v1/devices/{serial_number}/locations` - Get full location history (all sources)
 
 ### Commands
-- `GET /v1/devices/{uid}/commands` - Get command history for device
-- `POST /v1/devices/{uid}/commands` - Send command to device
+- `GET /v1/devices/{serial_number}/commands` - Get command history for device
+- `POST /v1/devices/{serial_number}/commands` - Send command to device
 - `GET /v1/commands` - Get all commands across devices
 - `DELETE /v1/commands/{command_id}` - Delete a command
 
 ### Alerts
-- `GET /v1/alerts` - List all alerts (with optional filters)
-- `GET /v1/devices/{uid}/alerts` - Get alerts for specific device
+- `GET /v1/alerts` - List all alerts (with optional `serial_number` filter)
 - `POST /v1/alerts/{alert_id}/acknowledge` - Acknowledge an alert
 
 ### Settings & Activity

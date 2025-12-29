@@ -250,48 +250,50 @@ Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com`
 
 ### Dashboard APIs (Cognito Auth Required)
 
+**Note**: All device-specific endpoints use `serial_number` as the path parameter. This enables Notecard hardware swapping while preserving device identity. The API automatically resolves serial numbers to their associated device UID(s) and merges data from all Notecards that have been associated with a device.
+
 #### Devices
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/v1/devices` | List all devices |
-| GET | `/v1/devices/{device_uid}` | Get device details |
-| PATCH | `/v1/devices/{device_uid}` | Update device metadata |
-| GET | `/v1/devices/{device_uid}/telemetry` | Get telemetry history |
-| GET | `/v1/devices/{device_uid}/location` | Get location history |
-| GET | `/v1/devices/{device_uid}/power` | Get Mojo power monitoring history |
+| GET | `/v1/devices/{serial_number}` | Get device details |
+| PATCH | `/v1/devices/{serial_number}` | Update device metadata |
+| GET | `/v1/devices/{serial_number}/telemetry` | Get telemetry history |
+| GET | `/v1/devices/{serial_number}/location` | Get location history |
+| GET | `/v1/devices/{serial_number}/power` | Get Mojo power monitoring history |
+| GET | `/v1/devices/{serial_number}/health` | Get device health history |
 | GET | `/v1/devices/unassigned` | Get devices not assigned to any user |
 
 #### Journeys & Location History
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/v1/devices/{device_uid}/journeys` | List all journeys for device |
-| GET | `/v1/devices/{device_uid}/journeys/{journey_id}` | Get journey details with points and power consumption |
-| DELETE | `/v1/devices/{device_uid}/journeys/{journey_id}` | Delete journey and all points (Admin or device owner) |
-| POST | `/v1/devices/{device_uid}/journeys/{journey_id}/match` | Snap journey to roads via Mapbox Map Matching |
-| GET | `/v1/devices/{device_uid}/locations` | Get full location history (all sources) |
+| GET | `/v1/devices/{serial_number}/journeys` | List all journeys for device |
+| GET | `/v1/devices/{serial_number}/journeys/{journey_id}` | Get journey details with points and power consumption |
+| DELETE | `/v1/devices/{serial_number}/journeys/{journey_id}` | Delete journey and all points (Admin or device owner) |
+| POST | `/v1/devices/{serial_number}/journeys/{journey_id}/match` | Snap journey to roads via Mapbox Map Matching |
+| GET | `/v1/devices/{serial_number}/locations` | Get full location history (all sources) |
 
 The journey detail endpoint returns power consumption data when Mojo power monitoring is available. Power consumption is calculated as the difference in `milliamp_hours` between the first and last power readings during the journey timeframe.
 
 #### Commands
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/v1/devices/{device_uid}/commands` | Get command history for device |
-| POST | `/v1/devices/{device_uid}/commands` | Send command to device |
-| GET | `/v1/commands` | Get all commands across devices (optional `device_uid` query param) |
-| DELETE | `/v1/commands/{command_id}` | Delete a command (requires `device_uid` query param) |
+| GET | `/v1/devices/{serial_number}/commands` | Get command history for device |
+| POST | `/v1/devices/{serial_number}/commands` | Send command to device |
+| GET | `/v1/commands` | Get all commands across devices (optional `serial_number` query param) |
+| DELETE | `/v1/commands/{command_id}` | Delete a command (requires `serial_number` query param) |
 
 #### Configuration
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/v1/devices/{device_uid}/config` | Get device configuration |
-| PUT | `/v1/devices/{device_uid}/config` | Update device configuration |
+| GET | `/v1/devices/{serial_number}/config` | Get device configuration |
+| PUT | `/v1/devices/{serial_number}/config` | Update device configuration |
 | PUT | `/v1/fleets/{fleet_uid}/config` | Update fleet configuration |
 
 #### Alerts
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/v1/alerts` | List all alerts (with optional filters) |
-| GET | `/v1/devices/{device_uid}/alerts` | Get alerts for specific device |
+| GET | `/v1/alerts` | List all alerts (with optional `serial_number` filter) |
 | POST | `/v1/alerts/{alert_id}/acknowledge` | Acknowledge an alert |
 
 #### Settings & Activity
@@ -353,11 +355,25 @@ The infrastructure creates the following DynamoDB tables:
 | Table | Partition Key | Sort Key | Description |
 |-------|--------------|----------|-------------|
 | `songbird-devices` | `device_uid` | - | Device metadata and current state |
+| `songbird-device-aliases` | `serial_number` | - | Maps serial numbers to device UIDs (enables Notecard swapping) |
 | `songbird-telemetry` | `device_uid` | `timestamp` | Temperature, humidity, pressure readings |
 | `songbird-journeys` | `device_uid` | `journey_id` | Journey metadata (start/end time, distance, point count) |
 | `songbird-locations` | `device_uid` | `timestamp` | All location events (GPS, Cell, Wi-Fi) |
 | `songbird-commands` | `device_uid` | `timestamp` | Command history |
 | `songbird-alerts` | `device_uid` | `created_at` | Alert history |
+
+### Device Aliasing (Notecard Swapping)
+
+The `songbird-device-aliases` table enables Notecard hardware swapping while preserving device identity and history:
+
+- **Serial Number**: The stable, user-facing identifier for a device (e.g., `songbird01-bds`)
+- **Device UID**: The Notecard's unique identifier (e.g., `dev:351077454527360`)
+
+When a Notecard is swapped:
+1. The ingest Lambda detects a new `device_uid` for an existing `serial_number`
+2. The old `device_uid` is moved to `previous_device_uids` array
+3. An activity feed event is created to record the swap
+4. All API queries automatically merge data from all associated device UIDs
 
 ### DynamoDB Queries
 

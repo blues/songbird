@@ -81,6 +81,7 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
 | **Journey Tracking** | Record and playback GPS journeys with velocity and bearing data |
 | **Location History** | View all location events with filtering by source (GPS, Cell, Wi-Fi) |
 | **CI/CD Deployment** | Automated dashboard deployment via GitHub Actions |
+| **Notecard Swapping** | Swap Notecard hardware while preserving device identity and all historical data |
 
 ## Project Structure
 
@@ -254,6 +255,31 @@ Locks the device into demo mode for demonstrations:
 - Environment variable mode changes are blocked
 - Dashboard shows green lock icon next to mode
 - Lock state persists across sleep cycles
+
+## Notecard Swapping
+
+Songbird supports swapping the Notecard hardware while preserving device identity and all historical data. This is useful when:
+
+- Replacing a faulty Notecard
+- Upgrading to a different Notecard model
+- Moving a Notecard between devices for testing
+
+### How It Works
+
+1. **Serial Number**: Each device has a stable serial number (e.g., `songbird01-bds`) that identifies it in the dashboard and APIs
+2. **Device UID**: The Notecard's unique identifier (e.g., `dev:351077454527360`) is tracked internally
+3. **Device Aliasing**: The system maintains a mapping between serial numbers and their associated device UIDs
+
+When a new Notecard sends data with an existing serial number:
+- The system detects the swap automatically
+- The old device UID is archived in the device history
+- An activity feed entry is created to record the swap
+- All historical data (telemetry, journeys, alerts, commands) is merged and accessible via the serial number
+
+### Requirements
+
+- The device firmware must set the serial number via `hub.set` with the `sn` field
+- Events without a serial number are rejected by the ingest endpoint
 
 ## Cloud-to-Device Commands
 
