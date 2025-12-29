@@ -61,17 +61,17 @@ export function GaugeCard({
   };
 
   return (
-    <Card className={cn('', className)}>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+    <Card className={cn('overflow-hidden', className)}>
+      <CardHeader className="flex flex-row items-center justify-between pb-2 px-3 sm:px-6">
+        <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
           {title}
         </CardTitle>
-        <div className="text-muted-foreground">{icon}</div>
+        <div className="text-muted-foreground flex-shrink-0">{icon}</div>
       </CardHeader>
-      <CardContent>
-        <div className={cn('text-3xl font-bold', statusColors[status])}>
+      <CardContent className="px-3 sm:px-6">
+        <div className={cn('text-2xl sm:text-3xl font-bold', statusColors[status])}>
           {value}
-          {unit && <span className="text-lg ml-1">{unit}</span>}
+          {unit && <span className="text-sm sm:text-lg ml-0.5 sm:ml-1">{unit}</span>}
         </div>
         {renderSparkline()}
       </CardContent>

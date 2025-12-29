@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MapPin, Clock, Route, Activity, Trash2 } from 'lucide-react';
+import { MapPin, Route, Trash2, Clock, Activity } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -111,7 +111,7 @@ export function JourneySelector({
 
   return (
     <>
-      <ScrollArea className="h-[400px]">
+      <ScrollArea className="h-[400px] @container">
         <div className="space-y-2 pr-4">
           {journeys.map((journey) => {
             const isSelected = selectedJourneyId === journey.journey_id;
@@ -121,7 +121,7 @@ export function JourneySelector({
             return (
               <div
                 key={journey.journey_id}
-                className={`relative w-full text-left p-3 rounded-lg border cursor-pointer transition-all duration-300 ease-out ${
+                className={`relative w-full text-left p-2 @[180px]:p-3 rounded-lg border cursor-pointer transition-all duration-300 ease-out ${
                   isBeingDeleted
                     ? 'opacity-0 scale-95 -translate-x-4 max-h-0 !p-0 !mb-0 overflow-hidden border-transparent'
                     : 'opacity-100 scale-100 translate-x-0 max-h-40'
@@ -132,26 +132,65 @@ export function JourneySelector({
                 }`}
                 onClick={() => onSelect(journey.journey_id)}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <MapPin className={`h-4 w-4 ${isActive ? 'text-green-500' : 'text-muted-foreground'}`} />
-                    <span className="font-medium">
-                      {new Date(journey.start_time).toLocaleDateString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'bg-green-500' : ''}>
+                {/* Compact layout for narrow containers */}
+                <div className="@[180px]:hidden">
+                  {/* Header row: status badge and delete button */}
+                  <div className="flex items-center justify-between gap-1 mb-1.5">
+                    <Badge variant={isActive ? 'default' : 'secondary'} className={`text-xs ${isActive ? 'bg-green-500' : ''}`}>
                       {isActive ? 'Active' : 'Completed'}
                     </Badge>
                     {canDelete && !isActive && (
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                        className="h-5 w-5 text-muted-foreground hover:text-destructive flex-shrink-0"
+                        onClick={(e) => handleDeleteClick(e, journey)}
+                        disabled={isDeleting}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Date */}
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <MapPin className={`h-3.5 w-3.5 flex-shrink-0 ${isActive ? 'text-green-500' : 'text-muted-foreground'}`} />
+                    <span className="font-medium text-sm">
+                      {new Date(journey.start_time).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </span>
+                  </div>
+
+                  {/* Stats row */}
+                  <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                    <span className="whitespace-nowrap">{formatDuration(journey.start_time, journey.end_time)}</span>
+                    <span className="text-border">·</span>
+                    <span className="whitespace-nowrap">{formatDistance(journey.total_distance)}</span>
+                    <span className="text-border">·</span>
+                    <span className="whitespace-nowrap">{journey.point_count} pts</span>
+                  </div>
+                </div>
+
+                {/* Medium layout for mid-width containers (180px - 280px) */}
+                <div className="hidden @[180px]:block @[280px]:hidden">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <MapPin className={`h-4 w-4 flex-shrink-0 ${isActive ? 'text-green-500' : 'text-muted-foreground'}`} />
+                      <span className="font-medium">
+                        {new Date(journey.start_time).toLocaleDateString(undefined, {
+                          month: '2-digit',
+                          day: '2-digit',
+                          year: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                    {canDelete && !isActive && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive flex-shrink-0"
                         onClick={(e) => handleDeleteClick(e, journey)}
                         disabled={isDeleting}
                       >
@@ -159,25 +198,81 @@ export function JourneySelector({
                       </Button>
                     )}
                   </div>
+                  <div className="mb-2">
+                    <Badge variant={isActive ? 'default' : 'secondary'} className={`text-xs ${isActive ? 'bg-green-500' : ''}`}>
+                      {isActive ? 'Active' : 'Completed'}
+                    </Badge>
+                  </div>
+
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3 flex-shrink-0" />
+                      <span className="whitespace-nowrap">{formatDuration(journey.start_time, journey.end_time)}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Route className="h-3 w-3 flex-shrink-0" />
+                      <span className="whitespace-nowrap">{formatDistance(journey.total_distance)}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Activity className="h-3 w-3 flex-shrink-0" />
+                      <span className="whitespace-nowrap">{journey.point_count} points</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-1.5 text-xs text-muted-foreground truncate">
+                    Started {formatRelativeTime(new Date(journey.start_time))}
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    <span>{formatDuration(journey.start_time, journey.end_time)}</span>
+                {/* Full layout for wide containers (>= 280px) */}
+                <div className="hidden @[280px]:block">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <MapPin className={`h-4 w-4 flex-shrink-0 ${isActive ? 'text-green-500' : 'text-muted-foreground'}`} />
+                      <span className="font-medium truncate">
+                        {new Date(journey.start_time).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <Badge variant={isActive ? 'default' : 'secondary'} className={`text-xs ${isActive ? 'bg-green-500' : ''}`}>
+                        {isActive ? 'Active' : 'Completed'}
+                      </Badge>
+                      {canDelete && !isActive && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive flex-shrink-0"
+                          onClick={(e) => handleDeleteClick(e, journey)}
+                          disabled={isDeleting}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Route className="h-3 w-3" />
-                    <span>{formatDistance(journey.total_distance)}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Activity className="h-3 w-3" />
-                    <span>{journey.point_count} points</span>
-                  </div>
-                </div>
 
-                <div className="mt-2 text-xs text-muted-foreground">
-                  Started {formatRelativeTime(new Date(journey.start_time))}
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3 flex-shrink-0" />
+                      <span className="whitespace-nowrap">{formatDuration(journey.start_time, journey.end_time)}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Route className="h-3 w-3 flex-shrink-0" />
+                      <span className="whitespace-nowrap">{formatDistance(journey.total_distance)}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Activity className="h-3 w-3 flex-shrink-0" />
+                      <span className="whitespace-nowrap">{journey.point_count} points</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-1.5 text-xs text-muted-foreground truncate">
+                    Started {formatRelativeTime(new Date(journey.start_time))}
+                  </div>
                 </div>
               </div>
             );

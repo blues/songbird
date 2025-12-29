@@ -348,7 +348,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
           </Card>
 
           {/* Current Readings */}
-          <div className="grid gap-4 md:grid-cols-4 mb-6">
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 mb-6">
             <GaugeCard
               title="Temperature"
               value={convertTemperature(latestTelemetry?.temperature, tempUnit)?.toFixed(1) || '--'}
@@ -400,35 +400,35 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
           </div>
 
           {/* Historical Charts */}
-          <Card className="mb-6">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Historical Data</CardTitle>
-              <div className="flex gap-4">
+          <Card className="mb-6 overflow-hidden">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="whitespace-nowrap">Historical Data</CardTitle>
+              <div className="flex flex-wrap gap-2 sm:gap-4">
                 <Tabs value={chartTab} onValueChange={setChartTab}>
-                  <TabsList>
-                    <TabsTrigger value="telemetry">
+                  <TabsList className="h-auto flex-wrap">
+                    <TabsTrigger value="telemetry" className="text-xs sm:text-sm">
                       <Thermometer className="h-3 w-3 mr-1" />
                       Telemetry
                     </TabsTrigger>
-                    <TabsTrigger value="power">
+                    <TabsTrigger value="power" className="text-xs sm:text-sm">
                       <Zap className="h-3 w-3 mr-1" />
                       Power
                     </TabsTrigger>
-                    <TabsTrigger value="health">
+                    <TabsTrigger value="health" className="text-xs sm:text-sm">
                       <Activity className="h-3 w-3 mr-1" />
                       Health
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
                 <Tabs value={String(effectiveTimeRange)} onValueChange={(v) => setTimeRange(Number(v))}>
-                  <TabsList>
-                    <TabsTrigger value="1">1h</TabsTrigger>
-                    <TabsTrigger value="4">4h</TabsTrigger>
-                    <TabsTrigger value="8">8h</TabsTrigger>
-                    <TabsTrigger value="12">12h</TabsTrigger>
-                    <TabsTrigger value="24">24h</TabsTrigger>
-                    <TabsTrigger value="48">48h</TabsTrigger>
-                    <TabsTrigger value="168">7d</TabsTrigger>
+                  <TabsList className="h-auto flex-wrap">
+                    <TabsTrigger value="1" className="text-xs sm:text-sm px-2 sm:px-3">1h</TabsTrigger>
+                    <TabsTrigger value="4" className="text-xs sm:text-sm px-2 sm:px-3">4h</TabsTrigger>
+                    <TabsTrigger value="8" className="text-xs sm:text-sm px-2 sm:px-3">8h</TabsTrigger>
+                    <TabsTrigger value="12" className="text-xs sm:text-sm px-2 sm:px-3">12h</TabsTrigger>
+                    <TabsTrigger value="24" className="text-xs sm:text-sm px-2 sm:px-3">24h</TabsTrigger>
+                    <TabsTrigger value="48" className="text-xs sm:text-sm px-2 sm:px-3">48h</TabsTrigger>
+                    <TabsTrigger value="168" className="text-xs sm:text-sm px-2 sm:px-3">7d</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
