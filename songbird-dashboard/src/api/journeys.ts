@@ -2,7 +2,7 @@
  * Journeys API
  */
 
-import { apiGet, apiPost } from './client';
+import { apiGet, apiPost, apiDelete } from './client';
 import type { JourneysResponse, JourneyDetailResponse, LocationHistoryResponse, MapMatchResponse } from '@/types';
 
 /**
@@ -55,4 +55,14 @@ export async function getLocationHistoryFull(
     params.source = source;
   }
   return apiGet<LocationHistoryResponse>(`/v1/devices/${deviceUid}/locations`, params);
+}
+
+/**
+ * Delete a journey and all its location points (admin/owner only)
+ */
+export async function deleteJourney(
+  deviceUid: string,
+  journeyId: number
+): Promise<{ message: string; journey_id: number; points_deleted: number }> {
+  return apiDelete(`/v1/devices/${deviceUid}/journeys/${journeyId}`);
 }

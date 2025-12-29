@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getJourneys, getJourneyDetail, getLocationHistoryFull, matchJourney } from '@/api/journeys';
+import { getJourneys, getJourneyDetail, getLocationHistoryFull, matchJourney, deleteJourney } from '@/api/journeys';
 
 /**
  * Hook to fetch all journeys for a device
@@ -82,6 +82,25 @@ export function useMapMatch(deviceUid: string, journeyId: number | null) {
     onSuccess: () => {
       // Invalidate the journey detail query to refetch with matched_route
       queryClient.invalidateQueries({ queryKey: ['journey', deviceUid, journeyId] });
+    },
+  });
+}
+
+/**
+ * Hook to delete a journey (admin/owner only)
+ * Deletes the journey and all associated location points
+ */
+export function useDeleteJourney() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ deviceUid, journeyId }: { deviceUid: string; journeyId: number }) =>
+      deleteJourney(deviceUid, journeyId),
+    onSuccess: (_, { deviceUid }) => {
+      // Invalidate journeys list to refetch
+      queryClient.invalidateQueries({ queryKey: ['journeys', deviceUid] });
+      // Also invalidate location history since points were deleted
+      queryClient.invalidateQueries({ queryKey: ['locations', deviceUid] });
     },
   });
 }

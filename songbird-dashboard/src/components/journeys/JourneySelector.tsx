@@ -1,6 +1,16 @@
-import { MapPin, Clock, Route, Activity } from 'lucide-react';
+import { useState } from 'react';
+import { MapPin, Clock, Route, Activity, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { formatRelativeTime } from '@/utils/formatters';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import type { Journey } from '@/types';
@@ -10,6 +20,9 @@ interface JourneySelectorProps {
   selectedJourneyId: number | null;
   onSelect: (journeyId: number) => void;
   isLoading?: boolean;
+  canDelete?: boolean;
+  onDelete?: (journeyId: number) => void;
+  isDeleting?: boolean;
 }
 
 export function JourneySelector({
@@ -17,8 +30,13 @@ export function JourneySelector({
   selectedJourneyId,
   onSelect,
   isLoading,
+  canDelete = false,
+  onDelete,
+  isDeleting = false,
 }: JourneySelectorProps) {
   const { preferences } = usePreferences();
+  const [journeyToDelete, setJourneyToDelete] = useState<Journey | null>(null);
+  const [deletingJourneyId, setDeletingJourneyId] = useState<number | null>(null);
 
   // Format distance for display (respects distance_unit preference)
   const formatDistance = (meters: number) => {
@@ -73,61 +91,125 @@ export function JourneySelector({
     );
   }
 
+  const handleDeleteClick = (e: React.MouseEvent, journey: Journey) => {
+    e.stopPropagation(); // Prevent selecting the journey
+    setJourneyToDelete(journey);
+  };
+
+  const handleConfirmDelete = () => {
+    if (journeyToDelete && onDelete) {
+      const journeyId = journeyToDelete.journey_id;
+      setJourneyToDelete(null);
+      setDeletingJourneyId(journeyId);
+      // Wait for animation to complete before actually deleting
+      setTimeout(() => {
+        onDelete(journeyId);
+        setDeletingJourneyId(null);
+      }, 300);
+    }
+  };
+
   return (
-    <ScrollArea className="h-[400px]">
-      <div className="space-y-2 pr-4">
-        {journeys.map((journey) => {
-          const isSelected = selectedJourneyId === journey.journey_id;
-          const isActive = journey.status === 'active';
+    <>
+      <ScrollArea className="h-[400px]">
+        <div className="space-y-2 pr-4">
+          {journeys.map((journey) => {
+            const isSelected = selectedJourneyId === journey.journey_id;
+            const isActive = journey.status === 'active';
+            const isBeingDeleted = deletingJourneyId === journey.journey_id;
 
-          return (
-            <button
-              key={journey.journey_id}
-              onClick={() => onSelect(journey.journey_id)}
-              className={`w-full text-left p-3 rounded-lg border transition-colors ${
-                isSelected
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border hover:bg-muted/50'
-              }`}
+            return (
+              <div
+                key={journey.journey_id}
+                className={`relative w-full text-left p-3 rounded-lg border cursor-pointer transition-all duration-300 ease-out ${
+                  isBeingDeleted
+                    ? 'opacity-0 scale-95 -translate-x-4 max-h-0 !p-0 !mb-0 overflow-hidden border-transparent'
+                    : 'opacity-100 scale-100 translate-x-0 max-h-40'
+                } ${
+                  isSelected
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:bg-muted/50'
+                }`}
+                onClick={() => onSelect(journey.journey_id)}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <MapPin className={`h-4 w-4 ${isActive ? 'text-green-500' : 'text-muted-foreground'}`} />
+                    <span className="font-medium">
+                      {new Date(journey.start_time).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'bg-green-500' : ''}>
+                      {isActive ? 'Active' : 'Completed'}
+                    </Badge>
+                    {canDelete && !isActive && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                        onClick={(e) => handleDeleteClick(e, journey)}
+                        disabled={isDeleting}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    <span>{formatDuration(journey.start_time, journey.end_time)}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Route className="h-3 w-3" />
+                    <span>{formatDistance(journey.total_distance)}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Activity className="h-3 w-3" />
+                    <span>{journey.point_count} points</span>
+                  </div>
+                </div>
+
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Started {formatRelativeTime(new Date(journey.start_time))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </ScrollArea>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!journeyToDelete} onOpenChange={(open: boolean) => !open && setJourneyToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Journey</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this journey from{' '}
+              {journeyToDelete && new Date(journeyToDelete.start_time).toLocaleDateString()}?
+              This will permanently remove the journey and all {journeyToDelete?.point_count || 0} location points.
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setJourneyToDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
             >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <MapPin className={`h-4 w-4 ${isActive ? 'text-green-500' : 'text-muted-foreground'}`} />
-                  <span className="font-medium">
-                    {new Date(journey.start_time).toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </span>
-                </div>
-                <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'bg-green-500' : ''}>
-                  {isActive ? 'Active' : 'Completed'}
-                </Badge>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  <span>{formatDuration(journey.start_time, journey.end_time)}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Route className="h-3 w-3" />
-                  <span>{formatDistance(journey.total_distance)}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Activity className="h-3 w-3" />
-                  <span>{journey.point_count} points</span>
-                </div>
-              </div>
-
-              <div className="mt-2 text-xs text-muted-foreground">
-                Started {formatRelativeTime(new Date(journey.start_time))}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </ScrollArea>
+              Delete Journey
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

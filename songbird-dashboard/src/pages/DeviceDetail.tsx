@@ -15,9 +15,11 @@ import { ConfigPanel } from '@/components/config/ConfigPanel';
 import { JourneyMap, JourneySelector, LocationHistoryTable } from '@/components/journeys';
 import { useDevice } from '@/hooks/useDevices';
 import { useTelemetry, useLocationHistory, usePowerHistory, useHealthHistory } from '@/hooks/useTelemetry';
-import { useJourneys, useJourneyDetail, useLocationHistoryFull, useLatestJourney, useMapMatch } from '@/hooks/useJourneys';
+import { useJourneys, useJourneyDetail, useLocationHistoryFull, useLatestJourney, useMapMatch, useDeleteJourney } from '@/hooks/useJourneys';
 import { useCommands } from '@/hooks/useCommands';
 import { useDeviceAlerts, useAcknowledgeAlert } from '@/hooks/useAlerts';
+import { useIsAdmin } from '@/hooks/useAuth';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import {
   formatBattery,
@@ -112,6 +114,20 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const { data: locationHistoryData, isLoading: locationHistoryLoading } = useLocationHistoryFull(deviceUid!, effectiveTimeRange);
   const { data: latestJourney } = useLatestJourney(deviceUid!);
   const mapMatchMutation = useMapMatch(deviceUid!, selectedJourneyId);
+  const deleteJourneyMutation = useDeleteJourney();
+
+  // Check if user can delete journeys (admin or device owner)
+  const { isAdmin } = useIsAdmin();
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchAuthSession().then((session) => {
+      const email = session.tokens?.idToken?.payload?.email as string | undefined;
+      setCurrentUserEmail(email || null);
+    }).catch(() => setCurrentUserEmail(null));
+  }, []);
+
+  const canDeleteJourneys = isAdmin || (currentUserEmail && device?.assigned_to === currentUserEmail);
 
   const telemetry = telemetryData?.telemetry || [];
   const alerts = alertsData?.alerts || [];
@@ -225,13 +241,13 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                       <MapPin className="h-3 w-3 mr-1" />
                       Current
                     </TabsTrigger>
-                    <TabsTrigger value="history">
-                      <Clock className="h-3 w-3 mr-1" />
-                      History
-                    </TabsTrigger>
                     <TabsTrigger value="journeys">
                       <Route className="h-3 w-3 mr-1" />
                       Journeys
+                    </TabsTrigger>
+                    <TabsTrigger value="history">
+                      <Clock className="h-3 w-3 mr-1" />
+                      History
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -289,6 +305,15 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                       selectedJourneyId={selectedJourneyId}
                       onSelect={setSelectedJourneyId}
                       isLoading={journeysLoading}
+                      canDelete={!!canDeleteJourneys}
+                      onDelete={(journeyId) => {
+                        deleteJourneyMutation.mutate({ deviceUid: deviceUid!, journeyId });
+                        // Clear selection if we deleted the selected journey
+                        if (selectedJourneyId === journeyId) {
+                          setSelectedJourneyId(null);
+                        }
+                      }}
+                      isDeleting={deleteJourneyMutation.isPending}
                     />
                   </div>
                   <div className="lg:col-span-3">

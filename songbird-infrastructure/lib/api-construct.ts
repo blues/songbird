@@ -312,13 +312,15 @@ export class ApiConstruct extends Construct {
       environment: {
         JOURNEYS_TABLE: props.journeysTable.tableName,
         LOCATIONS_TABLE: props.locationsTable.tableName,
+        DEVICES_TABLE: props.devicesTable.tableName,
         MAPBOX_TOKEN: 'pk.eyJ1IjoiYnJhbmRvbnNhdHJvbSIsImEiOiJjbWphb2oyaW8wN2k3M3Bwd3lrdnpjOHhtIn0.Syc0GM_ia3Dz7HreQ6-ImQ',
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
     });
-    props.journeysTable.grantReadWriteData(journeysFunction); // Need write for matched_route
-    props.locationsTable.grantReadData(journeysFunction);
+    props.journeysTable.grantReadWriteData(journeysFunction); // Need write for matched_route and delete
+    props.locationsTable.grantReadWriteData(journeysFunction); // Need write for cascade delete
+    props.devicesTable.grantReadData(journeysFunction); // Need read for owner check
 
     // ==========================================================================
     // HTTP API Gateway
@@ -624,7 +626,7 @@ export class ApiConstruct extends Construct {
 
     this.api.addRoutes({
       path: '/v1/devices/{device_uid}/journeys/{journey_id}',
-      methods: [apigateway.HttpMethod.GET],
+      methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.DELETE],
       integration: journeysIntegration,
       authorizer,
     });

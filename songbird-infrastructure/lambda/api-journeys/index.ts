@@ -4,19 +4,21 @@
  * Handles journey and location history queries:
  * - GET /devices/{device_uid}/journeys - List all journeys for a device
  * - GET /devices/{device_uid}/journeys/{journey_id} - Get journey details with points
+ * - DELETE /devices/{device_uid}/journeys/{journey_id} - Delete a journey (admin/owner only)
  * - GET /devices/{device_uid}/locations - Get location history
  * - POST /devices/{device_uid}/journeys/{journey_id}/match - Trigger map matching
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { DynamoDBDocumentClient, QueryCommand, UpdateCommand, DeleteCommand, GetCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { APIGatewayProxyEvent, APIGatewayProxyEventV2, APIGatewayProxyResult } from 'aws-lambda';
 
 const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient);
 
 const JOURNEYS_TABLE = process.env.JOURNEYS_TABLE!;
 const LOCATIONS_TABLE = process.env.LOCATIONS_TABLE!;
+const DEVICES_TABLE = process.env.DEVICES_TABLE!;
 const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN;
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -25,7 +27,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
   };
 
   try {
@@ -56,6 +58,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // POST /devices/{device_uid}/journeys/{journey_id}/match - Map matching
     if (path.endsWith('/match') && method === 'POST' && journeyId) {
       return await matchJourney(deviceUid, parseInt(journeyId), corsHeaders);
+    }
+
+    // DELETE /devices/{device_uid}/journeys/{journey_id} - Delete journey (admin/owner only)
+    if (method === 'DELETE' && journeyId) {
+      return await deleteJourney(deviceUid, parseInt(journeyId), event, corsHeaders);
     }
 
     // GET /devices/{device_uid}/journeys/{journey_id} - Single journey with points
@@ -407,6 +414,176 @@ async function getLocationHistory(
       hours,
       count: locations.length,
       locations,
+    }),
+  };
+}
+
+/**
+ * Check if the user is an admin (in 'Admin' Cognito group)
+ */
+function isAdmin(event: APIGatewayProxyEvent): boolean {
+  try {
+    const claims = (event.requestContext as any)?.authorizer?.jwt?.claims;
+    if (!claims) return false;
+
+    const groups = claims['cognito:groups'];
+    if (Array.isArray(groups)) {
+      return groups.includes('Admin');
+    }
+    if (typeof groups === 'string') {
+      return groups === 'Admin' || groups.includes('Admin');
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get the user's email from the JWT claims
+ */
+function getUserEmail(event: APIGatewayProxyEvent): string | undefined {
+  try {
+    const claims = (event.requestContext as any)?.authorizer?.jwt?.claims;
+    return claims?.email;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Check if the user owns the device (is assigned to it)
+ */
+async function isDeviceOwner(deviceUid: string, userEmail: string): Promise<boolean> {
+  const command = new GetCommand({
+    TableName: DEVICES_TABLE,
+    Key: { device_uid: deviceUid },
+    ProjectionExpression: 'assigned_to',
+  });
+
+  const result = await docClient.send(command);
+  return result.Item?.assigned_to === userEmail;
+}
+
+/**
+ * Delete a journey and all its location points (admin/owner only)
+ */
+async function deleteJourney(
+  deviceUid: string,
+  journeyId: number,
+  event: APIGatewayProxyEvent,
+  headers: Record<string, string>
+): Promise<APIGatewayProxyResult> {
+  // Authorization check: must be admin or device owner
+  const userEmail = getUserEmail(event);
+  const admin = isAdmin(event);
+
+  if (!admin) {
+    if (!userEmail) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Unauthorized' }),
+      };
+    }
+
+    const owner = await isDeviceOwner(deviceUid, userEmail);
+    if (!owner) {
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({ error: 'Admin or device owner access required' }),
+      };
+    }
+  }
+
+  // Verify the journey exists
+  const journeyCommand = new QueryCommand({
+    TableName: JOURNEYS_TABLE,
+    KeyConditionExpression: 'device_uid = :device_uid AND journey_id = :journey_id',
+    ExpressionAttributeValues: {
+      ':device_uid': deviceUid,
+      ':journey_id': journeyId,
+    },
+  });
+
+  const journeyResult = await docClient.send(journeyCommand);
+
+  if (!journeyResult.Items || journeyResult.Items.length === 0) {
+    return {
+      statusCode: 404,
+      headers,
+      body: JSON.stringify({ error: 'Journey not found' }),
+    };
+  }
+
+  // Get all location points for this journey to delete them
+  const pointsCommand = new QueryCommand({
+    TableName: LOCATIONS_TABLE,
+    IndexName: 'journey-index',
+    KeyConditionExpression: 'device_uid = :device_uid AND journey_id = :journey_id',
+    ExpressionAttributeValues: {
+      ':device_uid': deviceUid,
+      ':journey_id': journeyId,
+    },
+    ProjectionExpression: 'device_uid, #ts',
+    ExpressionAttributeNames: {
+      '#ts': 'timestamp',
+    },
+  });
+
+  const pointsResult = await docClient.send(pointsCommand);
+  const locationPoints = pointsResult.Items || [];
+
+  // Delete location points in batches of 25 (DynamoDB BatchWrite limit)
+  if (locationPoints.length > 0) {
+    const batches = [];
+    for (let i = 0; i < locationPoints.length; i += 25) {
+      const batch = locationPoints.slice(i, i + 25);
+      batches.push(batch);
+    }
+
+    for (const batch of batches) {
+      const deleteRequests = batch.map((point) => ({
+        DeleteRequest: {
+          Key: {
+            device_uid: point.device_uid,
+            timestamp: point.timestamp,
+          },
+        },
+      }));
+
+      const batchCommand = new BatchWriteCommand({
+        RequestItems: {
+          [LOCATIONS_TABLE]: deleteRequests,
+        },
+      });
+
+      await docClient.send(batchCommand);
+    }
+
+    console.log(`Deleted ${locationPoints.length} location points for journey ${journeyId}`);
+  }
+
+  // Delete the journey record
+  const deleteCommand = new DeleteCommand({
+    TableName: JOURNEYS_TABLE,
+    Key: {
+      device_uid: deviceUid,
+      journey_id: journeyId,
+    },
+  });
+
+  await docClient.send(deleteCommand);
+  console.log(`Deleted journey ${journeyId} for device ${deviceUid}`);
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      message: 'Journey deleted',
+      journey_id: journeyId,
+      points_deleted: locationPoints.length,
     }),
   };
 }

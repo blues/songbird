@@ -103,6 +103,7 @@ export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMat
   const [showMatchedRoute, setShowMatchedRoute] = useState(true);
 
   const mapRef = useRef<MapRef>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
   const [hasTriggeredMatch, setHasTriggeredMatch] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -244,7 +245,7 @@ export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMat
 
   // Fit map to journey when data loads
   const fitMapToJourney = useCallback(() => {
-    if (!mapRef.current || !bounds) return;
+    if (!mapRef.current || !bounds || !mapLoaded) return;
 
     const hasSpread =
       bounds.maxLat - bounds.minLat > 0.001 ||
@@ -265,12 +266,36 @@ export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMat
         duration: 1000,
       });
     }
-  }, [bounds]);
+  }, [bounds, mapLoaded]);
 
   // Track previous points to detect journey changes
   const prevPointsRef = useRef<JourneyPoint[]>([]);
+  const lastFitBoundsRef = useRef<string>('');
 
-  // Reset state and fit map when journey changes (points array changes)
+  // Handle map load
+  const handleMapLoad = useCallback(() => {
+    setMapLoaded(true);
+  }, []);
+
+  // Fit map when it loads or when journey changes
+  useEffect(() => {
+    if (!mapLoaded || !bounds || points.length === 0) return;
+
+    // Create a unique key for the current bounds to avoid redundant fits
+    const boundsKey = `${bounds.minLat.toFixed(6)},${bounds.maxLat.toFixed(6)},${bounds.minLon.toFixed(6)},${bounds.maxLon.toFixed(6)}`;
+
+    // Only fit if bounds have changed
+    if (boundsKey !== lastFitBoundsRef.current) {
+      lastFitBoundsRef.current = boundsKey;
+      // Small delay to ensure the map is fully ready
+      const timer = setTimeout(() => {
+        fitMapToJourney();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [mapLoaded, bounds, points.length, fitMapToJourney]);
+
+  // Reset state when journey changes (points array changes)
   useEffect(() => {
     // Check if this is a new journey (different points array)
     const pointsChanged = points !== prevPointsRef.current && points.length > 0;
@@ -283,15 +308,9 @@ export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMat
       setSelectedPointIndex(null);
       setHasTriggeredMatch(false);
 
-      // Fit map to new journey after a short delay to ensure map is ready
-      const timer = setTimeout(() => {
-        fitMapToJourney();
-      }, 150);
-
       prevPointsRef.current = points;
-      return () => clearTimeout(timer);
     }
-  }, [points, fitMapToJourney]);
+  }, [points]);
 
   // Auto-trigger map matching when journey loads
   useEffect(() => {
@@ -542,6 +561,7 @@ export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMat
           style={{ width: '100%', height: '100%' }}
           mapStyle={mapStyle}
           mapboxAccessToken={mapboxToken}
+          onLoad={handleMapLoad}
         >
           <NavigationControl position="top-right" />
 
