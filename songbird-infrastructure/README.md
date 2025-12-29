@@ -266,6 +266,7 @@ Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com`
 |--------|------|-------------|
 | GET | `/v1/devices/{device_uid}/journeys` | List all journeys for device |
 | GET | `/v1/devices/{device_uid}/journeys/{journey_id}` | Get journey details with all points |
+| DELETE | `/v1/devices/{device_uid}/journeys/{journey_id}` | Delete journey and all points (Admin or device owner) |
 | POST | `/v1/devices/{device_uid}/journeys/{journey_id}/match` | Snap journey to roads via Mapbox Map Matching |
 | GET | `/v1/devices/{device_uid}/locations` | Get full location history (all sources) |
 

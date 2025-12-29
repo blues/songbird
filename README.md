@@ -80,6 +80,7 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
 | **Transit Lock** | Double-click button to lock device in transit mode for shipping |
 | **Journey Tracking** | Record and playback GPS journeys with velocity and bearing data |
 | **Location History** | View all location events with filtering by source (GPS, Cell, Wi-Fi) |
+| **CI/CD Deployment** | Automated dashboard deployment via GitHub Actions |
 
 ## Project Structure
 
@@ -224,6 +225,7 @@ The dashboard provides:
   - Toggle between snapped and raw GPS views
   - Info overlay panel showing current point details
   - Reset button to return to journey start
+- **Journey deletion**: Admin or device owner can delete journeys and all associated location points
 - **Location history**: View all location events from any source with filtering
 - **User preferences**: Distance units (km/miles) and temperature units (°C/°F) affect all displays
 
@@ -233,11 +235,11 @@ The user button supports three functions:
 
 | Action | Result |
 |--------|--------|
-| **Single-click** | Toggle audio mute |
-| **Double-click** | Toggle transit lock (amber badge) |
-| **Triple-click** | Toggle demo lock (green badge) |
+| **Single-click** | Toggle transit lock (amber badge) |
+| **Double-click** | Toggle demo lock (green badge) |
+| **Triple-click** | Toggle audio mute |
 
-### Transit Lock (Double-click)
+### Transit Lock (Single-click)
 
 Locks the device into transit mode for shipping:
 - Saves current mode, switches to transit mode with GPS tracking
@@ -245,7 +247,7 @@ Locks the device into transit mode for shipping:
 - Dashboard shows amber lock icon next to mode
 - Lock state persists across sleep cycles
 
-### Demo Lock (Triple-click)
+### Demo Lock (Double-click)
 
 Locks the device into demo mode for demonstrations:
 - Saves current mode, switches to demo mode with continuous sync

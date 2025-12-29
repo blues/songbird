@@ -17,6 +17,9 @@ React-based fleet management dashboard for the Songbird sales demo platform.
 - User profile management with editable display name
 - User preferences (temperature units, time format, distance units, map style, default time range)
 - Journey playback with Mapbox road-snapping for smooth route visualization
+- Journey deletion (Admin/device owner only)
+- Responsive UI with container queries for adaptive layouts
+- GitHub Actions CI/CD for automated deployments
 
 ## Technology Stack
 
@@ -145,24 +148,48 @@ npm run preview
 
 ## Deployment
 
-The dashboard is deployed to S3 and served via CloudFront. After building:
+### Automated Deployment (GitHub Actions)
 
-1. **Deploy to S3:**
+The dashboard is automatically deployed to S3/CloudFront via GitHub Actions when changes are pushed to the `main` branch in the `songbird-dashboard/` directory.
+
+**Required GitHub Secrets:**
+
+| Secret | Description |
+|--------|-------------|
+| `AWS_ACCESS_KEY_ID` | AWS credentials for S3/CloudFront access |
+| `AWS_SECRET_ACCESS_KEY` | AWS credentials for S3/CloudFront access |
+| `API_URL` | API Gateway URL (e.g., `https://xxx.execute-api.us-east-1.amazonaws.com`) |
+| `USER_POOL_ID` | Cognito User Pool ID |
+| `USER_POOL_CLIENT_ID` | Cognito User Pool Client ID |
+| `MAPBOX_TOKEN` | Mapbox access token |
+
+The workflow creates `config.json` from these secrets during build.
+
+### Manual Deployment
+
+For manual deployments:
+
+1. **Create config.json:**
+   ```bash
+   cp public/config.json.example public/config.json
+   # Edit with your values
+   ```
+
+2. **Build:**
+   ```bash
+   npm run build
+   ```
+
+3. **Deploy to S3:**
    ```bash
    aws s3 sync dist/ s3://songbird-dashboard-ACCOUNT_ID/ --delete
    ```
 
-2. **Invalidate CloudFront cache:**
+4. **Invalidate CloudFront cache:**
    ```bash
    aws cloudfront create-invalidation \
      --distribution-id DISTRIBUTION_ID \
      --paths "/*"
-   ```
-
-3. **Generate config.json from stack outputs:**
-   ```bash
-   # The infrastructure stack outputs the config as DashboardConfig
-   # Copy this to your S3 bucket as config.json
    ```
 
 ## Views
@@ -171,16 +198,23 @@ The dashboard is deployed to S3 and served via CloudFront. After building:
 
 The main dashboard shows:
 - Summary statistics (total devices, online/offline, alerts)
-- Fleet map with device markers
+- Fleet map with device markers (click "See All" to open full-screen map)
 - Recent activity feed showing:
   - ⚠️ Alerts (temperature, humidity, battery, motion)
   - 💓 Health events (boot, reboot, sync, USB connection)
   - 📡 Commands (ping, locate, play_melody with status)
   - 🗺️ Journey start/end events (with distance for completed journeys)
   - 🔄 Mode changes (Demo → Transit, etc.)
-- Device card grid
+- Device list with status indicators
 
-### Fleet Map
+### Devices List
+
+Dedicated devices view with:
+- Fleet filter dropdown to filter by fleet
+- Search filter to find devices by name, serial number, or location
+- Device cards showing status, location, and quick actions
+
+### Fleet Map (`/map`)
 
 Full-screen map view with:
 - **Collapsible device drawer** (left side):
@@ -209,6 +243,8 @@ Individual device view includes:
     - Toggle between snapped and raw GPS views
     - Info overlay panel showing current point details (coordinates, speed, heading, accuracy)
     - Journey cards show distance in user's preferred unit (km or miles)
+    - **Delete journeys** (Admin or device owner only) with confirmation dialog
+    - Responsive card layout adapts to available space
 - Real-time gauges (temperature, humidity, pressure, battery)
 - Historical telemetry charts (24h, 7d, 30d)
 - Power monitoring charts (Mojo voltage, temperature, mAh)
@@ -320,6 +356,7 @@ The dashboard communicates with the Songbird API via:
 ### Journeys & Location History
 - `GET /v1/devices/{uid}/journeys` - List all journeys for a device
 - `GET /v1/devices/{uid}/journeys/{journey_id}` - Get journey details with all points
+- `DELETE /v1/devices/{uid}/journeys/{journey_id}` - Delete a journey (Admin or device owner only)
 - `POST /v1/devices/{uid}/journeys/{journey_id}/match` - Trigger Mapbox road-snapping for a journey
 - `GET /v1/devices/{uid}/locations` - Get full location history (all sources)
 
