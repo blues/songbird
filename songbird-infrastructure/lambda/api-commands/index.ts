@@ -4,8 +4,8 @@
  * Sends commands to devices via Notehub API:
  * - GET /v1/commands - Get all commands across devices
  * - DELETE /v1/commands/{command_id} - Delete a command
- * - POST /devices/{device_uid}/commands - Send command to device
- * - GET /devices/{device_uid}/commands - Get command history for a device
+ * - POST /devices/{serial_number}/commands - Send command to device (routes to current Notecard)
+ * - GET /devices/{serial_number}/commands - Get command history for a device (merged from all Notecards)
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -20,6 +20,7 @@ import {
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { randomUUID } from 'crypto';
+import { resolveDevice } from '../shared/device-lookup';
 
 const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient);
@@ -96,21 +97,33 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     // Handle device-specific commands endpoints
-    const deviceUid = event.pathParameters?.device_uid;
-    if (!deviceUid) {
+    const serialNumber = event.pathParameters?.serial_number;
+    if (!serialNumber) {
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'device_uid required' }),
+        body: JSON.stringify({ error: 'serial_number required' }),
+      };
+    }
+
+    // Resolve serial_number to device info
+    const resolved = await resolveDevice(serialNumber);
+    if (!resolved) {
+      return {
+        statusCode: 404,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Device not found' }),
       };
     }
 
     if (method === 'POST') {
-      return await sendCommand(deviceUid, event.body, corsHeaders);
+      // Send command to the CURRENT device_uid (the active Notecard)
+      return await sendCommand(resolved.device_uid, resolved.serial_number, event.body, corsHeaders);
     }
 
     if (method === 'GET') {
-      return await getCommandHistory(deviceUid, corsHeaders);
+      // Get command history from ALL device_uids (merged across Notecard swaps)
+      return await getCommandHistory(resolved.serial_number, resolved.all_device_uids, corsHeaders);
     }
 
     return {
@@ -130,6 +143,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
 async function sendCommand(
   deviceUid: string,
+  serialNumber: string,
   body: string | null,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
@@ -168,7 +182,7 @@ async function sendCommand(
     sent_at: now,
   };
 
-  // Send to Notehub API
+  // Send to Notehub API (using the current device_uid for the active Notecard)
   try {
     const notehubToken = await getNotehubToken();
     const notehubResponse = await fetch(
@@ -197,14 +211,15 @@ async function sendCommand(
       };
     }
 
-    // Store command in history
-    await storeCommand(deviceUid, commandId, cmd, params, now);
+    // Store command in history (include serial_number for reference)
+    await storeCommand(deviceUid, serialNumber, commandId, cmd, params, now);
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         command_id: commandId,
+        serial_number: serialNumber,
         device_uid: deviceUid,
         cmd,
         params: params || {},
@@ -227,6 +242,7 @@ async function sendCommand(
 
 async function storeCommand(
   deviceUid: string,
+  serialNumber: string,
   commandId: string,
   cmd: string,
   params: any,
@@ -236,6 +252,7 @@ async function storeCommand(
     TableName: COMMANDS_TABLE,
     Item: {
       device_uid: deviceUid,
+      serial_number: serialNumber,
       command_id: commandId,
       cmd,
       params: params || {},
@@ -250,28 +267,41 @@ async function storeCommand(
 }
 
 async function getCommandHistory(
-  deviceUid: string,
+  serialNumber: string,
+  deviceUids: string[],
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
-  const command = new QueryCommand({
-    TableName: COMMANDS_TABLE,
-    IndexName: 'device-created-index',
-    KeyConditionExpression: 'device_uid = :device_uid',
-    ExpressionAttributeValues: {
-      ':device_uid': deviceUid,
-    },
-    ScanIndexForward: false, // Most recent first (by created_at)
-    Limit: 50,
+  // Query all device_uids in parallel to get merged command history
+  const queryPromises = deviceUids.map(async (deviceUid) => {
+    const command = new QueryCommand({
+      TableName: COMMANDS_TABLE,
+      IndexName: 'device-created-index',
+      KeyConditionExpression: 'device_uid = :device_uid',
+      ExpressionAttributeValues: {
+        ':device_uid': deviceUid,
+      },
+      ScanIndexForward: false,
+      Limit: 50,
+    });
+
+    const result = await docClient.send(command);
+    return result.Items || [];
   });
 
-  const result = await docClient.send(command);
+  const allResults = await Promise.all(queryPromises);
+
+  // Merge and sort by created_at (most recent first)
+  const mergedCommands = allResults
+    .flat()
+    .sort((a, b) => b.created_at - a.created_at)
+    .slice(0, 50); // Limit to 50 total
 
   return {
     statusCode: 200,
     headers,
     body: JSON.stringify({
-      device_uid: deviceUid,
-      commands: result.Items || [],
+      serial_number: serialNumber,
+      commands: mergedCommands,
     }),
   };
 }

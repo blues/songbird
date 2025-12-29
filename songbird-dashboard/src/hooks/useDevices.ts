@@ -21,13 +21,13 @@ export function useDevices(fleetUid?: string) {
 /**
  * Hook to fetch a single device
  */
-export function useDevice(deviceUid: string) {
+export function useDevice(serialNumber: string) {
   return useQuery({
-    queryKey: ['device', deviceUid],
-    queryFn: () => getDevice(deviceUid),
+    queryKey: ['device', serialNumber],
+    queryFn: () => getDevice(serialNumber),
     refetchInterval: 30_000, // Poll every 30 seconds
     staleTime: 15_000,
-    enabled: !!deviceUid,
+    enabled: !!serialNumber,
   });
 }
 
@@ -39,14 +39,14 @@ export function useUpdateDevice() {
 
   return useMutation({
     mutationFn: ({
-      deviceUid,
+      serialNumber,
       updates,
     }: {
-      deviceUid: string;
+      serialNumber: string;
       updates: Partial<Pick<Device, 'name' | 'assigned_to' | 'fleet_uid'>>;
-    }) => updateDevice(deviceUid, updates),
-    onSuccess: (_, { deviceUid }) => {
-      queryClient.invalidateQueries({ queryKey: ['device', deviceUid] });
+    }) => updateDevice(serialNumber, updates),
+    onSuccess: (_, { serialNumber }) => {
+      queryClient.invalidateQueries({ queryKey: ['device', serialNumber] });
       queryClient.invalidateQueries({ queryKey: ['devices'] });
     },
   });

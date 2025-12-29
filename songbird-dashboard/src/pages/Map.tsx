@@ -204,12 +204,12 @@ export function Map({ mapboxToken, selectedFleet }: MapProps) {
   }, []);
 
   // Handle quick actions
-  const handlePing = useCallback((deviceUid: string) => {
-    sendPingMutation.mutate(deviceUid);
+  const handlePing = useCallback((serialNumber: string) => {
+    sendPingMutation.mutate(serialNumber);
   }, [sendPingMutation]);
 
-  const handleLocate = useCallback((deviceUid: string) => {
-    sendLocateMutation.mutate({ deviceUid });
+  const handleLocate = useCallback((serialNumber: string) => {
+    sendLocateMutation.mutate({ serialNumber });
   }, [sendLocateMutation]);
 
   // Default center (Austin, TX)
@@ -468,7 +468,7 @@ export function Map({ mapboxToken, selectedFleet }: MapProps) {
                     size="sm"
                     variant="outline"
                     className="flex-1"
-                    onClick={() => handlePing(selectedDevice.device_uid)}
+                    onClick={() => handlePing(selectedDevice.serial_number)}
                     disabled={sendPingMutation.isPending}
                   >
                     <Bell className="h-3.5 w-3.5 mr-1" />
@@ -478,7 +478,7 @@ export function Map({ mapboxToken, selectedFleet }: MapProps) {
                     size="sm"
                     variant="outline"
                     className="flex-1"
-                    onClick={() => handleLocate(selectedDevice.device_uid)}
+                    onClick={() => handleLocate(selectedDevice.serial_number)}
                     disabled={sendLocateMutation.isPending}
                   >
                     <Navigation className="h-3.5 w-3.5 mr-1" />
@@ -487,7 +487,7 @@ export function Map({ mapboxToken, selectedFleet }: MapProps) {
                   <Button
                     size="sm"
                     variant="default"
-                    onClick={() => navigate(`/devices/${selectedDevice.device_uid}`)}
+                    onClick={() => navigate(`/devices/${selectedDevice.serial_number}`)}
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Button>

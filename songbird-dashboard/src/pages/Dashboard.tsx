@@ -53,8 +53,8 @@ export function Dashboard({ mapboxToken, selectedFleet }: DashboardProps) {
     };
   }, [devices, activeAlertCount]);
 
-  const handleDeviceSelect = (deviceUid: string) => {
-    navigate(`/devices/${deviceUid}`);
+  const handleDeviceSelect = (serialNumber: string) => {
+    navigate(`/devices/${serialNumber}`);
   };
 
   return (

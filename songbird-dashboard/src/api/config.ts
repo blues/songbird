@@ -8,18 +8,18 @@ import type { ConfigResponse, DeviceConfig } from '@/types';
 /**
  * Get device configuration
  */
-export async function getDeviceConfig(deviceUid: string): Promise<ConfigResponse> {
-  return apiGet<ConfigResponse>(`/v1/devices/${deviceUid}/config`);
+export async function getDeviceConfig(serialNumber: string): Promise<ConfigResponse> {
+  return apiGet<ConfigResponse>(`/v1/devices/${serialNumber}/config`);
 }
 
 /**
  * Update device configuration
  */
 export async function updateDeviceConfig(
-  deviceUid: string,
+  serialNumber: string,
   config: Partial<DeviceConfig>
 ): Promise<ConfigResponse> {
-  return apiPut<ConfigResponse>(`/v1/devices/${deviceUid}/config`, config);
+  return apiPut<ConfigResponse>(`/v1/devices/${serialNumber}/config`, config);
 }
 
 /**

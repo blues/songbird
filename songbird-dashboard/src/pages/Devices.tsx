@@ -189,8 +189,8 @@ export function Devices() {
     );
   };
 
-  const handleRowClick = (deviceUid: string) => {
-    navigate(`/devices/${deviceUid}`);
+  const handleRowClick = (serialNumber: string) => {
+    navigate(`/devices/${serialNumber}`);
   };
 
   // Stats
@@ -331,7 +331,7 @@ export function Devices() {
                   <TableRow
                     key={device.device_uid}
                     className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => handleRowClick(device.device_uid)}
+                    onClick={() => handleRowClick(device.serial_number)}
                   >
                     <TableCell>
                       <div className="flex items-center gap-2">

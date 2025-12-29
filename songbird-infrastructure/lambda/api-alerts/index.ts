@@ -21,6 +21,28 @@ const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient);
 
 const ALERTS_TABLE = process.env.ALERTS_TABLE!;
+const DEVICE_ALIASES_TABLE = process.env.DEVICE_ALIASES_TABLE || 'songbird-device-aliases';
+
+/**
+ * Get all device_uids associated with a serial number
+ */
+async function getAllDeviceUidsForSerial(serialNumber: string): Promise<string[]> {
+  const result = await docClient.send(new GetCommand({
+    TableName: DEVICE_ALIASES_TABLE,
+    Key: { serial_number: serialNumber },
+  }));
+
+  if (!result.Item) {
+    return [];
+  }
+
+  // Return current device_uid plus any historical ones
+  const deviceUids = [result.Item.device_uid];
+  if (result.Item.previous_device_uids && Array.isArray(result.Item.previous_device_uids)) {
+    deviceUids.push(...result.Item.previous_device_uids);
+  }
+  return deviceUids;
+}
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   console.log('Request:', JSON.stringify(event));
@@ -75,25 +97,48 @@ async function listAlerts(
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
   const queryParams = event.queryStringParameters || {};
-  const deviceUid = queryParams.device_uid;
+  const serialNumber = queryParams.serial_number || queryParams.device_uid; // Support both for backwards compat
   const acknowledged = queryParams.acknowledged;
   const limit = parseInt(queryParams.limit || '100');
 
   let items: any[] = [];
 
-  if (deviceUid) {
-    // Query alerts for a specific device
-    const command = new QueryCommand({
-      TableName: ALERTS_TABLE,
-      IndexName: 'device-index',
-      KeyConditionExpression: 'device_uid = :device_uid',
-      ExpressionAttributeValues: { ':device_uid': deviceUid },
-      ScanIndexForward: false, // Most recent first
-      Limit: limit,
-    });
+  if (serialNumber) {
+    // Resolve serial number to device_uid(s)
+    const deviceUids = await getAllDeviceUidsForSerial(serialNumber);
 
-    const result = await docClient.send(command);
-    items = result.Items || [];
+    if (deviceUids.length === 0) {
+      // No device found for this serial number
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          alerts: [],
+          count: 0,
+          active_count: 0,
+        }),
+      };
+    }
+
+    // Query alerts for all device_uids and merge
+    const allResults = await Promise.all(
+      deviceUids.map(async (deviceUid) => {
+        const command = new QueryCommand({
+          TableName: ALERTS_TABLE,
+          IndexName: 'device-index',
+          KeyConditionExpression: 'device_uid = :device_uid',
+          ExpressionAttributeValues: { ':device_uid': deviceUid },
+          ScanIndexForward: false,
+          Limit: limit,
+        });
+        const result = await docClient.send(command);
+        return result.Items || [];
+      })
+    );
+
+    // Merge and sort by created_at descending
+    items = allResults.flat().sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+    items = items.slice(0, limit);
   } else if (acknowledged === 'false') {
     // Query only unacknowledged alerts
     const command = new QueryCommand({

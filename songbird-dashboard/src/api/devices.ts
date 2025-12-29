@@ -14,18 +14,18 @@ export async function getDevices(fleetUid?: string): Promise<DevicesResponse> {
 }
 
 /**
- * Get a single device by UID
+ * Get a single device by serial number
  */
-export async function getDevice(deviceUid: string): Promise<Device> {
-  return apiGet<Device>(`/v1/devices/${deviceUid}`);
+export async function getDevice(serialNumber: string): Promise<Device> {
+  return apiGet<Device>(`/v1/devices/${serialNumber}`);
 }
 
 /**
  * Update device metadata
  */
 export async function updateDevice(
-  deviceUid: string,
+  serialNumber: string,
   updates: Partial<Pick<Device, 'name' | 'assigned_to' | 'fleet_uid'>>
 ): Promise<Device> {
-  return apiPatch<Device>(`/v1/devices/${deviceUid}`, updates);
+  return apiPatch<Device>(`/v1/devices/${serialNumber}`, updates);
 }

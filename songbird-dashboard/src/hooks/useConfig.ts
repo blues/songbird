@@ -9,12 +9,12 @@ import type { DeviceConfig } from '@/types';
 /**
  * Hook to fetch device configuration
  */
-export function useDeviceConfig(deviceUid: string) {
+export function useDeviceConfig(serialNumber: string) {
   return useQuery({
-    queryKey: ['config', deviceUid],
-    queryFn: () => getDeviceConfig(deviceUid),
+    queryKey: ['config', serialNumber],
+    queryFn: () => getDeviceConfig(serialNumber),
     staleTime: 60_000, // Config doesn't change frequently
-    enabled: !!deviceUid,
+    enabled: !!serialNumber,
   });
 }
 
@@ -26,14 +26,14 @@ export function useUpdateDeviceConfig() {
 
   return useMutation({
     mutationFn: ({
-      deviceUid,
+      serialNumber,
       config,
     }: {
-      deviceUid: string;
+      serialNumber: string;
       config: Partial<DeviceConfig>;
-    }) => updateDeviceConfig(deviceUid, config),
-    onSuccess: (_, { deviceUid }) => {
-      queryClient.invalidateQueries({ queryKey: ['config', deviceUid] });
+    }) => updateDeviceConfig(serialNumber, config),
+    onSuccess: (_, { serialNumber }) => {
+      queryClient.invalidateQueries({ queryKey: ['config', serialNumber] });
     },
   });
 }

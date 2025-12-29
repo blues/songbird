@@ -15,12 +15,12 @@ interface AlertsResponse {
  * Get all alerts
  */
 export async function getAlerts(params?: {
-  device_uid?: string;
+  serial_number?: string;
   acknowledged?: boolean;
   limit?: number;
 }): Promise<AlertsResponse> {
   const searchParams = new URLSearchParams();
-  if (params?.device_uid) searchParams.set('device_uid', params.device_uid);
+  if (params?.serial_number) searchParams.set('serial_number', params.serial_number);
   if (params?.acknowledged !== undefined) searchParams.set('acknowledged', String(params.acknowledged));
   if (params?.limit) searchParams.set('limit', String(params.limit));
 

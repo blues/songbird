@@ -3,8 +3,8 @@
  *
  * Handles device CRUD operations:
  * - GET /devices - List all devices
- * - GET /devices/{device_uid} - Get device details
- * - PATCH /devices/{device_uid} - Update device metadata
+ * - GET /devices/{serial_number} - Get device details
+ * - PATCH /devices/{serial_number} - Update device metadata
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -16,6 +16,7 @@ import {
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { resolveDevice, getAliasBySerial } from '../shared/device-lookup';
 
 const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient);
@@ -34,25 +35,25 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   try {
     // HTTP API v2 uses requestContext.http.method, REST API v1 uses httpMethod
     const method = (event.requestContext as any)?.http?.method || event.httpMethod;
-    const deviceUid = event.pathParameters?.device_uid;
+    const serialNumber = event.pathParameters?.serial_number;
 
     if (method === 'OPTIONS') {
       return { statusCode: 200, headers: corsHeaders, body: '' };
     }
 
-    if (method === 'GET' && !deviceUid) {
+    if (method === 'GET' && !serialNumber) {
       // List devices
       return await listDevices(event, corsHeaders);
     }
 
-    if (method === 'GET' && deviceUid) {
-      // Get single device
-      return await getDevice(deviceUid, corsHeaders);
+    if (method === 'GET' && serialNumber) {
+      // Get single device by serial number
+      return await getDeviceBySerial(serialNumber, corsHeaders);
     }
 
-    if (method === 'PATCH' && deviceUid) {
-      // Update device
-      return await updateDevice(deviceUid, event.body, corsHeaders);
+    if (method === 'PATCH' && serialNumber) {
+      // Update device by serial number
+      return await updateDeviceBySerial(serialNumber, event.body, corsHeaders);
     }
 
     return {
@@ -135,13 +136,25 @@ async function listDevices(
   };
 }
 
-async function getDevice(
-  deviceUid: string,
+async function getDeviceBySerial(
+  serialNumber: string,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
+  // Resolve serial_number to device info
+  const resolved = await resolveDevice(serialNumber);
+
+  if (!resolved) {
+    return {
+      statusCode: 404,
+      headers,
+      body: JSON.stringify({ error: 'Device not found' }),
+    };
+  }
+
+  // Get the device using the current device_uid
   const command = new GetCommand({
     TableName: DEVICES_TABLE,
-    Key: { device_uid: deviceUid },
+    Key: { device_uid: resolved.device_uid },
   });
 
   const result = await docClient.send(command);
@@ -154,15 +167,21 @@ async function getDevice(
     };
   }
 
+  // Transform and add device_uid history
+  const device = transformDevice(result.Item);
+  device.device_uid_history = resolved.all_device_uids.length > 1
+    ? resolved.all_device_uids.slice(1) // Exclude current device_uid
+    : undefined;
+
   return {
     statusCode: 200,
     headers,
-    body: JSON.stringify(transformDevice(result.Item)),
+    body: JSON.stringify(device),
   };
 }
 
-async function updateDevice(
-  deviceUid: string,
+async function updateDeviceBySerial(
+  serialNumber: string,
   body: string | null,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
@@ -174,10 +193,21 @@ async function updateDevice(
     };
   }
 
+  // Resolve serial_number to device_uid
+  const resolved = await resolveDevice(serialNumber);
+
+  if (!resolved) {
+    return {
+      statusCode: 404,
+      headers,
+      body: JSON.stringify({ error: 'Device not found' }),
+    };
+  }
+
   const updates = JSON.parse(body);
 
-  // Only allow certain fields to be updated
-  const allowedFields = ['serial_number', 'assigned_to', 'fleet', 'notes'];
+  // Only allow certain fields to be updated (removed serial_number - it's now immutable)
+  const allowedFields = ['name', 'assigned_to', 'assigned_to_name', 'fleet', 'notes'];
   const updateExpressions: string[] = [];
   const expressionAttributeNames: Record<string, string> = {};
   const expressionAttributeValues: Record<string, any> = {};
@@ -207,7 +237,7 @@ async function updateDevice(
 
   const command = new UpdateCommand({
     TableName: DEVICES_TABLE,
-    Key: { device_uid: deviceUid },
+    Key: { device_uid: resolved.device_uid },
     UpdateExpression: 'SET ' + updateExpressions.join(', '),
     ExpressionAttributeNames: expressionAttributeNames,
     ExpressionAttributeValues: expressionAttributeValues,
@@ -219,7 +249,7 @@ async function updateDevice(
   return {
     statusCode: 200,
     headers,
-    body: JSON.stringify(result.Attributes),
+    body: JSON.stringify(transformDevice(result.Attributes)),
   };
 }
 

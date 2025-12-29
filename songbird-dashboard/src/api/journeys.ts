@@ -9,7 +9,7 @@ import type { JourneysResponse, JourneyDetailResponse, LocationHistoryResponse, 
  * Get all journeys for a device
  */
 export async function getJourneys(
-  deviceUid: string,
+  serialNumber: string,
   status?: 'active' | 'completed',
   limit: number = 50
 ): Promise<JourneysResponse> {
@@ -17,17 +17,17 @@ export async function getJourneys(
   if (status) {
     params.status = status;
   }
-  return apiGet<JourneysResponse>(`/v1/devices/${deviceUid}/journeys`, params);
+  return apiGet<JourneysResponse>(`/v1/devices/${serialNumber}/journeys`, params);
 }
 
 /**
  * Get a specific journey with all its location points
  */
 export async function getJourneyDetail(
-  deviceUid: string,
+  serialNumber: string,
   journeyId: number
 ): Promise<JourneyDetailResponse> {
-  return apiGet<JourneyDetailResponse>(`/v1/devices/${deviceUid}/journeys/${journeyId}`);
+  return apiGet<JourneyDetailResponse>(`/v1/devices/${serialNumber}/journeys/${journeyId}`);
 }
 
 /**
@@ -35,17 +35,17 @@ export async function getJourneyDetail(
  * Returns the matched route snapped to roads
  */
 export async function matchJourney(
-  deviceUid: string,
+  serialNumber: string,
   journeyId: number
 ): Promise<MapMatchResponse> {
-  return apiPost<MapMatchResponse>(`/v1/devices/${deviceUid}/journeys/${journeyId}/match`);
+  return apiPost<MapMatchResponse>(`/v1/devices/${serialNumber}/journeys/${journeyId}/match`);
 }
 
 /**
  * Get location history for a device (all location sources)
  */
 export async function getLocationHistoryFull(
-  deviceUid: string,
+  serialNumber: string,
   hours: number = 24,
   source?: 'gps' | 'cell' | 'triangulation',
   limit: number = 1000
@@ -54,15 +54,15 @@ export async function getLocationHistoryFull(
   if (source) {
     params.source = source;
   }
-  return apiGet<LocationHistoryResponse>(`/v1/devices/${deviceUid}/locations`, params);
+  return apiGet<LocationHistoryResponse>(`/v1/devices/${serialNumber}/locations`, params);
 }
 
 /**
  * Delete a journey and all its location points (admin/owner only)
  */
 export async function deleteJourney(
-  deviceUid: string,
+  serialNumber: string,
   journeyId: number
 ): Promise<{ message: string; journey_id: number; points_deleted: number }> {
-  return apiDelete(`/v1/devices/${deviceUid}/journeys/${journeyId}`);
+  return apiDelete(`/v1/devices/${serialNumber}/journeys/${journeyId}`);
 }

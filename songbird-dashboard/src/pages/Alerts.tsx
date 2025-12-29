@@ -32,7 +32,7 @@ interface AlertCardProps {
   alert: Alert;
   onAcknowledge: (alertId: string) => void;
   isAcknowledging: boolean;
-  onDeviceClick: (deviceUid: string) => void;
+  onDeviceClick: (serialNumber: string) => void;
 }
 
 function AlertCard({ alert, onAcknowledge, isAcknowledging, onDeviceClick }: AlertCardProps) {
@@ -67,7 +67,7 @@ function AlertCard({ alert, onAcknowledge, isAcknowledging, onDeviceClick }: Ale
 
             <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
               <button
-                onClick={() => onDeviceClick(alert.device_uid)}
+                onClick={() => onDeviceClick(alert.serial_number || alert.device_uid)}
                 className="flex items-center gap-1 hover:text-foreground transition-colors"
               >
                 <MapPin className="h-3 w-3" />
@@ -128,8 +128,8 @@ export function Alerts() {
     acknowledgeMutation.mutate({ alertId });
   };
 
-  const handleDeviceClick = (deviceUid: string) => {
-    navigate(`/devices/${deviceUid}`);
+  const handleDeviceClick = (serialNumber: string) => {
+    navigate(`/devices/${serialNumber}`);
   };
 
   const alerts = data?.alerts || [];

@@ -2,16 +2,19 @@
  * Journeys API Lambda
  *
  * Handles journey and location history queries:
- * - GET /devices/{device_uid}/journeys - List all journeys for a device
- * - GET /devices/{device_uid}/journeys/{journey_id} - Get journey details with points
- * - DELETE /devices/{device_uid}/journeys/{journey_id} - Delete a journey (admin/owner only)
- * - GET /devices/{device_uid}/locations - Get location history
- * - POST /devices/{device_uid}/journeys/{journey_id}/match - Trigger map matching
+ * - GET /devices/{serial_number}/journeys - List all journeys for a device
+ * - GET /devices/{serial_number}/journeys/{journey_id} - Get journey details with points
+ * - DELETE /devices/{serial_number}/journeys/{journey_id} - Delete a journey (admin/owner only)
+ * - GET /devices/{serial_number}/locations - Get location history
+ * - POST /devices/{serial_number}/journeys/{journey_id}/match - Trigger map matching
+ *
+ * Note: When a Notecard is swapped, journeys from all device_uids are merged.
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, UpdateCommand, DeleteCommand, GetCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyEventV2, APIGatewayProxyResult } from 'aws-lambda';
+import { resolveDevice } from '../shared/device-lookup';
 
 const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient);
@@ -39,40 +42,51 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       return { statusCode: 200, headers: corsHeaders, body: '' };
     }
 
-    const deviceUid = event.pathParameters?.device_uid;
-    if (!deviceUid) {
+    const serialNumber = event.pathParameters?.serial_number;
+    if (!serialNumber) {
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'device_uid required' }),
+        body: JSON.stringify({ error: 'serial_number required' }),
+      };
+    }
+
+    // Resolve serial_number to all associated device_uids
+    const resolved = await resolveDevice(serialNumber);
+    if (!resolved) {
+      return {
+        statusCode: 404,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Device not found' }),
       };
     }
 
     const journeyId = event.pathParameters?.journey_id;
     const queryParams = event.queryStringParameters || {};
 
-    // GET /devices/{device_uid}/locations - Location history
+    // GET /devices/{serial_number}/locations - Location history (merged from all Notecards)
     if (path.endsWith('/locations')) {
-      return await getLocationHistory(deviceUid, queryParams, corsHeaders);
+      return await getLocationHistory(resolved.serial_number, resolved.all_device_uids, queryParams, corsHeaders);
     }
 
-    // POST /devices/{device_uid}/journeys/{journey_id}/match - Map matching
+    // POST /devices/{serial_number}/journeys/{journey_id}/match - Map matching
+    // Note: For now, we need to find which device_uid owns this journey
     if (path.endsWith('/match') && method === 'POST' && journeyId) {
-      return await matchJourney(deviceUid, parseInt(journeyId), corsHeaders);
+      return await matchJourney(resolved.all_device_uids, parseInt(journeyId), corsHeaders);
     }
 
-    // DELETE /devices/{device_uid}/journeys/{journey_id} - Delete journey (admin/owner only)
+    // DELETE /devices/{serial_number}/journeys/{journey_id} - Delete journey (admin/owner only)
     if (method === 'DELETE' && journeyId) {
-      return await deleteJourney(deviceUid, parseInt(journeyId), event, corsHeaders);
+      return await deleteJourney(resolved.serial_number, resolved.all_device_uids, parseInt(journeyId), event, corsHeaders);
     }
 
-    // GET /devices/{device_uid}/journeys/{journey_id} - Single journey with points
+    // GET /devices/{serial_number}/journeys/{journey_id} - Single journey with points
     if (journeyId) {
-      return await getJourneyDetail(deviceUid, parseInt(journeyId), corsHeaders);
+      return await getJourneyDetail(resolved.all_device_uids, parseInt(journeyId), corsHeaders);
     }
 
-    // GET /devices/{device_uid}/journeys - List journeys
-    return await listJourneys(deviceUid, queryParams, corsHeaders);
+    // GET /devices/{serial_number}/journeys - List journeys (merged from all Notecards)
+    return await listJourneys(resolved.serial_number, resolved.all_device_uids, queryParams, corsHeaders);
   } catch (error) {
     console.error('Error:', error);
     return {
@@ -84,80 +98,104 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 };
 
 /**
- * List all journeys for a device
+ * List all journeys for a device (merged from all Notecards)
  */
 async function listJourneys(
-  deviceUid: string,
+  serialNumber: string,
+  deviceUids: string[],
   queryParams: Record<string, string | undefined>,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
   const status = queryParams.status; // 'active' | 'completed' | undefined (all)
   const limit = parseInt(queryParams.limit || '50');
 
-  const command = new QueryCommand({
-    TableName: JOURNEYS_TABLE,
-    KeyConditionExpression: 'device_uid = :device_uid',
-    ...(status && {
-      FilterExpression: '#status = :status',
-      ExpressionAttributeNames: { '#status': 'status' },
-      ExpressionAttributeValues: {
-        ':device_uid': deviceUid,
-        ':status': status,
-      },
-    }),
-    ...(!status && {
-      ExpressionAttributeValues: {
-        ':device_uid': deviceUid,
-      },
-    }),
-    ScanIndexForward: false, // Most recent first
-    Limit: limit,
+  // Query all device_uids in parallel
+  const queryPromises = deviceUids.map(async (deviceUid) => {
+    const command = new QueryCommand({
+      TableName: JOURNEYS_TABLE,
+      KeyConditionExpression: 'device_uid = :device_uid',
+      ...(status && {
+        FilterExpression: '#status = :status',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: {
+          ':device_uid': deviceUid,
+          ':status': status,
+        },
+      }),
+      ...(!status && {
+        ExpressionAttributeValues: {
+          ':device_uid': deviceUid,
+        },
+      }),
+      ScanIndexForward: false,
+      Limit: limit,
+    });
+
+    const result = await docClient.send(command);
+    return result.Items || [];
   });
 
-  const result = await docClient.send(command);
+  const allResults = await Promise.all(queryPromises);
 
-  const journeys = (result.Items || []).map((item) => ({
-    journey_id: item.journey_id,
-    device_uid: item.device_uid,
-    start_time: new Date(item.start_time).toISOString(),
-    end_time: item.end_time ? new Date(item.end_time).toISOString() : undefined,
-    point_count: item.point_count || 0,
-    total_distance: item.total_distance || 0,
-    status: item.status,
-  }));
+  // Merge and sort by journey_id (which is the start timestamp, descending)
+  const mergedJourneys = allResults
+    .flat()
+    .sort((a, b) => b.journey_id - a.journey_id)
+    .slice(0, limit)
+    .map((item) => ({
+      journey_id: item.journey_id,
+      device_uid: item.device_uid,
+      start_time: new Date(item.start_time).toISOString(),
+      end_time: item.end_time ? new Date(item.end_time).toISOString() : undefined,
+      point_count: item.point_count || 0,
+      total_distance: item.total_distance || 0,
+      status: item.status,
+    }));
 
   return {
     statusCode: 200,
     headers,
     body: JSON.stringify({
-      device_uid: deviceUid,
-      journeys,
-      count: journeys.length,
+      serial_number: serialNumber,
+      journeys: mergedJourneys,
+      count: mergedJourneys.length,
     }),
   };
 }
 
 /**
  * Get a single journey with all its location points
+ * Searches across all device_uids to find the journey
  */
 async function getJourneyDetail(
-  deviceUid: string,
+  deviceUids: string[],
   journeyId: number,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
-  // Get the journey metadata
-  const journeyCommand = new QueryCommand({
-    TableName: JOURNEYS_TABLE,
-    KeyConditionExpression: 'device_uid = :device_uid AND journey_id = :journey_id',
-    ExpressionAttributeValues: {
-      ':device_uid': deviceUid,
-      ':journey_id': journeyId,
-    },
-  });
+  // Search for the journey across all device_uids
+  let journeyItem: any = null;
+  let ownerDeviceUid: string | null = null;
 
-  const journeyResult = await docClient.send(journeyCommand);
+  for (const deviceUid of deviceUids) {
+    const journeyCommand = new QueryCommand({
+      TableName: JOURNEYS_TABLE,
+      KeyConditionExpression: 'device_uid = :device_uid AND journey_id = :journey_id',
+      ExpressionAttributeValues: {
+        ':device_uid': deviceUid,
+        ':journey_id': journeyId,
+      },
+    });
 
-  if (!journeyResult.Items || journeyResult.Items.length === 0) {
+    const journeyResult = await docClient.send(journeyCommand);
+
+    if (journeyResult.Items && journeyResult.Items.length > 0) {
+      journeyItem = journeyResult.Items[0];
+      ownerDeviceUid = deviceUid;
+      break;
+    }
+  }
+
+  if (!journeyItem || !ownerDeviceUid) {
     return {
       statusCode: 404,
       headers,
@@ -165,15 +203,13 @@ async function getJourneyDetail(
     };
   }
 
-  const journeyItem = journeyResult.Items[0];
-
   // Get all location points for this journey using the journey-index GSI
   const pointsCommand = new QueryCommand({
     TableName: LOCATIONS_TABLE,
     IndexName: 'journey-index',
     KeyConditionExpression: 'device_uid = :device_uid AND journey_id = :journey_id',
     ExpressionAttributeValues: {
-      ':device_uid': deviceUid,
+      ':device_uid': ownerDeviceUid,
       ':journey_id': journeyId,
     },
     ScanIndexForward: true, // Chronological order
@@ -210,7 +246,7 @@ async function getJourneyDetail(
   }));
 
   // Get power consumption for this journey
-  const power = await getJourneyPowerConsumption(deviceUid, startTime, endTime);
+  const power = await getJourneyPowerConsumption(ownerDeviceUid, startTime, endTime);
 
   return {
     statusCode: 200,
@@ -225,9 +261,10 @@ async function getJourneyDetail(
 
 /**
  * Call Mapbox Map Matching API and cache the result
+ * Searches across all device_uids to find the journey
  */
 async function matchJourney(
-  deviceUid: string,
+  deviceUids: string[],
   journeyId: number,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
@@ -239,13 +276,42 @@ async function matchJourney(
     };
   }
 
+  // Find which device_uid owns this journey
+  let ownerDeviceUid: string | null = null;
+
+  for (const deviceUid of deviceUids) {
+    const journeyCommand = new QueryCommand({
+      TableName: JOURNEYS_TABLE,
+      KeyConditionExpression: 'device_uid = :device_uid AND journey_id = :journey_id',
+      ExpressionAttributeValues: {
+        ':device_uid': deviceUid,
+        ':journey_id': journeyId,
+      },
+    });
+
+    const journeyResult = await docClient.send(journeyCommand);
+
+    if (journeyResult.Items && journeyResult.Items.length > 0) {
+      ownerDeviceUid = deviceUid;
+      break;
+    }
+  }
+
+  if (!ownerDeviceUid) {
+    return {
+      statusCode: 404,
+      headers,
+      body: JSON.stringify({ error: 'Journey not found' }),
+    };
+  }
+
   // Get the journey points
   const pointsCommand = new QueryCommand({
     TableName: LOCATIONS_TABLE,
     IndexName: 'journey-index',
     KeyConditionExpression: 'device_uid = :device_uid AND journey_id = :journey_id',
     ExpressionAttributeValues: {
-      ':device_uid': deviceUid,
+      ':device_uid': ownerDeviceUid,
       ':journey_id': journeyId,
     },
     ScanIndexForward: true,
@@ -323,7 +389,7 @@ async function matchJourney(
     const updateCommand = new UpdateCommand({
       TableName: JOURNEYS_TABLE,
       Key: {
-        device_uid: deviceUid,
+        device_uid: ownerDeviceUid,
         journey_id: journeyId,
       },
       UpdateExpression: 'SET matched_route = :route, match_confidence = :confidence, matched_at = :time',
@@ -358,10 +424,11 @@ async function matchJourney(
 }
 
 /**
- * Get location history for a device
+ * Get location history for a device (merged from all Notecards)
  */
 async function getLocationHistory(
-  deviceUid: string,
+  serialNumber: string,
+  deviceUids: string[],
   queryParams: Record<string, string | undefined>,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
@@ -371,57 +438,68 @@ async function getLocationHistory(
 
   const cutoffTime = Date.now() - hours * 60 * 60 * 1000;
 
-  const command = new QueryCommand({
-    TableName: LOCATIONS_TABLE,
-    KeyConditionExpression: 'device_uid = :device_uid AND #timestamp >= :cutoff',
-    ...(source && {
-      FilterExpression: '#source = :source',
-      ExpressionAttributeNames: {
-        '#timestamp': 'timestamp',
-        '#source': 'source',
-      },
-      ExpressionAttributeValues: {
-        ':device_uid': deviceUid,
-        ':cutoff': cutoffTime,
-        ':source': source,
-      },
-    }),
-    ...(!source && {
-      ExpressionAttributeNames: {
-        '#timestamp': 'timestamp',
-      },
-      ExpressionAttributeValues: {
-        ':device_uid': deviceUid,
-        ':cutoff': cutoffTime,
-      },
-    }),
-    ScanIndexForward: false, // Most recent first
-    Limit: limit,
+  // Query all device_uids in parallel
+  const queryPromises = deviceUids.map(async (deviceUid) => {
+    const command = new QueryCommand({
+      TableName: LOCATIONS_TABLE,
+      KeyConditionExpression: 'device_uid = :device_uid AND #timestamp >= :cutoff',
+      ...(source && {
+        FilterExpression: '#source = :source',
+        ExpressionAttributeNames: {
+          '#timestamp': 'timestamp',
+          '#source': 'source',
+        },
+        ExpressionAttributeValues: {
+          ':device_uid': deviceUid,
+          ':cutoff': cutoffTime,
+          ':source': source,
+        },
+      }),
+      ...(!source && {
+        ExpressionAttributeNames: {
+          '#timestamp': 'timestamp',
+        },
+        ExpressionAttributeValues: {
+          ':device_uid': deviceUid,
+          ':cutoff': cutoffTime,
+        },
+      }),
+      ScanIndexForward: false,
+      Limit: limit,
+    });
+
+    const result = await docClient.send(command);
+    return result.Items || [];
   });
 
-  const result = await docClient.send(command);
+  const allResults = await Promise.all(queryPromises);
 
-  const locations = (result.Items || []).map((item) => ({
-    time: new Date(item.timestamp).toISOString(),
-    lat: item.latitude,
-    lon: item.longitude,
-    source: item.source,
-    location_name: item.location_name,
-    event_type: item.event_type,
-    journey_id: item.journey_id,
-    jcount: item.jcount,
-    velocity: item.velocity,
-    bearing: item.bearing,
-  }));
+  // Merge and sort by timestamp (most recent first), then apply limit
+  const mergedLocations = allResults
+    .flat()
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, limit)
+    .map((item) => ({
+      time: new Date(item.timestamp).toISOString(),
+      lat: item.latitude,
+      lon: item.longitude,
+      source: item.source,
+      location_name: item.location_name,
+      event_type: item.event_type,
+      journey_id: item.journey_id,
+      jcount: item.jcount,
+      velocity: item.velocity,
+      bearing: item.bearing,
+    }));
 
   return {
     statusCode: 200,
     headers,
     body: JSON.stringify({
-      device_uid: deviceUid,
+      serial_number: serialNumber,
       hours,
-      count: locations.length,
-      locations,
+      count: mergedLocations.length,
+      locations: mergedLocations,
     }),
   };
 }
@@ -475,9 +553,11 @@ async function isDeviceOwner(deviceUid: string, userEmail: string): Promise<bool
 
 /**
  * Delete a journey and all its location points (admin/owner only)
+ * Searches across all device_uids to find and delete the journey
  */
 async function deleteJourney(
-  deviceUid: string,
+  serialNumber: string,
+  deviceUids: string[],
   journeyId: number,
   event: APIGatewayProxyEvent,
   headers: Record<string, string>
@@ -485,6 +565,35 @@ async function deleteJourney(
   // Authorization check: must be admin or device owner
   const userEmail = getUserEmail(event);
   const admin = isAdmin(event);
+
+  // Find which device_uid owns this journey
+  let ownerDeviceUid: string | null = null;
+
+  for (const deviceUid of deviceUids) {
+    const journeyCommand = new QueryCommand({
+      TableName: JOURNEYS_TABLE,
+      KeyConditionExpression: 'device_uid = :device_uid AND journey_id = :journey_id',
+      ExpressionAttributeValues: {
+        ':device_uid': deviceUid,
+        ':journey_id': journeyId,
+      },
+    });
+
+    const journeyResult = await docClient.send(journeyCommand);
+
+    if (journeyResult.Items && journeyResult.Items.length > 0) {
+      ownerDeviceUid = deviceUid;
+      break;
+    }
+  }
+
+  if (!ownerDeviceUid) {
+    return {
+      statusCode: 404,
+      headers,
+      body: JSON.stringify({ error: 'Journey not found' }),
+    };
+  }
 
   if (!admin) {
     if (!userEmail) {
@@ -495,7 +604,7 @@ async function deleteJourney(
       };
     }
 
-    const owner = await isDeviceOwner(deviceUid, userEmail);
+    const owner = await isDeviceOwner(ownerDeviceUid, userEmail);
     if (!owner) {
       return {
         statusCode: 403,
@@ -505,33 +614,13 @@ async function deleteJourney(
     }
   }
 
-  // Verify the journey exists
-  const journeyCommand = new QueryCommand({
-    TableName: JOURNEYS_TABLE,
-    KeyConditionExpression: 'device_uid = :device_uid AND journey_id = :journey_id',
-    ExpressionAttributeValues: {
-      ':device_uid': deviceUid,
-      ':journey_id': journeyId,
-    },
-  });
-
-  const journeyResult = await docClient.send(journeyCommand);
-
-  if (!journeyResult.Items || journeyResult.Items.length === 0) {
-    return {
-      statusCode: 404,
-      headers,
-      body: JSON.stringify({ error: 'Journey not found' }),
-    };
-  }
-
   // Get all location points for this journey to delete them
   const pointsCommand = new QueryCommand({
     TableName: LOCATIONS_TABLE,
     IndexName: 'journey-index',
     KeyConditionExpression: 'device_uid = :device_uid AND journey_id = :journey_id',
     ExpressionAttributeValues: {
-      ':device_uid': deviceUid,
+      ':device_uid': ownerDeviceUid,
       ':journey_id': journeyId,
     },
     ProjectionExpression: 'device_uid, #ts',
@@ -577,13 +666,13 @@ async function deleteJourney(
   const deleteCommand = new DeleteCommand({
     TableName: JOURNEYS_TABLE,
     Key: {
-      device_uid: deviceUid,
+      device_uid: ownerDeviceUid,
       journey_id: journeyId,
     },
   });
 
   await docClient.send(deleteCommand);
-  console.log(`Deleted journey ${journeyId} for device ${deviceUid}`);
+  console.log(`Deleted journey ${journeyId} for device ${ownerDeviceUid} (serial: ${serialNumber})`);
 
   return {
     statusCode: 200,
