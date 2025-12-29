@@ -265,10 +265,12 @@ Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com`
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/v1/devices/{device_uid}/journeys` | List all journeys for device |
-| GET | `/v1/devices/{device_uid}/journeys/{journey_id}` | Get journey details with all points |
+| GET | `/v1/devices/{device_uid}/journeys/{journey_id}` | Get journey details with points and power consumption |
 | DELETE | `/v1/devices/{device_uid}/journeys/{journey_id}` | Delete journey and all points (Admin or device owner) |
 | POST | `/v1/devices/{device_uid}/journeys/{journey_id}/match` | Snap journey to roads via Mapbox Map Matching |
 | GET | `/v1/devices/{device_uid}/locations` | Get full location history (all sources) |
+
+The journey detail endpoint returns power consumption data when Mojo power monitoring is available. Power consumption is calculated as the difference in `milliamp_hours` between the first and last power readings during the journey timeframe.
 
 #### Commands
 | Method | Path | Description |

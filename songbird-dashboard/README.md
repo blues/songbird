@@ -7,7 +7,8 @@ React-based fleet management dashboard for the Songbird sales demo platform.
 - Fleet overview with device map
 - Real-time device telemetry monitoring
 - Historical data visualization with customizable time ranges
-- Journey tracking with animated playback
+- Journey tracking with animated playback and power consumption metrics
+- Journey data view showing filtered telemetry/power/health during journey timeframe
 - Location history with source filtering
 - Remote device configuration
 - Cloud-to-device command sending
@@ -238,13 +239,15 @@ Individual device view includes:
   - **History**: Location history table with filtering by source (GPS, Cell, Wi-Fi, Triangulated)
   - **Journeys**: Journey selector and animated playback with full controls:
     - **Road-snapped routes**: Automatically snaps GPS traces to roads using Mapbox Map Matching API
+    - **Power consumption**: Shows total mAh consumed during the journey (requires Mojo power monitoring)
     - Speed controls (1x, 2x, 5x, 10x) with velocity-based animation
     - Step forward/back buttons for point-by-point navigation
     - Toggle between snapped and raw GPS views
-    - Info overlay panel showing current point details (coordinates, speed, heading, accuracy)
+    - Info overlay panel showing current point details (coordinates, speed, heading, accuracy, power)
     - Journey cards show distance in user's preferred unit (km or miles)
     - **Delete journeys** (Admin or device owner only) with confirmation dialog
     - Responsive card layout adapts to available space
+    - **Journey Data view**: When a journey is selected, the Historical Data section becomes "Journey Data" and shows only telemetry, power, and health events that occurred during that journey's timeframe
 - Real-time gauges (temperature, humidity, pressure, battery)
 - Historical telemetry charts (24h, 7d, 30d)
 - Power monitoring charts (Mojo voltage, temperature, mAh)
