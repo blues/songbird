@@ -34,6 +34,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Create config.json
+        run: |
+          cat > public/config.json << EOF
+          {
+            "apiUrl": "${{ secrets.API_URL }}",
+            "region": "${{ secrets.AWS_REGION || 'us-east-1' }}",
+            "userPoolId": "${{ secrets.USER_POOL_ID }}",
+            "userPoolClientId": "${{ secrets.USER_POOL_CLIENT_ID }}",
+            "mapboxToken": "${{ secrets.MAPBOX_TOKEN }}"
+          }
+          EOF
+
       - name: Build
         run: npm run build
 
