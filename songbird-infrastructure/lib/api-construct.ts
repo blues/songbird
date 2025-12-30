@@ -255,6 +255,7 @@ export class ApiConstruct extends Construct {
         'cognito-idp:AdminAddUserToGroup',
         'cognito-idp:AdminRemoveUserFromGroup',
         'cognito-idp:AdminListGroupsForUser',
+        'cognito-idp:AdminDeleteUser',
         'cognito-idp:ListGroups',
       ],
       resources: [props.userPool.userPoolArn],
@@ -570,7 +571,7 @@ export class ApiConstruct extends Construct {
 
     this.api.addRoutes({
       path: '/v1/users/{userId}',
-      methods: [apigateway.HttpMethod.GET],
+      methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.DELETE],
       integration: usersIntegration,
       authorizer,
     });

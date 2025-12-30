@@ -14,6 +14,7 @@ import {
   AdminListGroupsForUserCommand,
   AdminGetUserCommand,
   AdminUpdateUserAttributesCommand,
+  AdminDeleteUserCommand,
   ListGroupsCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -500,6 +501,49 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
         statusCode: 200,
         headers,
         body: JSON.stringify({ devices }),
+      };
+    }
+
+    // DELETE /v1/users/{userId} - Delete a user
+    if (method === 'DELETE' && path.match(/^\/v1\/users\/[^/]+$/)) {
+      const userId = event.pathParameters?.userId;
+      if (!userId) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'User ID required' }),
+        };
+      }
+
+      // Get user's email to unassign devices
+      const userResult = await cognitoClient.send(new AdminGetUserCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: userId,
+      }));
+      const emailAttr = userResult.UserAttributes?.find(a => a.Name === 'email');
+      const userEmail = emailAttr?.Value || '';
+
+      // Unassign any devices assigned to this user
+      if (userEmail) {
+        const assignedDevices = await getDevicesAssignedToUser(userEmail);
+        if (assignedDevices.length > 0) {
+          await unassignDevicesFromUser(assignedDevices);
+        }
+      }
+
+      // Delete the user from Cognito
+      await cognitoClient.send(new AdminDeleteUserCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: userId,
+      }));
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          message: 'User deleted successfully',
+          username: userId,
+        }),
       };
     }
 

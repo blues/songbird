@@ -4,7 +4,7 @@
  * User management for admins.
  */
 
-import { apiGet, apiPost, apiPut } from './client';
+import { apiGet, apiPost, apiPut, apiDelete } from './client';
 import type { UserInfo, UserGroup } from '@/types';
 
 interface UsersResponse {
@@ -67,4 +67,8 @@ interface UnassignedDevicesResponse {
 export async function getUnassignedDevices(): Promise<UnassignedDevice[]> {
   const response = await apiGet<UnassignedDevicesResponse>('/v1/devices/unassigned');
   return response.devices;
+}
+
+export async function deleteUser(userId: string): Promise<void> {
+  await apiDelete(`/v1/users/${userId}`);
 }

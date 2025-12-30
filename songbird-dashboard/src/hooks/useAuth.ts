@@ -98,3 +98,26 @@ export function useCanSendCommands() {
 
   return { canSend, isLoading };
 }
+
+/**
+ * Hook to get the current user's email
+ */
+export function useCurrentUserEmail() {
+  const [email, setEmail] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchAuthSession()
+      .then(session => {
+        const userEmail = session.tokens?.idToken?.payload['email'] as string | undefined;
+        setEmail(userEmail || null);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setEmail(null);
+        setIsLoading(false);
+      });
+  }, []);
+
+  return { email, isLoading };
+}

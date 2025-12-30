@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react';
-import { Users, UserPlus, Mail, Shield, Cpu, RefreshCw, Pencil } from 'lucide-react';
+import { Users, UserPlus, Mail, Shield, Cpu, RefreshCw, Pencil, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,18 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useUsers } from '@/hooks/useUsers';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useUsers, useDeleteUser } from '@/hooks/useUsers';
+import { useCurrentUserEmail } from '@/hooks/useAuth';
 import { useDevices } from '@/hooks/useDevices';
 import { InviteUserDialog } from './InviteUserDialog';
 import { AssignDeviceDialog } from './AssignDeviceDialog';
@@ -41,14 +52,32 @@ const statusColors: Record<string, string> = {
 export function UserManagement() {
   const { data: users, isLoading, refetch, isFetching } = useUsers(true);
   const { data: devicesData } = useDevices();
+  const { email: currentUserEmail } = useCurrentUserEmail();
+  const deleteMutation = useDeleteUser();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [assignDeviceUser, setAssignDeviceUser] = useState<UserInfo | null>(null);
   const [editGroupsUser, setEditGroupsUser] = useState<UserInfo | null>(null);
+  const [deleteUserTarget, setDeleteUserTarget] = useState<UserInfo | null>(null);
 
   // Create a map of device_uid -> serial_number for quick lookup
   const deviceSerialMap = new Map(
     (devicesData?.devices || []).map(d => [d.device_uid, d.serial_number])
   );
+
+  const handleDeleteUser = () => {
+    if (deleteUserTarget) {
+      deleteMutation.mutate(deleteUserTarget.username, {
+        onSuccess: () => {
+          setDeleteUserTarget(null);
+        },
+      });
+    }
+  };
+
+  // Check if a user can be deleted (can't delete yourself)
+  const canDeleteUser = (user: UserInfo) => {
+    return user.email !== currentUserEmail;
+  };
 
   if (isLoading) {
     return (
@@ -146,6 +175,7 @@ export function UserManagement() {
                   <TableHead>Groups</TableHead>
                   <TableHead>Device</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -208,6 +238,18 @@ export function UserManagement() {
                         {user.created_at ? formatRelativeTime(user.created_at) : '--'}
                       </span>
                     </TableCell>
+                    <TableCell>
+                      {canDeleteUser(user) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setDeleteUserTarget(user)}
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -244,6 +286,30 @@ export function UserManagement() {
           currentGroups={editGroupsUser.groups}
         />
       )}
+
+      {/* Delete User Confirmation Dialog */}
+      <AlertDialog open={!!deleteUserTarget} onOpenChange={(open: boolean) => !open && setDeleteUserTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {deleteUserTarget?.name || deleteUserTarget?.email}?
+              This action cannot be undone. The user will be removed from the system and any
+              assigned devices will be unassigned.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

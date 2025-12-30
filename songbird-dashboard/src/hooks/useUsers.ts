@@ -5,7 +5,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getUsers, getUser, getGroups, inviteUser, updateUserGroups, updateUserDevices, updateUserDevice, getUnassignedDevices } from '@/api/users';
+import { getUsers, getUser, getGroups, inviteUser, updateUserGroups, updateUserDevices, updateUserDevice, getUnassignedDevices, deleteUser } from '@/api/users';
 import type { UserGroup } from '@/types';
 
 export function useUsers(includeDevices = false) {
@@ -92,5 +92,18 @@ export function useUnassignedDevices() {
     queryKey: ['unassignedDevices'],
     queryFn: getUnassignedDevices,
     staleTime: 30_000,
+  });
+}
+
+export function useDeleteUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (userId: string) => deleteUser(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['devices'] });
+      queryClient.invalidateQueries({ queryKey: ['unassignedDevices'] });
+    },
   });
 }
