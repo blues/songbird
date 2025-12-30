@@ -143,6 +143,7 @@ export interface Alert {
 export interface Command {
   command_id: string;
   device_uid: string;
+  serial_number?: string;
   cmd: CommandType;
   params?: Record<string, unknown>;
   status: CommandStatus;

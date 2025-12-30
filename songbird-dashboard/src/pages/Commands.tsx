@@ -98,13 +98,14 @@ function StatusBadge({ status }: { status: CommandStatus }) {
 interface CommandRowProps {
   command: Command;
   deviceName?: string;
-  onDeviceClick: (deviceUid: string) => void;
+  serialNumber?: string;
+  onDeviceClick: (serialNumber: string) => void;
   onDelete: (commandId: string, deviceUid: string) => void;
   isDeleting: boolean;
   canDelete: boolean;
 }
 
-function CommandRow({ command, deviceName, onDeviceClick, onDelete, isDeleting, canDelete }: CommandRowProps) {
+function CommandRow({ command, deviceName, serialNumber, onDeviceClick, onDelete, isDeleting, canDelete }: CommandRowProps) {
   return (
     <TableRow>
       <TableCell>
@@ -114,12 +115,18 @@ function CommandRow({ command, deviceName, onDeviceClick, onDelete, isDeleting, 
         </div>
       </TableCell>
       <TableCell>
-        <button
-          onClick={() => onDeviceClick(command.device_uid)}
-          className="text-blue-500 hover:underline"
-        >
-          {deviceName || command.device_uid.substring(0, 12)}...
-        </button>
+        {serialNumber ? (
+          <button
+            onClick={() => onDeviceClick(serialNumber)}
+            className="text-blue-500 hover:underline"
+          >
+            {deviceName || serialNumber}
+          </button>
+        ) : (
+          <span className="text-muted-foreground">
+            {deviceName || command.device_uid.substring(0, 12)}...
+          </span>
+        )}
       </TableCell>
       <TableCell>
         <StatusBadge status={command.status} />
@@ -180,10 +187,13 @@ export function Commands() {
   const commands = commandsData?.commands || [];
 
   // Create maps for device names and serial numbers
+  // deviceNameMap: shows device name if set, otherwise serial number
+  // deviceSerialMap: maps device_uid to serial_number for navigation
   const deviceNameMap = new Map<string, string>();
   const deviceSerialMap = new Map<string, string>();
   devices.forEach((d: Device) => {
-    deviceNameMap.set(d.device_uid, d.name || d.serial_number || d.device_uid);
+    // Prefer showing name, fall back to serial_number
+    deviceNameMap.set(d.device_uid, d.name || d.serial_number);
     if (d.serial_number) {
       deviceSerialMap.set(d.device_uid, d.serial_number);
     }
@@ -196,11 +206,8 @@ export function Commands() {
     }
   };
 
-  const handleDeviceClick = (deviceUid: string) => {
-    const serialNumber = deviceSerialMap.get(deviceUid);
-    if (serialNumber) {
-      navigate(`/devices/${serialNumber}`);
-    }
+  const handleDeviceClick = (serialNumber: string) => {
+    navigate(`/devices/${serialNumber}`);
   };
 
   const isSending = pingMutation.isPending || locateMutation.isPending || melodyMutation.isPending;
@@ -440,6 +447,7 @@ export function Commands() {
                     key={command.command_id}
                     command={command}
                     deviceName={deviceNameMap.get(command.device_uid)}
+                    serialNumber={command.serial_number || deviceSerialMap.get(command.device_uid)}
                     onDeviceClick={handleDeviceClick}
                     onDelete={handleDeleteCommand}
                     isDeleting={deleteMutation.isPending}
