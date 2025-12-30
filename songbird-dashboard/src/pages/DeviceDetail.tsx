@@ -126,7 +126,9 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
     telemetryLimit
   );
   const { data: locationData } = useLocationHistory(serialNumber!, dataTimeRange);
-  const { data: powerData, isLoading: powerLoading } = usePowerHistory(serialNumber!, dataTimeRange);
+  // Use higher limit when viewing journeys to ensure we get all data in the time range
+  const powerLimit = (locationTab === 'journeys' && selectedJourneyId) ? 5000 : 1000;
+  const { data: powerData, isLoading: powerLoading } = usePowerHistory(serialNumber!, dataTimeRange, powerLimit);
   const { data: healthData, isLoading: healthLoading } = useHealthHistory(serialNumber!, Math.max(dataTimeRange, 168)); // At least 7 days for health
   const { data: commandsData } = useCommands(serialNumber!);
   const { data: alertsData } = useDeviceAlerts(serialNumber!);

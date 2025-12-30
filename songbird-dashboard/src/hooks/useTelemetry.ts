@@ -53,11 +53,12 @@ export function useLatestTelemetry(serialNumber: string) {
 
 /**
  * Hook to fetch Mojo power monitoring history
+ * @param limit - Max records to fetch. Use higher limit (e.g., 5000) when viewing historical data
  */
-export function usePowerHistory(serialNumber: string, hours: number = 24) {
+export function usePowerHistory(serialNumber: string, hours: number = 24, limit: number = 1000) {
   return useQuery({
-    queryKey: ['power', serialNumber, hours],
-    queryFn: () => getPowerHistory(serialNumber, hours),
+    queryKey: ['power', serialNumber, hours, limit],
+    queryFn: () => getPowerHistory(serialNumber, hours, limit),
     refetchInterval: 60_000, // Poll every 60 seconds (power data updates less frequently)
     staleTime: 30_000,
     enabled: !!serialNumber,
