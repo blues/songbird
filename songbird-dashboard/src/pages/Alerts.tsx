@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAlerts, useAcknowledgeAlert } from '@/hooks/useAlerts';
+import { useCanSendCommands } from '@/hooks/useAuth';
 import { formatRelativeTime } from '@/utils/formatters';
 import type { Alert } from '@/types';
 
@@ -33,9 +34,10 @@ interface AlertCardProps {
   onAcknowledge: (alertId: string) => void;
   isAcknowledging: boolean;
   onDeviceClick: (serialNumber: string) => void;
+  canAcknowledge: boolean;
 }
 
-function AlertCard({ alert, onAcknowledge, isAcknowledging, onDeviceClick }: AlertCardProps) {
+function AlertCard({ alert, onAcknowledge, isAcknowledging, onDeviceClick, canAcknowledge }: AlertCardProps) {
   const isAcknowledged = alert.acknowledged === 'true' || alert.acknowledged === true;
 
   return (
@@ -96,7 +98,7 @@ function AlertCard({ alert, onAcknowledge, isAcknowledging, onDeviceClick }: Ale
             )}
           </div>
 
-          {!isAcknowledged && (
+          {!isAcknowledged && canAcknowledge && (
             <Button
               size="sm"
               variant="outline"
@@ -117,6 +119,7 @@ export function Alerts() {
   const navigate = useNavigate();
   const [showAcknowledged, setShowAcknowledged] = useState(false);
 
+  const { canSend: canAcknowledgeAlerts } = useCanSendCommands();
   const { data, isLoading, error } = useAlerts({
     acknowledged: showAcknowledged ? undefined : false,
     limit: 100,
@@ -226,6 +229,7 @@ export function Alerts() {
               onAcknowledge={handleAcknowledge}
               isAcknowledging={acknowledgeMutation.isPending}
               onDeviceClick={handleDeviceClick}
+              canAcknowledge={canAcknowledgeAlerts}
             />
           ))}
         </div>

@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/table';
 import { useAllCommands, useSendPing, useSendLocate, useSendPlayMelody, useDeleteCommand } from '@/hooks/useCommands';
 import { useDevices } from '@/hooks/useDevices';
+import { useCanSendCommands } from '@/hooks/useAuth';
 import { formatRelativeTime } from '@/utils/formatters';
 import type { Command, CommandStatus, CommandType, Device } from '@/types';
 
@@ -100,9 +101,10 @@ interface CommandRowProps {
   onDeviceClick: (deviceUid: string) => void;
   onDelete: (commandId: string, deviceUid: string) => void;
   isDeleting: boolean;
+  canDelete: boolean;
 }
 
-function CommandRow({ command, deviceName, onDeviceClick, onDelete, isDeleting }: CommandRowProps) {
+function CommandRow({ command, deviceName, onDeviceClick, onDelete, isDeleting, canDelete }: CommandRowProps) {
   return (
     <TableRow>
       <TableCell>
@@ -133,15 +135,17 @@ function CommandRow({ command, deviceName, onDeviceClick, onDelete, isDeleting }
         )}
       </TableCell>
       <TableCell>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => onDelete(command.command_id, command.device_uid)}
-          disabled={isDeleting}
-          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        {canDelete && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onDelete(command.command_id, command.device_uid)}
+            disabled={isDeleting}
+            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
       </TableCell>
     </TableRow>
   );
@@ -161,6 +165,7 @@ export function Commands() {
   const [selectedMelody, setSelectedMelody] = useState('connected');
   const [targetDevice, setTargetDevice] = useState<string>('');
 
+  const { canSend: canSendCommands } = useCanSendCommands();
   const { data: devicesData } = useDevices();
   const { data: commandsData, isLoading, error } = useAllCommands(
     selectedDevice === 'all' ? undefined : selectedDevice
@@ -292,84 +297,86 @@ export function Commands() {
         </Card>
       </div>
 
-      {/* Send Command Panel */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Send className="h-5 w-5" />
-            Send Command
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4 items-end">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Target Device</label>
-              <Select value={targetDevice} onValueChange={setTargetDevice}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Select device" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Devices ({devices.length})</SelectItem>
-                  {devices.map((device: Device) => (
-                    <SelectItem key={device.device_uid} value={device.device_uid}>
-                      {device.name || device.serial_number || device.device_uid.substring(0, 12)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Command</label>
-              <Select value={commandType} onValueChange={(v) => setCommandType(v as CommandType)}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ping">Ping</SelectItem>
-                  <SelectItem value="locate">Locate</SelectItem>
-                  <SelectItem value="play_melody">Play Melody</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {commandType === 'play_melody' && (
+      {/* Send Command Panel - Only visible to non-Viewer roles */}
+      {canSendCommands && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5" />
+              Send Command
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4 items-end">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Melody</label>
-                <Select value={selectedMelody} onValueChange={setSelectedMelody}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue />
+                <label className="text-sm font-medium">Target Device</label>
+                <Select value={targetDevice} onValueChange={setTargetDevice}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Select device" />
                   </SelectTrigger>
                   <SelectContent>
-                    {melodies.map((m) => (
-                      <SelectItem key={m.value} value={m.value}>
-                        {m.label}
+                    <SelectItem value="all">All Devices ({devices.length})</SelectItem>
+                    {devices.map((device: Device) => (
+                      <SelectItem key={device.device_uid} value={device.device_uid}>
+                        {device.name || device.serial_number || device.device_uid.substring(0, 12)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            )}
 
-            <Button
-              onClick={handleSendCommand}
-              disabled={!targetDevice || isSending}
-            >
-              {isSending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4 mr-2" />
-                  Send Command
-                </>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Command</label>
+                <Select value={commandType} onValueChange={(v) => setCommandType(v as CommandType)}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ping">Ping</SelectItem>
+                    <SelectItem value="locate">Locate</SelectItem>
+                    <SelectItem value="play_melody">Play Melody</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {commandType === 'play_melody' && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Melody</label>
+                  <Select value={selectedMelody} onValueChange={setSelectedMelody}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {melodies.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+
+              <Button
+                onClick={handleSendCommand}
+                disabled={!targetDevice || isSending}
+              >
+                {isSending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Send Command
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters and Command History */}
       <Card>
@@ -436,6 +443,7 @@ export function Commands() {
                     onDeviceClick={handleDeviceClick}
                     onDelete={handleDeleteCommand}
                     isDeleting={deleteMutation.isPending}
+                    canDelete={canSendCommands}
                   />
                 ))}
               </TableBody>

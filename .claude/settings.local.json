@@ -70,7 +70,8 @@
       "Bash(npx tsx:*)",
       "Bash(aws dynamodb delete-item:*)",
       "Bash(aws lambda list-functions:*)",
-      "Bash(aws cognito-idp describe-user-pool:*)"
+      "Bash(aws cognito-idp describe-user-pool:*)",
+      "Bash(aws s3 cp:*)"
     ],
     "deny": [],
     "ask": []

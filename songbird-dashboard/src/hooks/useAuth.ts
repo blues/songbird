@@ -71,3 +71,30 @@ export function useUserGroups() {
 
   return { groups, isLoading };
 }
+
+/**
+ * Hook to check if the current user can send commands
+ * Returns true for all roles except Viewer
+ */
+export function useCanSendCommands() {
+  const [canSend, setCanSend] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    getUserGroups()
+      .then(groups => {
+        // Viewers can only view, not send commands
+        // If user has no groups or only Viewer group, they cannot send
+        const isViewerOnly = groups.length === 0 ||
+          (groups.length === 1 && groups.includes('Viewer'));
+        setCanSend(!isViewerOnly);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setCanSend(false);
+        setIsLoading(false);
+      });
+  }, []);
+
+  return { canSend, isLoading };
+}

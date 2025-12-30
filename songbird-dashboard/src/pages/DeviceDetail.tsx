@@ -18,7 +18,7 @@ import { useTelemetry, useLocationHistory, usePowerHistory, useHealthHistory } f
 import { useJourneys, useJourneyDetail, useLocationHistoryFull, useLatestJourney, useMapMatch, useDeleteJourney } from '@/hooks/useJourneys';
 import { useCommands } from '@/hooks/useCommands';
 import { useDeviceAlerts, useAcknowledgeAlert } from '@/hooks/useAlerts';
-import { useIsAdmin } from '@/hooks/useAuth';
+import { useIsAdmin, useCanSendCommands } from '@/hooks/useAuth';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import {
@@ -143,6 +143,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
 
   // Check if user can delete journeys (admin or device owner)
   const { isAdmin } = useIsAdmin();
+  const { canSend: canSendCommands } = useCanSendCommands();
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
@@ -605,12 +606,14 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
             </CardContent>
           </Card>
 
-          {/* Command Panel */}
-          <CommandPanel
-            serialNumber={device.serial_number}
-            audioEnabled={device.audio_enabled !== false}
-            lastCommand={lastCommand}
-          />
+          {/* Command Panel - Only visible to non-Viewer roles */}
+          {canSendCommands && (
+            <CommandPanel
+              serialNumber={device.serial_number}
+              audioEnabled={device.audio_enabled !== false}
+              lastCommand={lastCommand}
+            />
+          )}
 
           {/* Alerts Section */}
           <Card className="mt-6">
@@ -657,7 +660,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                             </div>
                           </div>
                         </div>
-                        {!isAcknowledged && (
+                        {!isAcknowledged && canSendCommands && (
                           <Button
                             size="sm"
                             variant="outline"
