@@ -128,7 +128,7 @@ bool envFetchConfig(SongbirdConfig* config) {
 
     floatVal = notecardEnvGetFloat(ENV_VOLTAGE_ALERT_LOW, NAN);
     if (!isnan(floatVal)) {
-        config->voltageAlertLow = CLAMP(floatVal, 3.0f, 4.2f);
+        config->voltageAlertLow = CLAMP(floatVal, 3.3f, 4.2f);
         anySuccess = true;
     }
 
