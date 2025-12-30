@@ -121,6 +121,35 @@ function App() {
     },
   };
 
+  // Custom form fields for sign-up and sign-in
+  const authenticatorFormFields: AuthenticatorProps['formFields'] = {
+    signIn: {
+      username: {
+        label: 'Username (email)',
+        placeholder: 'Enter your email',
+      },
+    },
+    signUp: {
+      username: {
+        label: 'Username (email)',
+        placeholder: 'Enter your email',
+        order: 1,
+      },
+      name: {
+        label: 'Full Name',
+        placeholder: 'Enter your full name',
+        order: 2,
+        isRequired: true,
+      },
+      password: {
+        order: 3,
+      },
+      confirm_password: {
+        order: 4,
+      },
+    },
+  };
+
   // Wrapper component to use hooks inside QueryClientProvider
   function AppLayout({
     user,
@@ -146,7 +175,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Authenticator components={authenticatorComponents}>
+      <Authenticator components={authenticatorComponents} formFields={authenticatorFormFields}>
         {({ signOut, user }) => (
           <PreferencesProvider>
             <BrowserRouter>

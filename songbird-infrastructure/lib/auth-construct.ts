@@ -2,11 +2,16 @@
  * Auth Construct
  *
  * Defines Cognito User Pool for dashboard authentication.
+ * Supports self-registration with automatic Viewer role assignment.
  */
 
 import * as cdk from 'aws-cdk-lib';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
+import * as path from 'path';
 
 export interface AuthConstructProps {
   userPoolName: string;
@@ -31,8 +36,13 @@ export class AuthConstruct extends Construct {
         username: false,
       },
 
-      // Self sign-up disabled - admin creates users
-      selfSignUpEnabled: false,
+      // Self sign-up enabled - users get Viewer role by default via Lambda trigger
+      selfSignUpEnabled: true,
+      userVerification: {
+        emailSubject: 'Welcome to Songbird - Verify your email',
+        emailBody: 'Thanks for signing up to Songbird! Your verification code is {####}',
+        emailStyle: cognito.VerificationEmailStyle.CODE,
+      },
 
       // Password policy
       passwordPolicy: {
@@ -170,5 +180,55 @@ export class AuthConstruct extends Construct {
       description: 'Read-only access',
       precedence: 100,
     });
+
+  }
+}
+
+/**
+ * Separate construct for the post-confirmation Lambda trigger.
+ * Uses a wildcard ARN for IAM permissions to avoid circular dependencies.
+ */
+export interface PostConfirmationTriggerProps {
+  userPool: cognito.UserPool;
+}
+
+export class PostConfirmationTrigger extends Construct {
+  constructor(scope: Construct, id: string, props: PostConfirmationTriggerProps) {
+    super(scope, id);
+
+    const postConfirmationLambda = new lambdaNodejs.NodejsFunction(this, 'Function', {
+      functionName: 'songbird-cognito-post-confirmation',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/cognito-post-confirmation/index.ts'),
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 128,
+      bundling: {
+        minify: true,
+        sourceMap: false,
+        externalModules: ['@aws-sdk/*'],
+      },
+    });
+
+    // Grant the Lambda permission to add users to groups
+    // Use wildcard to avoid circular dependency (the lambda only operates on this user pool anyway)
+    postConfirmationLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['cognito-idp:AdminAddUserToGroup'],
+      resources: ['*'],
+    }));
+
+    // Grant Cognito permission to invoke the Lambda using CfnPermission to avoid dependency
+    new lambda.CfnPermission(this, 'CognitoInvoke', {
+      action: 'lambda:InvokeFunction',
+      functionName: postConfirmationLambda.functionName,
+      principal: 'cognito-idp.amazonaws.com',
+      sourceArn: props.userPool.userPoolArn,
+    });
+
+    // Add the Lambda trigger using escape hatch to avoid circular dependency
+    const cfnUserPool = props.userPool.node.defaultChild as cognito.CfnUserPool;
+    cfnUserPool.lambdaConfig = {
+      postConfirmation: postConfirmationLambda.functionArn,
+    };
   }
 }

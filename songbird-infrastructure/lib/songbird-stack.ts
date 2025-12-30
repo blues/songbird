@@ -10,7 +10,7 @@ import { Construct } from 'constructs';
 import { StorageConstruct } from './storage-construct';
 import { ApiConstruct } from './api-construct';
 import { DashboardConstruct } from './dashboard-construct';
-import { AuthConstruct } from './auth-construct';
+import { AuthConstruct, PostConfirmationTrigger } from './auth-construct';
 
 export interface SongbirdStackProps extends cdk.StackProps {
   notehubProjectUid: string;
@@ -58,6 +58,14 @@ export class SongbirdStack extends cdk.Stack {
       userPoolClient: auth.userPoolClient,
       notehubProjectUid: props.notehubProjectUid,
       alertTopic,
+    });
+
+    // ==========================================================================
+    // Post-Confirmation Lambda Trigger (for self-signup with Viewer role)
+    // Must be created after API construct to avoid circular dependencies
+    // ==========================================================================
+    new PostConfirmationTrigger(this, 'PostConfirmation', {
+      userPool: auth.userPool,
     });
 
     // ==========================================================================
