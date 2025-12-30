@@ -289,6 +289,58 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main Content */}
         <div className={showConfig ? 'lg:col-span-2' : 'lg:col-span-3'}>
+          {/* Current Readings */}
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 mb-6">
+            <GaugeCard
+              title="Temperature"
+              value={convertTemperature(latestTelemetry?.temperature, tempUnit)?.toFixed(1) || '--'}
+              unit={getTemperatureUnit(tempUnit)}
+              icon={<Thermometer className="h-4 w-4 text-orange-500" />}
+              sparklineData={sparklineTemp}
+              status={
+                latestTelemetry?.temperature && latestTelemetry.temperature > 35
+                  ? 'warning'
+                  : 'normal'
+              }
+            />
+            <GaugeCard
+              title="Humidity"
+              value={latestTelemetry?.humidity?.toFixed(1) || '--'}
+              unit="%"
+              icon={<Droplets className="h-4 w-4 text-blue-500" />}
+              sparklineData={sparklineHumidity}
+            />
+            <GaugeCard
+              title="Pressure"
+              value={latestTelemetry?.pressure?.toFixed(0) || '--'}
+              unit="hPa"
+              icon={<Gauge className="h-4 w-4 text-purple-500" />}
+            />
+            <GaugeCard
+              title="Battery"
+              value={battery.percentage}
+              unit="%"
+              icon={
+                <Battery
+                  className={`h-4 w-4 ${
+                    battery.level === 'critical'
+                      ? 'text-red-500'
+                      : battery.level === 'low'
+                      ? 'text-yellow-500'
+                      : 'text-green-500'
+                  }`}
+                />
+              }
+              status={
+                battery.level === 'critical'
+                  ? 'critical'
+                  : battery.level === 'low'
+                  ? 'warning'
+                  : 'normal'
+              }
+            />
+          </div>
+
           {/* Location / Journeys Section */}
           <Card className="mb-6">
             <CardHeader className="flex flex-row items-center justify-between">
@@ -409,58 +461,6 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
               )}
             </CardContent>
           </Card>
-
-          {/* Current Readings */}
-          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 mb-6">
-            <GaugeCard
-              title="Temperature"
-              value={convertTemperature(latestTelemetry?.temperature, tempUnit)?.toFixed(1) || '--'}
-              unit={getTemperatureUnit(tempUnit)}
-              icon={<Thermometer className="h-4 w-4 text-orange-500" />}
-              sparklineData={sparklineTemp}
-              status={
-                latestTelemetry?.temperature && latestTelemetry.temperature > 35
-                  ? 'warning'
-                  : 'normal'
-              }
-            />
-            <GaugeCard
-              title="Humidity"
-              value={latestTelemetry?.humidity?.toFixed(1) || '--'}
-              unit="%"
-              icon={<Droplets className="h-4 w-4 text-blue-500" />}
-              sparklineData={sparklineHumidity}
-            />
-            <GaugeCard
-              title="Pressure"
-              value={latestTelemetry?.pressure?.toFixed(0) || '--'}
-              unit="hPa"
-              icon={<Gauge className="h-4 w-4 text-purple-500" />}
-            />
-            <GaugeCard
-              title="Battery"
-              value={battery.percentage}
-              unit="%"
-              icon={
-                <Battery
-                  className={`h-4 w-4 ${
-                    battery.level === 'critical'
-                      ? 'text-red-500'
-                      : battery.level === 'low'
-                      ? 'text-yellow-500'
-                      : 'text-green-500'
-                  }`}
-                />
-              }
-              status={
-                battery.level === 'critical'
-                  ? 'critical'
-                  : battery.level === 'low'
-                  ? 'warning'
-                  : 'normal'
-              }
-            />
-          </div>
 
           {/* Historical Charts */}
           <Card className="mb-6 overflow-hidden">
