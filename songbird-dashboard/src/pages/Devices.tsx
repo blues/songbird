@@ -13,9 +13,11 @@ import {
   Satellite,
   Radio,
   Lock,
+  Merge,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -32,9 +34,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { DeviceStatus } from '@/components/devices/DeviceStatus';
+import { MergeDevicesDialog } from '@/components/devices/MergeDevicesDialog';
 import { useDevices } from '@/hooks/useDevices';
 import { useActiveAlerts } from '@/hooks/useAlerts';
 import { useNotehubFleets } from '@/hooks/useSettings';
+import { useIsAdmin } from '@/hooks/useAuth';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import {
   formatTemperature,
@@ -72,12 +76,14 @@ export function Devices() {
   const { data: devicesData, isLoading } = useDevices();
   const { data: alertsData } = useActiveAlerts();
   const { data: notehubFleetsData } = useNotehubFleets();
+  const { isAdmin } = useIsAdmin();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [fleetFilter, setFleetFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
 
   const devices = devicesData?.devices || [];
   const activeAlerts = alertsData?.alerts || [];
@@ -217,6 +223,16 @@ export function Devices() {
             )}
           </p>
         </div>
+        {isAdmin && devices.length >= 2 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setMergeDialogOpen(true)}
+          >
+            <Merge className="h-4 w-4 mr-2" />
+            Merge Devices
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -449,6 +465,13 @@ export function Devices() {
           Showing {filteredDevices.length} of {devices.length} devices
         </p>
       )}
+
+      {/* Merge Devices Dialog (Admin only) */}
+      <MergeDevicesDialog
+        open={mergeDialogOpen}
+        onOpenChange={setMergeDialogOpen}
+        devices={devices}
+      />
     </div>
   );
 }

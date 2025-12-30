@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getDevices, getDevice, updateDevice } from '@/api/devices';
+import { getDevices, getDevice, updateDevice, mergeDevices } from '@/api/devices';
 import type { Device } from '@/types';
 
 /**
@@ -48,6 +48,28 @@ export function useUpdateDevice() {
     onSuccess: (_, { serialNumber }) => {
       queryClient.invalidateQueries({ queryKey: ['device', serialNumber] });
       queryClient.invalidateQueries({ queryKey: ['devices'] });
+    },
+  });
+}
+
+/**
+ * Hook to merge two devices (Admin only)
+ */
+export function useMergeDevices() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      sourceSerialNumber,
+      targetSerialNumber,
+    }: {
+      sourceSerialNumber: string;
+      targetSerialNumber: string;
+    }) => mergeDevices(sourceSerialNumber, targetSerialNumber),
+    onSuccess: () => {
+      // Invalidate all device queries to refresh the list
+      queryClient.invalidateQueries({ queryKey: ['devices'] });
+      queryClient.invalidateQueries({ queryKey: ['device'] });
     },
   });
 }

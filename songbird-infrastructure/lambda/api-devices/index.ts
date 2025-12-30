@@ -14,6 +14,8 @@ import {
   QueryCommand,
   GetCommand,
   UpdateCommand,
+  DeleteCommand,
+  PutCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { resolveDevice, getAliasBySerial } from '../shared/device-lookup';
@@ -22,6 +24,8 @@ const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient);
 
 const DEVICES_TABLE = process.env.DEVICES_TABLE!;
+const DEVICE_ALIASES_TABLE = process.env.DEVICE_ALIASES_TABLE || 'songbird-device-aliases';
+const ACTIVITY_TABLE = process.env.ACTIVITY_TABLE || 'songbird-activity';
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   console.log('Request:', JSON.stringify(event));
@@ -29,16 +33,22 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'GET,PATCH,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
   };
 
   try {
     // HTTP API v2 uses requestContext.http.method, REST API v1 uses httpMethod
     const method = (event.requestContext as any)?.http?.method || event.httpMethod;
     const serialNumber = event.pathParameters?.serial_number;
+    const path = event.rawPath || event.path || '';
 
     if (method === 'OPTIONS') {
       return { statusCode: 200, headers: corsHeaders, body: '' };
+    }
+
+    // POST /devices/merge - Merge two devices (Admin only)
+    if (method === 'POST' && path.endsWith('/merge')) {
+      return await mergeDevices(event, corsHeaders);
     }
 
     if (method === 'GET' && !serialNumber) {
@@ -359,4 +369,150 @@ function calculateStats(devices: any[]): Record<string, any> {
   }
 
   return stats;
+}
+
+/**
+ * Merge two devices into one (Admin only)
+ * The source device's device_uid is added to the target's alias history,
+ * and the source device record is deleted.
+ */
+async function mergeDevices(
+  event: APIGatewayProxyEvent,
+  headers: Record<string, string>
+): Promise<APIGatewayProxyResult> {
+  // Check for admin authorization
+  const claims = (event.requestContext as any)?.authorizer?.jwt?.claims || {};
+  const groups = claims['cognito:groups'] || '';
+  const isAdmin = groups.includes('Admin');
+
+  if (!isAdmin) {
+    return {
+      statusCode: 403,
+      headers,
+      body: JSON.stringify({ error: 'Admin access required to merge devices' }),
+    };
+  }
+
+  if (!event.body) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Request body required' }),
+    };
+  }
+
+  const { source_serial_number, target_serial_number } = JSON.parse(event.body);
+
+  if (!source_serial_number || !target_serial_number) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Both source_serial_number and target_serial_number are required' }),
+    };
+  }
+
+  if (source_serial_number === target_serial_number) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Source and target cannot be the same device' }),
+    };
+  }
+
+  // Get both devices
+  const sourceAlias = await getAliasBySerial(source_serial_number);
+  const targetAlias = await getAliasBySerial(target_serial_number);
+
+  if (!sourceAlias) {
+    return {
+      statusCode: 404,
+      headers,
+      body: JSON.stringify({ error: `Source device not found: ${source_serial_number}` }),
+    };
+  }
+
+  if (!targetAlias) {
+    return {
+      statusCode: 404,
+      headers,
+      body: JSON.stringify({ error: `Target device not found: ${target_serial_number}` }),
+    };
+  }
+
+  const sourceDeviceUid = sourceAlias.device_uid;
+  const targetDeviceUid = targetAlias.device_uid;
+  const sourcePreviousUids = sourceAlias.previous_device_uids || [];
+  const targetPreviousUids = targetAlias.previous_device_uids || [];
+
+  // Merge all device_uids: target's previous + source's current + source's previous
+  const allPreviousUids = [
+    ...new Set([
+      ...targetPreviousUids,
+      sourceDeviceUid,
+      ...sourcePreviousUids,
+    ]),
+  ];
+
+  // Update target alias to include source device_uids
+  await docClient.send(new PutCommand({
+    TableName: DEVICE_ALIASES_TABLE,
+    Item: {
+      serial_number: target_serial_number,
+      device_uid: targetDeviceUid,
+      previous_device_uids: allPreviousUids,
+      created_at: targetAlias.created_at,
+      updated_at: Date.now(),
+    },
+  }));
+
+  // Delete source alias
+  await docClient.send(new DeleteCommand({
+    TableName: DEVICE_ALIASES_TABLE,
+    Key: { serial_number: source_serial_number },
+  }));
+
+  // Delete source device record
+  await docClient.send(new DeleteCommand({
+    TableName: DEVICES_TABLE,
+    Key: { device_uid: sourceDeviceUid },
+  }));
+
+  // Create activity feed event
+  const activityEvent = {
+    event_id: `merge-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+    device_uid: targetDeviceUid,
+    serial_number: target_serial_number,
+    event_type: 'device_merged',
+    timestamp: Date.now(),
+    data: {
+      source_serial_number,
+      source_device_uid: sourceDeviceUid,
+      target_serial_number,
+      target_device_uid: targetDeviceUid,
+      merged_device_uids: allPreviousUids,
+    },
+  };
+
+  try {
+    await docClient.send(new PutCommand({
+      TableName: ACTIVITY_TABLE,
+      Item: activityEvent,
+    }));
+  } catch (err) {
+    // Activity logging is non-critical, log but don't fail
+    console.error('Failed to log merge activity:', err);
+  }
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      message: 'Devices merged successfully',
+      target_serial_number,
+      target_device_uid: targetDeviceUid,
+      merged_device_uids: [targetDeviceUid, ...allPreviousUids],
+      deleted_serial_number: source_serial_number,
+      deleted_device_uid: sourceDeviceUid,
+    }),
+  };
 }

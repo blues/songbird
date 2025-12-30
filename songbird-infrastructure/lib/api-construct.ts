@@ -396,6 +396,14 @@ export class ApiConstruct extends Construct {
       authorizer,
     });
 
+    // Device merge endpoint (Admin only)
+    this.api.addRoutes({
+      path: '/v1/devices/merge',
+      methods: [apigateway.HttpMethod.POST],
+      integration: devicesIntegration,
+      authorizer,
+    });
+
     // Telemetry endpoints
     const telemetryIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
       'TelemetryIntegration',

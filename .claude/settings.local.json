@@ -67,7 +67,8 @@
       "Bash(aws apigatewayv2 get-apis:*)",
       "Bash(aws apigatewayv2 get-routes:*)",
       "Bash(npx ts-node:*)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(aws dynamodb delete-item:*)"
     ],
     "deny": [],
     "ask": []
