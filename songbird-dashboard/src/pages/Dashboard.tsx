@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { StatsCards } from '@/components/devices/StatsCards';
+import { StatsCards, type StatsCardType } from '@/components/devices/StatsCards';
 import { DeviceList } from '@/components/devices/DeviceList';
 import { FleetMap } from '@/components/maps/FleetMap';
 import { useDevices } from '@/hooks/useDevices';
@@ -57,12 +57,32 @@ export function Dashboard({ mapboxToken, selectedFleet }: DashboardProps) {
     navigate(`/devices/${serialNumber}`);
   };
 
+  const handleStatsCardClick = useCallback((cardType: StatsCardType) => {
+    switch (cardType) {
+      case 'total':
+        navigate('/devices');
+        break;
+      case 'online':
+        navigate('/devices?status=online');
+        break;
+      case 'offline':
+        navigate('/devices?status=offline');
+        break;
+      case 'alerts':
+        navigate('/alerts');
+        break;
+      case 'lowBattery':
+        navigate('/devices?status=lowBattery');
+        break;
+    }
+  }, [navigate]);
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Fleet Dashboard</h1>
 
       {/* Stats Cards */}
-      <StatsCards stats={stats} />
+      <StatsCards stats={stats} onCardClick={handleStatsCardClick} />
 
       {/* Map and Activity */}
       <div className="grid gap-6 lg:grid-cols-3">

@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search,
   ChevronUp,
@@ -70,6 +70,7 @@ function getLocationSourceInfo(source?: LocationSource | string) {
 
 export function Devices() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { preferences } = usePreferences();
   const tempUnit = preferences.temp_unit === 'fahrenheit' ? 'F' : 'C';
 
@@ -81,6 +82,17 @@ export function Devices() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [fleetFilter, setFleetFilter] = useState<string>('all');
+
+  // Read initial filter from URL params
+  useEffect(() => {
+    const status = searchParams.get('status');
+    if (status) {
+      setStatusFilter(status);
+      // Clear the URL param after applying
+      searchParams.delete('status');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
@@ -134,7 +146,11 @@ export function Devices() {
 
     // Status filter
     if (statusFilter !== 'all') {
-      result = result.filter((d) => d.status === statusFilter);
+      if (statusFilter === 'lowBattery') {
+        result = result.filter((d) => d.voltage && d.voltage < 3.4);
+      } else {
+        result = result.filter((d) => d.status === statusFilter);
+      }
     }
 
     // Fleet filter
@@ -247,13 +263,14 @@ export function Devices() {
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[130px]">
+          <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="online">Online</SelectItem>
             <SelectItem value="offline">Offline</SelectItem>
+            <SelectItem value="lowBattery">Low Battery</SelectItem>
           </SelectContent>
         </Select>
         <Select
