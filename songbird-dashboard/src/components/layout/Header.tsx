@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { MobileNav } from './MobileNav';
 
 interface HeaderProps {
   user?: { username: string; email: string };
@@ -46,6 +47,9 @@ export function Header({
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-14 items-center px-4">
+        {/* Mobile Menu */}
+        <MobileNav />
+
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 mr-4 hover:opacity-80 transition-opacity">
           <img src="/songbird-logo.svg" alt="Songbird" className="h-8 w-8" />

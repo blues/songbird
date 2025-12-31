@@ -73,7 +73,10 @@ export function Map({ mapboxToken, selectedFleet }: MapProps) {
   const tempUnit = preferences.temp_unit === 'fahrenheit' ? 'F' : 'C';
 
   const mapRef = useRef<MapRef>(null);
-  const [drawerOpen, setDrawerOpen] = useState(true);
+  // Start with drawer closed on mobile (< 768px)
+  const [drawerOpen, setDrawerOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 768 : true
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [fleetFilter, setFleetFilter] = useState<string>('all');
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
@@ -196,6 +199,10 @@ export function Map({ mapboxToken, selectedFleet }: MapProps) {
         duration: 1000,
       });
     }
+    // Close drawer on mobile after selection
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setDrawerOpen(false);
+    }
   }, []);
 
   // Handle marker click
@@ -221,16 +228,35 @@ export function Map({ mapboxToken, selectedFleet }: MapProps) {
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] relative">
+      {/* Mobile overlay backdrop */}
+      {drawerOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/50 z-10"
+          onClick={() => setDrawerOpen(false)}
+        />
+      )}
+
       {/* Collapsible Device List Drawer */}
       <div
-        className={`absolute top-0 left-0 h-full bg-background border-r z-10 transition-all duration-300 ${
-          drawerOpen ? 'w-80' : 'w-0'
+        className={`absolute top-0 left-0 h-full bg-background border-r z-20 transition-all duration-300 ${
+          drawerOpen ? 'w-full sm:w-80' : 'w-0'
         } overflow-hidden`}
       >
-        <div className="w-80 h-full flex flex-col">
+        <div className="w-full sm:w-80 h-full flex flex-col">
           {/* Drawer Header */}
           <div className="p-4 border-b space-y-3">
-            <h2 className="font-semibold text-lg">Devices</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-lg">Devices</h2>
+              {/* Close button for mobile */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden"
+                onClick={() => setDrawerOpen(false)}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+            </div>
             <div className="text-sm text-muted-foreground">
               {devices.length} total &bull;{' '}
               <span className="text-green-600">{onlineCount} online</span> &bull;{' '}
@@ -334,10 +360,10 @@ export function Map({ mapboxToken, selectedFleet }: MapProps) {
         </div>
       </div>
 
-      {/* Drawer Toggle Button */}
+      {/* Drawer Toggle Button - Desktop */}
       <button
         onClick={() => setDrawerOpen(!drawerOpen)}
-        className={`absolute top-4 z-20 bg-background border rounded-r-md p-2 shadow-md transition-all duration-300 ${
+        className={`hidden md:flex absolute top-4 z-30 bg-background border rounded-r-md p-2 shadow-md transition-all duration-300 ${
           drawerOpen ? 'left-80' : 'left-0'
         }`}
       >
@@ -347,6 +373,18 @@ export function Map({ mapboxToken, selectedFleet }: MapProps) {
           <ChevronRight className="h-4 w-4" />
         )}
       </button>
+
+      {/* Mobile: Floating button to open drawer when closed */}
+      {!drawerOpen && (
+        <Button
+          onClick={() => setDrawerOpen(true)}
+          className="md:hidden absolute top-4 left-4 z-30 shadow-lg"
+          size="sm"
+        >
+          <MapPin className="h-4 w-4 mr-2" />
+          Devices ({devices.length})
+        </Button>
+      )}
 
       {/* Map */}
       <div className="flex-1">

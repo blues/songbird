@@ -286,6 +286,17 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
         </Button>
       </div>
 
+      {/* Config Panel - Mobile (shown at top) */}
+      {showConfig && (
+        <div className="lg:hidden mb-6">
+          <ConfigPanel
+            serialNumber={device.serial_number}
+            assignedTo={device.assigned_to}
+            onClose={() => setShowConfig(false)}
+          />
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main Content */}
         <div className={showConfig ? 'lg:col-span-2' : 'lg:col-span-3'}>
@@ -737,9 +748,9 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
           </Card>
         </div>
 
-        {/* Config Panel */}
+        {/* Config Panel - Desktop (shown in sidebar) */}
         {showConfig && (
-          <div className="lg:col-span-1">
+          <div className="hidden lg:block lg:col-span-1">
             <ConfigPanel
               serialNumber={device.serial_number}
               assignedTo={device.assigned_to}

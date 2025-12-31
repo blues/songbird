@@ -38,7 +38,32 @@ export function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList>
+        {/* Mobile: vertical stacked tabs */}
+        <TabsList className="sm:hidden flex flex-col h-auto w-full">
+          <TabsTrigger value="preferences" className="gap-2 w-full justify-start">
+            <User className="h-4 w-4" />
+            Display Preferences
+          </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="fleet-defaults" className="gap-2 w-full justify-start">
+              <Building2 className="h-4 w-4" />
+              Fleet Defaults
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="notehub" className="gap-2 w-full justify-start">
+            <Cloud className="h-4 w-4" />
+            Notehub Connection
+          </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="users" className="gap-2 w-full justify-start">
+              <Users className="h-4 w-4" />
+              User Management
+            </TabsTrigger>
+          )}
+        </TabsList>
+
+        {/* Desktop: horizontal tabs (original style) */}
+        <TabsList className="hidden sm:inline-flex">
           <TabsTrigger value="preferences" className="gap-2">
             <User className="h-4 w-4" />
             Display Preferences
