@@ -276,7 +276,7 @@ export function Devices() {
       </div>
 
       {/* Mobile Card View */}
-      <div className="md:hidden space-y-3">
+      <div className="sm:hidden space-y-3">
         {isLoading ? (
           [...Array(3)].map((_, i) => (
             <div key={i} className="border rounded-lg p-4">
@@ -400,7 +400,7 @@ export function Devices() {
       </div>
 
       {/* Desktop Table View */}
-      <div className="hidden md:block border rounded-lg">
+      <div className="hidden sm:block border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
