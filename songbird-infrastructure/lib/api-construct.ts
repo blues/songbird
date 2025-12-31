@@ -279,6 +279,24 @@ export class ApiConstruct extends Construct {
     });
     notehubSecret.grantRead(notehubFunction);
 
+    // Firmware API (Admin only - for host firmware management)
+    const firmwareFunction = new NodejsFunction(this, 'FirmwareFunction', {
+      functionName: 'songbird-api-firmware',
+      description: 'Songbird Firmware Management API',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/api-firmware/index.ts'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        NOTEHUB_PROJECT_UID: props.notehubProjectUid,
+        NOTEHUB_SECRET_ARN: notehubSecret.secretArn,
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+    notehubSecret.grantRead(firmwareFunction);
+
     // Event Ingest API (for Notehub HTTP route - no authentication)
     const ingestFunction = new NodejsFunction(this, 'IngestFunction', {
       functionName: 'songbird-api-ingest',
@@ -623,6 +641,40 @@ export class ApiConstruct extends Construct {
       path: '/v1/notehub/fleets',
       methods: [apigateway.HttpMethod.GET],
       integration: notehubIntegration,
+      authorizer,
+    });
+
+    // Firmware endpoints (admin only - enforced in Lambda)
+    const firmwareIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+      'FirmwareIntegration',
+      firmwareFunction
+    );
+
+    this.api.addRoutes({
+      path: '/v1/firmware',
+      methods: [apigateway.HttpMethod.GET],
+      integration: firmwareIntegration,
+      authorizer,
+    });
+
+    this.api.addRoutes({
+      path: '/v1/firmware/status',
+      methods: [apigateway.HttpMethod.GET],
+      integration: firmwareIntegration,
+      authorizer,
+    });
+
+    this.api.addRoutes({
+      path: '/v1/firmware/update',
+      methods: [apigateway.HttpMethod.POST],
+      integration: firmwareIntegration,
+      authorizer,
+    });
+
+    this.api.addRoutes({
+      path: '/v1/firmware/cancel',
+      methods: [apigateway.HttpMethod.POST],
+      integration: firmwareIntegration,
       authorizer,
     });
 

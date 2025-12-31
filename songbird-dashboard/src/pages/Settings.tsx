@@ -5,13 +5,14 @@
  */
 
 import { useState } from 'react';
-import { Settings as SettingsIcon, User, Users, Building2, Cloud } from 'lucide-react';
+import { Settings as SettingsIcon, User, Users, Building2, Cloud, HardDrive } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useIsAdmin } from '@/hooks/useAuth';
 import { DisplayPreferences } from '@/components/settings/DisplayPreferences';
 import { FleetDefaults } from '@/components/settings/FleetDefaults';
 import { NotehubConnection } from '@/components/settings/NotehubConnection';
 import { UserManagement } from '@/components/settings/UserManagement';
+import { FirmwareManagement } from '@/components/settings/FirmwareManagement';
 
 export function Settings() {
   const { isAdmin, isLoading } = useIsAdmin();
@@ -50,6 +51,12 @@ export function Settings() {
               Fleet Defaults
             </TabsTrigger>
           )}
+          {isAdmin && (
+            <TabsTrigger value="firmware" className="gap-2 w-full justify-start">
+              <HardDrive className="h-4 w-4" />
+              Firmware
+            </TabsTrigger>
+          )}
           <TabsTrigger value="notehub" className="gap-2 w-full justify-start">
             <Cloud className="h-4 w-4" />
             Notehub Connection
@@ -74,6 +81,12 @@ export function Settings() {
               Fleet Defaults
             </TabsTrigger>
           )}
+          {isAdmin && (
+            <TabsTrigger value="firmware" className="gap-2">
+              <HardDrive className="h-4 w-4" />
+              Firmware
+            </TabsTrigger>
+          )}
           <TabsTrigger value="notehub" className="gap-2">
             <Cloud className="h-4 w-4" />
             Notehub Connection
@@ -93,6 +106,12 @@ export function Settings() {
         {isAdmin && (
           <TabsContent value="fleet-defaults">
             <FleetDefaults />
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="firmware">
+            <FirmwareManagement />
           </TabsContent>
         )}
 

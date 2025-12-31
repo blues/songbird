@@ -454,3 +454,66 @@ export interface NotehubStatus {
   error?: string;
   last_checked: string;
 }
+
+/**
+ * Host firmware info from Notehub
+ */
+export interface HostFirmware {
+  filename: string;
+  version?: string;
+  created: string;
+  type: string;
+  target?: string;
+  md5?: string;
+  size?: number;
+}
+
+/**
+ * Firmware update target type
+ */
+export type FirmwareUpdateTarget = 'all' | 'fleet' | 'device';
+
+/**
+ * Request to queue a firmware update
+ */
+export interface FirmwareUpdateRequest {
+  filename: string;
+  fleetUID?: string;
+  deviceUID?: string;
+}
+
+/**
+ * Device DFU status update entry
+ */
+export interface DfuUpdateEntry {
+  when: string;
+  status: string;
+}
+
+/**
+ * Device DFU status
+ */
+export interface DeviceDfuStatus {
+  device_uid: string;
+  serial_number?: string;
+  current_version?: string;
+  requested_version?: string;
+  status?: string;
+  began?: string;
+  updates?: DfuUpdateEntry[];
+}
+
+/**
+ * Overall DFU status response
+ */
+export interface DfuStatus {
+  firmware_type: string;
+  devices: DeviceDfuStatus[];
+}
+
+/**
+ * Host firmware list response
+ */
+export interface HostFirmwareResponse {
+  firmware: HostFirmware[];
+}
