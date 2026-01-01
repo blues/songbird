@@ -90,9 +90,13 @@ function App() {
 
   if (!config) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <div className="text-4xl mb-4">🐦</div>
+          <img
+            src="/songbird-logo.svg"
+            alt="Songbird"
+            className="h-16 w-16 mx-auto mb-4 animate-pulse"
+          />
           <p className="text-muted-foreground">Loading Songbird Dashboard...</p>
         </div>
       </div>
