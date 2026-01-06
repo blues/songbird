@@ -32,7 +32,7 @@ export function Layout({
       <div className="flex flex-1">
         <Sidebar />
         <main className="flex-1 overflow-auto">
-          <div className="container py-6">
+          <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <Outlet />
           </div>
         </main>

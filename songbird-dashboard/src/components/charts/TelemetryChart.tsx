@@ -49,7 +49,7 @@ export function TelemetryChart({
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+      <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
         <XAxis
           dataKey="timestamp"
@@ -66,6 +66,7 @@ export function TelemetryChart({
             tickFormatter={(v) => `${v}°`}
             className="text-xs"
             stroke="#f97316"
+            width={40}
           />
         )}
 
@@ -77,6 +78,7 @@ export function TelemetryChart({
             tickFormatter={(v) => `${v}%`}
             className="text-xs"
             stroke="#3b82f6"
+            width={40}
           />
         )}
 
@@ -88,6 +90,7 @@ export function TelemetryChart({
             tickFormatter={(v) => `${v}%`}
             className="text-xs"
             stroke="#3b82f6"
+            width={40}
           />
         )}
 
@@ -99,7 +102,10 @@ export function TelemetryChart({
             borderRadius: '8px',
           }}
         />
-        <Legend />
+        <Legend
+          wrapperStyle={{ fontSize: '12px' }}
+          iconSize={12}
+        />
 
         {showTemperature && (
           <Line

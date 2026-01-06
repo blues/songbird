@@ -231,35 +231,40 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1 min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
             <Link to="/">
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" className="flex-shrink-0">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2 min-w-0">
               {device.usb_powered ? (
-                <span title="USB Powered"><BatteryCharging className="h-5 w-5 text-blue-500" /></span>
+                <span title="USB Powered" className="flex-shrink-0"><BatteryCharging className="h-5 w-5 text-blue-500" /></span>
               ) : (
-                <span title="Battery Powered"><BatteryFull className="h-5 w-5 text-green-500" /></span>
+                <span title="Battery Powered" className="flex-shrink-0"><BatteryFull className="h-5 w-5 text-green-500" /></span>
               )}
-              {device.name || device.serial_number || truncateDeviceUid(device.device_uid)}
+              <span className="truncate">{device.name || device.serial_number || truncateDeviceUid(device.device_uid)}</span>
             </h1>
-            <DeviceStatus status={device.status} />
+            <DeviceStatus status={device.status} className="flex-shrink-0" />
             {activeAlerts.length > 0 && (
-              <Badge variant="destructive" className="gap-1">
+              <Badge variant="destructive" className="gap-1 flex-shrink-0">
                 <AlertTriangle className="h-3 w-3" />
                 {activeAlerts.length} Alert{activeAlerts.length !== 1 ? 's' : ''}
               </Badge>
             )}
           </div>
-          <p className="text-muted-foreground">
-            {device.fleet_name && `Fleet: ${device.fleet_name} • `}
-            {(device.assigned_to_name || device.assigned_to) && `Assigned: ${device.assigned_to_name || device.assigned_to} • `}
+          <div className="text-sm text-muted-foreground flex flex-wrap items-center gap-2">
+            {device.fleet_name && <span>Fleet: {device.fleet_name}</span>}
+            {(device.assigned_to_name || device.assigned_to) && (
+              <>
+                {device.fleet_name && <span>•</span>}
+                <span>Assigned: {device.assigned_to_name || device.assigned_to}</span>
+              </>
+            )}
             <Badge
               variant={device.transit_locked || device.demo_locked ? "default" : "secondary"}
               className={
@@ -273,13 +278,19 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
               {(device.transit_locked || device.demo_locked) && <Lock className="h-3 w-3" />}
               {formatMode(device.mode)}
             </Badge>
-            {device.last_seen && ` • Last seen: ${formatRelativeTime(device.last_seen)}`}
-          </p>
+            {device.last_seen && (
+              <>
+                <span>•</span>
+                <span>Last seen: {formatRelativeTime(device.last_seen)}</span>
+              </>
+            )}
+          </div>
         </div>
 
         <Button
           variant="outline"
           onClick={() => setShowConfig(!showConfig)}
+          className="flex-shrink-0 w-full sm:w-auto"
         >
           <Settings className="h-4 w-4 mr-2" />
           Config
@@ -297,11 +308,11 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-3 w-full">
         {/* Main Content */}
-        <div className={showConfig ? 'lg:col-span-2' : 'lg:col-span-3'}>
+        <div className={`${showConfig ? 'lg:col-span-2' : 'lg:col-span-3'} min-w-0`}>
           {/* Current Readings */}
-          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 mb-6">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-6 w-full">
             <GaugeCard
               title="Temperature"
               value={convertTemperature(latestTelemetry?.temperature, tempUnit)?.toFixed(1) || '--'}
@@ -354,25 +365,25 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
 
           {/* Location / Journeys Section */}
           <Card className="mb-6">
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="flex items-center gap-2">
                 <MapPin className="h-5 w-5" />
                 Location
               </CardTitle>
-              <div className="flex items-center gap-2">
-                <Tabs value={locationTab} onValueChange={setLocationTab}>
-                  <TabsList>
-                    <TabsTrigger value="current">
-                      <MapPin className="h-3 w-3 mr-1" />
-                      Current
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+                <Tabs value={locationTab} onValueChange={setLocationTab} className="w-full sm:w-auto">
+                  <TabsList className="grid grid-cols-3 w-full sm:w-auto sm:inline-flex">
+                    <TabsTrigger value="current" className="text-xs sm:text-sm">
+                      <MapPin className="h-3 w-3 sm:mr-1" />
+                      <span className="hidden sm:inline">Current</span>
                     </TabsTrigger>
-                    <TabsTrigger value="journeys">
-                      <Route className="h-3 w-3 mr-1" />
-                      Journeys
+                    <TabsTrigger value="journeys" className="text-xs sm:text-sm">
+                      <Route className="h-3 w-3 sm:mr-1" />
+                      <span className="hidden sm:inline">Journeys</span>
                     </TabsTrigger>
-                    <TabsTrigger value="history">
-                      <Clock className="h-3 w-3 mr-1" />
-                      History
+                    <TabsTrigger value="history" className="text-xs sm:text-sm">
+                      <Clock className="h-3 w-3 sm:mr-1" />
+                      <span className="hidden sm:inline">History</span>
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -381,7 +392,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                     const sourceInfo = getLocationSourceInfo(device.location_source);
                     const SourceIcon = sourceInfo.icon;
                     return (
-                      <Badge variant="outline" className={`gap-1 ${sourceInfo.bgColor} border-0`}>
+                      <Badge variant="outline" className={`gap-1 ${sourceInfo.bgColor} border-0 self-start sm:self-auto`}>
                         <SourceIcon className={`h-3 w-3 ${sourceInfo.color}`} />
                         <span className={sourceInfo.color}>{sourceInfo.label}</span>
                       </Badge>
@@ -475,7 +486,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
 
           {/* Historical Charts */}
           <Card className="mb-6 overflow-hidden">
-            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardHeader className="flex flex-col gap-3">
               <CardTitle className="whitespace-nowrap flex items-center gap-2">
                 {isViewingJourney ? (
                   <>
@@ -486,33 +497,30 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                   'Historical Data'
                 )}
               </CardTitle>
-              <div className="flex flex-wrap gap-2 sm:gap-4">
-                <Tabs value={chartTab} onValueChange={setChartTab}>
-                  <TabsList className="h-auto flex-wrap">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Tabs value={chartTab} onValueChange={setChartTab} className="w-full sm:w-auto">
+                  <TabsList className="grid grid-cols-3 w-full sm:w-auto sm:inline-flex">
                     <TabsTrigger value="telemetry" className="text-xs sm:text-sm">
-                      <Thermometer className="h-3 w-3 mr-1" />
-                      Telemetry
+                      <Thermometer className="h-3 w-3 sm:mr-1" />
+                      <span className="hidden sm:inline">Telemetry</span>
                     </TabsTrigger>
                     <TabsTrigger value="power" className="text-xs sm:text-sm">
-                      <Zap className="h-3 w-3 mr-1" />
-                      Power
+                      <Zap className="h-3 w-3 sm:mr-1" />
+                      <span className="hidden sm:inline">Power</span>
                     </TabsTrigger>
                     <TabsTrigger value="health" className="text-xs sm:text-sm">
-                      <Activity className="h-3 w-3 mr-1" />
-                      Health
+                      <Activity className="h-3 w-3 sm:mr-1" />
+                      <span className="hidden sm:inline">Health</span>
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
                 {!isViewingJourney && (
-                  <Tabs value={String(effectiveTimeRange)} onValueChange={(v) => setTimeRange(Number(v))}>
-                    <TabsList className="h-auto flex-wrap">
-                      <TabsTrigger value="1" className="text-xs sm:text-sm px-2 sm:px-3">1h</TabsTrigger>
-                      <TabsTrigger value="4" className="text-xs sm:text-sm px-2 sm:px-3">4h</TabsTrigger>
-                      <TabsTrigger value="8" className="text-xs sm:text-sm px-2 sm:px-3">8h</TabsTrigger>
-                      <TabsTrigger value="12" className="text-xs sm:text-sm px-2 sm:px-3">12h</TabsTrigger>
-                      <TabsTrigger value="24" className="text-xs sm:text-sm px-2 sm:px-3">24h</TabsTrigger>
-                      <TabsTrigger value="48" className="text-xs sm:text-sm px-2 sm:px-3">48h</TabsTrigger>
-                      <TabsTrigger value="168" className="text-xs sm:text-sm px-2 sm:px-3">7d</TabsTrigger>
+                  <Tabs value={String(effectiveTimeRange)} onValueChange={(v) => setTimeRange(Number(v))} className="w-full sm:w-auto">
+                    <TabsList className="grid grid-cols-4 w-full sm:w-auto sm:inline-flex">
+                      <TabsTrigger value="1" className="text-xs sm:text-sm px-1.5 sm:px-3">1h</TabsTrigger>
+                      <TabsTrigger value="4" className="text-xs sm:text-sm px-1.5 sm:px-3">4h</TabsTrigger>
+                      <TabsTrigger value="24" className="text-xs sm:text-sm px-1.5 sm:px-3">24h</TabsTrigger>
+                      <TabsTrigger value="168" className="text-xs sm:text-sm px-1.5 sm:px-3">7d</TabsTrigger>
                     </TabsList>
                   </Tabs>
                 )}

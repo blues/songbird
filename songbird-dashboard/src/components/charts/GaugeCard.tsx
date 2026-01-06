@@ -61,19 +61,25 @@ export function GaugeCard({
   };
 
   return (
-    <Card className={cn('overflow-hidden', className)}>
-      <CardHeader className="flex flex-row items-center justify-between pb-2 px-3 sm:px-6">
-        <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
+    <Card className={cn('overflow-hidden w-full min-w-0', className)}>
+      <CardHeader className="flex flex-row items-center justify-between pb-2 px-2 sm:px-4 lg:px-6">
+        <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate pr-1">
           {title}
         </CardTitle>
         <div className="text-muted-foreground flex-shrink-0">{icon}</div>
       </CardHeader>
-      <CardContent className="px-3 sm:px-6">
-        <div className={cn('text-2xl sm:text-3xl font-bold', statusColors[status])}>
-          {value}
-          {unit && <span className="text-sm sm:text-lg ml-0.5 sm:ml-1">{unit}</span>}
+      <CardContent className="px-2 sm:px-4 lg:px-6 pb-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className={cn('text-4xl sm:text-3xl lg:text-4xl font-bold', statusColors[status])}>
+            {value}
+            {unit && <span className="text-lg sm:text-base lg:text-xl ml-1">{unit}</span>}
+          </div>
+          {sparklineData && sparklineData.length >= 2 && (
+            <div className="flex-shrink-0 w-32 sm:w-24">
+              {renderSparkline()}
+            </div>
+          )}
         </div>
-        {renderSparkline()}
       </CardContent>
     </Card>
   );

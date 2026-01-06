@@ -67,31 +67,31 @@ export function CommandPanel({
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Quick Commands */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <Button
             onClick={handlePing}
             disabled={!audioEnabled || isLoading}
             variant="outline"
-            className="h-auto py-4 flex-col gap-2"
+            className="h-auto py-3 sm:py-4 flex-col gap-1 sm:gap-2 px-2"
           >
-            <Bell className="h-5 w-5" />
-            <span>Ping</span>
+            <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="text-xs sm:text-sm">Ping</span>
           </Button>
 
           <Button
             onClick={handleLocate}
             disabled={!audioEnabled || isLoading}
             variant="outline"
-            className="h-auto py-4 flex-col gap-2"
+            className="h-auto py-3 sm:py-4 flex-col gap-1 sm:gap-2 px-2"
           >
-            <MapPin className="h-5 w-5" />
-            <span>Locate</span>
+            <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="text-xs sm:text-sm">Locate</span>
           </Button>
         </div>
 
         {/* Locate Duration */}
         <div className="space-y-2">
-          <label className="text-sm text-muted-foreground">
+          <label className="text-xs sm:text-sm text-muted-foreground">
             Locate Duration: {locateDuration}s
           </label>
           <Slider
@@ -106,14 +106,14 @@ export function CommandPanel({
 
         {/* Melody Selector */}
         <div className="space-y-2">
-          <label className="text-sm text-muted-foreground">Play Melody</label>
+          <label className="text-xs sm:text-sm text-muted-foreground">Play Melody</label>
           <div className="flex gap-2">
             <Select
               value={selectedMelody}
               onValueChange={setSelectedMelody}
               disabled={!audioEnabled}
             >
-              <SelectTrigger className="flex-1">
+              <SelectTrigger className="flex-1 min-w-0">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -128,6 +128,7 @@ export function CommandPanel({
               onClick={handlePlayMelody}
               disabled={!audioEnabled || isLoading}
               size="icon"
+              className="flex-shrink-0"
             >
               <Music className="h-4 w-4" />
             </Button>
