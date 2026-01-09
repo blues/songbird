@@ -7,5 +7,5 @@
  * - Commands (from commands table)
  * - Journey start/end events (from journeys table)
  */
-import { APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 export declare const handler: (event: APIGatewayProxyEvent) => Promise<APIGatewayProxyResult>;

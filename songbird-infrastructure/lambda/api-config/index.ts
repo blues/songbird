@@ -167,7 +167,7 @@ async function getDeviceConfig(
       };
     }
 
-    const data = await response.json();
+    const data = await response.json() as { environment_variables?: Record<string, string> };
     const rawConfig = data.environment_variables || {};
     const parsedConfig = parseConfigValues(rawConfig);
 

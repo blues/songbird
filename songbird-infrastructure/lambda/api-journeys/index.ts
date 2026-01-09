@@ -16,6 +16,45 @@ import { DynamoDBDocumentClient, QueryCommand, UpdateCommand, DeleteCommand, Get
 import { APIGatewayProxyEvent, APIGatewayProxyEventV2, APIGatewayProxyResult } from 'aws-lambda';
 import { resolveDevice } from '../shared/device-lookup';
 
+// Type for location point items from DynamoDB
+interface LocationPoint {
+  device_uid: string;
+  timestamp: number;
+  latitude: number;
+  longitude: number;
+  velocity?: number;
+  bearing?: number;
+  distance?: number;
+  dop?: number;
+  jcount?: number;
+  journey_id?: number;
+  source?: string;
+  location_name?: string;
+  event_type?: string;
+}
+
+// Type for telemetry items with power readings
+interface TelemetryItem {
+  milliamp_hours?: number;
+  [key: string]: unknown;
+}
+
+// GeoJSON LineString type
+interface GeoJSONLineString {
+  type: 'LineString';
+  coordinates: number[][];
+}
+
+// Type for Mapbox Map Matching API response
+interface MapboxMatchResponse {
+  code: string;
+  message?: string;
+  matchings?: Array<{
+    geometry: GeoJSONLineString;
+    confidence: number;
+  }>;
+}
+
 const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient);
 
@@ -232,7 +271,7 @@ async function getJourneyDetail(
   };
 
   // Sort points by timestamp (GSI doesn't guarantee order within same journey_id)
-  const sortedItems = (pointsResult.Items || []).sort((a, b) => a.timestamp - b.timestamp);
+  const sortedItems = ((pointsResult.Items || []) as LocationPoint[]).sort((a, b) => a.timestamp - b.timestamp);
 
   const points = sortedItems.map((item) => ({
     time: new Date(item.timestamp).toISOString(),
@@ -320,7 +359,7 @@ async function matchJourney(
   const pointsResult = await docClient.send(pointsCommand);
 
   // Sort points by timestamp (GSI doesn't guarantee order within same journey_id)
-  const points = (pointsResult.Items || []).sort((a, b) => a.timestamp - b.timestamp);
+  const points = ((pointsResult.Items || []) as LocationPoint[]).sort((a, b) => a.timestamp - b.timestamp);
 
   if (points.length < 2) {
     return {
@@ -333,7 +372,7 @@ async function matchJourney(
   // Mapbox Map Matching API has a limit of 100 coordinates per request
   // If we have more, we need to sample or batch
   const maxPoints = 100;
-  let sampledPoints = points;
+  let sampledPoints: LocationPoint[] = points;
   if (points.length > maxPoints) {
     // Sample points evenly
     const step = (points.length - 1) / (maxPoints - 1);
@@ -366,7 +405,7 @@ async function matchJourney(
 
   try {
     const response = await fetch(mapMatchUrl);
-    const data = await response.json();
+    const data = await response.json() as MapboxMatchResponse;
 
     if (data.code !== 'Ok' || !data.matchings || data.matchings.length === 0) {
       console.error('Map matching failed:', data);
@@ -630,18 +669,18 @@ async function deleteJourney(
   });
 
   const pointsResult = await docClient.send(pointsCommand);
-  const locationPoints = pointsResult.Items || [];
+  const locationPoints = (pointsResult.Items || []) as LocationPoint[];
 
   // Delete location points in batches of 25 (DynamoDB BatchWrite limit)
   if (locationPoints.length > 0) {
-    const batches = [];
+    const batches: LocationPoint[][] = [];
     for (let i = 0; i < locationPoints.length; i += 25) {
       const batch = locationPoints.slice(i, i + 25);
       batches.push(batch);
     }
 
     for (const batch of batches) {
-      const deleteRequests = batch.map((point) => ({
+      const deleteRequests = batch.map((point: LocationPoint) => ({
         DeleteRequest: {
           Key: {
             device_uid: point.device_uid,
@@ -716,7 +755,7 @@ async function getJourneyPowerConsumption(
   });
 
   const result = await docClient.send(command);
-  const powerReadings = result.Items || [];
+  const powerReadings = (result.Items || []) as TelemetryItem[];
 
   // Need at least 2 readings to calculate consumption
   if (powerReadings.length < 2) {
@@ -733,8 +772,9 @@ async function getJourneyPowerConsumption(
   const firstReading = validReadings[0];
   const lastReading = validReadings[validReadings.length - 1];
 
-  const startMah = firstReading.milliamp_hours;
-  const endMah = lastReading.milliamp_hours;
+  // We know these are numbers since we filtered for them above
+  const startMah = firstReading.milliamp_hours!;
+  const endMah = lastReading.milliamp_hours!;
 
   // Calculate consumption (handle counter reset edge case)
   let consumedMah = endMah - startMah;

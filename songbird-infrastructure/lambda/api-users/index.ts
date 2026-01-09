@@ -16,10 +16,12 @@ import {
   AdminUpdateUserAttributesCommand,
   AdminDeleteUserCommand,
   ListGroupsCommand,
+  type AttributeType,
+  type GroupType,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, UpdateCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
-import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
+import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
 
 const cognitoClient = new CognitoIdentityProviderClient({});
 const dynamoClient = new DynamoDBClient({});
@@ -37,7 +39,7 @@ const headers = {
 
 const VALID_GROUPS = ['Admin', 'Sales', 'FieldEngineering', 'Viewer'];
 
-function isAdmin(event: APIGatewayProxyEventV2): boolean {
+function isAdmin(event: APIGatewayProxyEventV2WithJWTAuthorizer): boolean {
   try {
     const claims = event.requestContext?.authorizer?.jwt?.claims;
     if (!claims) return false;
@@ -74,8 +76,8 @@ async function listUsers(): Promise<UserInfo[]> {
   const users: UserInfo[] = [];
 
   for (const user of result.Users || []) {
-    const emailAttr = user.Attributes?.find(a => a.Name === 'email');
-    const nameAttr = user.Attributes?.find(a => a.Name === 'name');
+    const emailAttr = user.Attributes?.find((a: AttributeType) => a.Name === 'email');
+    const nameAttr = user.Attributes?.find((a: AttributeType) => a.Name === 'name');
 
     // Get groups for this user
     const groupsResult = await cognitoClient.send(new AdminListGroupsForUserCommand({
@@ -83,7 +85,7 @@ async function listUsers(): Promise<UserInfo[]> {
       Username: user.Username!,
     }));
 
-    const groups = (groupsResult.Groups || []).map(g => g.GroupName!);
+    const groups = (groupsResult.Groups || []).map((g: GroupType) => g.GroupName!);
 
     users.push({
       username: user.Username!,
@@ -108,7 +110,7 @@ async function getDevicesAssignedToUser(userEmail: string): Promise<string[]> {
     ProjectionExpression: 'device_uid',
   }));
 
-  return (result.Items || []).map(item => item.device_uid);
+  return (result.Items || []).map((item: Record<string, unknown>) => item.device_uid as string);
 }
 
 async function assignDeviceToUser(deviceUid: string, userEmail: string, userName?: string): Promise<void> {
@@ -153,10 +155,10 @@ async function getUnassignedDevices(): Promise<{ device_uid: string; serial_numb
     },
   }));
 
-  return (result.Items || []).map(item => ({
-    device_uid: item.device_uid,
-    serial_number: item.serial_number,
-    name: item.name,
+  return (result.Items || []).map((item: Record<string, unknown>) => ({
+    device_uid: item.device_uid as string,
+    serial_number: item.serial_number as string,
+    name: item.name as string | undefined,
   }));
 }
 
@@ -173,7 +175,7 @@ async function unassignDevicesFromUser(deviceUids: string[]): Promise<void> {
   }
 }
 
-export async function handler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
+export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer): Promise<APIGatewayProxyResultV2> {
   console.log('Event:', JSON.stringify(event, null, 2));
 
   const method = event.requestContext.http.method;
@@ -219,7 +221,7 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
         UserPoolId: USER_POOL_ID,
       }));
 
-      const groups = (result.Groups || []).map(g => ({
+      const groups = (result.Groups || []).map((g: GroupType) => ({
         name: g.GroupName,
         description: g.Description,
       }));
@@ -252,9 +254,9 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
         Username: userId,
       }));
 
-      const emailAttr = userResult.UserAttributes?.find(a => a.Name === 'email');
-      const nameAttr = userResult.UserAttributes?.find(a => a.Name === 'name');
-      const groups = (groupsResult.Groups || []).map(g => g.GroupName!);
+      const emailAttr = userResult.UserAttributes?.find((a: AttributeType) => a.Name === 'email');
+      const nameAttr = userResult.UserAttributes?.find((a: AttributeType) => a.Name === 'name');
+      const groups = (groupsResult.Groups || []).map((g: GroupType) => g.GroupName!);
 
       const assignedDevices = await getDevicesAssignedToUser(emailAttr?.Value || '');
 
@@ -395,7 +397,7 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
         UserPoolId: USER_POOL_ID,
         Username: userId,
       }));
-      const currentGroups = (currentGroupsResult.Groups || []).map(g => g.GroupName!);
+      const currentGroups = (currentGroupsResult.Groups || []).map((g: GroupType) => g.GroupName!);
 
       // Remove from groups no longer in list
       for (const group of currentGroups) {
@@ -456,8 +458,8 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
         UserPoolId: USER_POOL_ID,
         Username: userId,
       }));
-      const emailAttr = userResult.UserAttributes?.find(a => a.Name === 'email');
-      const nameAttr = userResult.UserAttributes?.find(a => a.Name === 'name');
+      const emailAttr = userResult.UserAttributes?.find((a: AttributeType) => a.Name === 'email');
+      const nameAttr = userResult.UserAttributes?.find((a: AttributeType) => a.Name === 'name');
       const userEmail = emailAttr?.Value || '';
       const userName = nameAttr?.Value;
 
@@ -520,7 +522,7 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
         UserPoolId: USER_POOL_ID,
         Username: userId,
       }));
-      const emailAttr = userResult.UserAttributes?.find(a => a.Name === 'email');
+      const emailAttr = userResult.UserAttributes?.find((a: AttributeType) => a.Name === 'email');
       const userEmail = emailAttr?.Value || '';
 
       // Unassign any devices assigned to this user

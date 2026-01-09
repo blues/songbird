@@ -103,6 +103,9 @@ export class StorageConstruct extends Construct {
 
       // TTL to automatically delete old telemetry (90 days)
       timeToLiveAttribute: 'ttl',
+
+      // Enable streams for real-time sync to Aurora Analytics
+      stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     });
 
     // GSI for querying by event type
@@ -139,6 +142,9 @@ export class StorageConstruct extends Construct {
 
       // TTL to automatically delete old alerts (90 days)
       timeToLiveAttribute: 'ttl',
+
+      // Enable streams for real-time sync to Aurora Analytics
+      stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     });
 
     // GSI for querying alerts by device
@@ -217,6 +223,9 @@ export class StorageConstruct extends Construct {
 
       // TTL to automatically delete old journeys (90 days)
       timeToLiveAttribute: 'ttl',
+
+      // Enable streams for real-time sync to Aurora Analytics
+      stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     });
 
     // GSI for querying active journeys across all devices
@@ -257,6 +266,9 @@ export class StorageConstruct extends Construct {
 
       // TTL to automatically delete old locations (90 days)
       timeToLiveAttribute: 'ttl',
+
+      // Enable streams for real-time sync to Aurora Analytics
+      stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     });
 
     // GSI for querying locations by journey

@@ -72,7 +72,13 @@
       "Bash(aws lambda list-functions:*)",
       "Bash(aws cognito-idp describe-user-pool:*)",
       "Bash(aws s3 cp:*)",
-      "Bash(npm run build:lambda:*)"
+      "Bash(npm run build:lambda:*)",
+      "Bash(chmod:*)",
+      "Bash(./debug-aurora.sh:*)",
+      "Bash(response.json)",
+      "Bash(CLUSTER_ARN=\"arn:aws:rds:us-east-1:163050375163:cluster:songbirdstack-analyticsanalyticsclusterd8546723-yh5ogmegbbjz\")",
+      "Bash(SECRET_ARN=\"arn:aws:secretsmanager:us-east-1:163050375163:secret:AnalyticsAnalyticsClusterSe-s6VoVw2y6oSe-YVdDks\":*)",
+      "Bash(__NEW_LINE__ aws rds-data execute-statement )"
     ],
     "deny": [],
     "ask": []

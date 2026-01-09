@@ -7,5 +7,5 @@
  * - POST /devices/{serial_number}/commands - Send command to device (routes to current Notecard)
  * - GET /devices/{serial_number}/commands - Get command history for a device (merged from all Notecards)
  */
-import { APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 export declare const handler: (event: APIGatewayProxyEvent) => Promise<APIGatewayProxyResult>;

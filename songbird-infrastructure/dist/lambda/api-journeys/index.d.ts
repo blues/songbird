@@ -10,5 +10,5 @@
  *
  * Note: When a Notecard is swapped, journeys from all device_uids are merged.
  */
-import { APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 export declare const handler: (event: APIGatewayProxyEvent) => Promise<APIGatewayProxyResult>;

@@ -11,6 +11,7 @@ import { StorageConstruct } from './storage-construct';
 import { ApiConstruct } from './api-construct';
 import { DashboardConstruct } from './dashboard-construct';
 import { AuthConstruct, PostConfirmationTrigger } from './auth-construct';
+import { AnalyticsConstruct } from './analytics-construct';
 
 export interface SongbirdStackProps extends cdk.StackProps {
   notehubProjectUid: string;
@@ -44,6 +45,17 @@ export class SongbirdStack extends cdk.Stack {
     });
 
     // ==========================================================================
+    // Analytics Layer (Aurora Serverless + Bedrock)
+    // ==========================================================================
+    const analytics = new AnalyticsConstruct(this, 'Analytics', {
+      devicesTable: storage.devicesTable,
+      telemetryTable: storage.telemetryTable,
+      locationsTable: storage.locationsTable,
+      alertsTable: storage.alertsTable,
+      journeysTable: storage.journeysTable,
+    });
+
+    // ==========================================================================
     // API Layer (API Gateway + Lambda)
     // ==========================================================================
     const api = new ApiConstruct(this, 'Api', {
@@ -59,6 +71,9 @@ export class SongbirdStack extends cdk.Stack {
       notehubProjectUid: props.notehubProjectUid,
       alertTopic,
     });
+
+    // Add Analytics routes to API
+    api.addAnalyticsRoutes(analytics.chatQueryLambda, analytics.chatHistoryLambda);
 
     // ==========================================================================
     // Post-Confirmation Lambda Trigger (for self-signup with Viewer role)
@@ -120,6 +135,18 @@ export class SongbirdStack extends cdk.Stack {
       value: storage.telemetryTable.tableName,
       description: 'DynamoDB telemetry table name',
       exportName: 'SongbirdTelemetryTable',
+    });
+
+    new cdk.CfnOutput(this, 'AnalyticsClusterEndpoint', {
+      value: analytics.cluster.clusterEndpoint.hostname,
+      description: 'Aurora Analytics cluster endpoint',
+      exportName: 'SongbirdAnalyticsClusterEndpoint',
+    });
+
+    new cdk.CfnOutput(this, 'ChatHistoryTableName', {
+      value: analytics.chatHistoryTable.tableName,
+      description: 'Analytics chat history table name',
+      exportName: 'SongbirdChatHistoryTable',
     });
   }
 }

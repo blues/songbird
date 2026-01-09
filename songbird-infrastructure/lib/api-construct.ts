@@ -40,6 +40,7 @@ export class ApiConstruct extends Construct {
   public readonly api: apigateway.HttpApi;
   public readonly apiUrl: string;
   public readonly ingestUrl: string;
+  private readonly authorizer: apigatewayAuthorizers.HttpUserPoolAuthorizer;
 
   constructor(scope: Construct, id: string, props: ApiConstructProps) {
     super(scope, id);
@@ -382,7 +383,7 @@ export class ApiConstruct extends Construct {
     });
 
     // Cognito JWT Authorizer
-    const authorizer = new apigatewayAuthorizers.HttpUserPoolAuthorizer(
+    this.authorizer = new apigatewayAuthorizers.HttpUserPoolAuthorizer(
       'CognitoAuthorizer',
       props.userPool,
       {
@@ -405,14 +406,14 @@ export class ApiConstruct extends Construct {
       path: '/v1/devices',
       methods: [apigateway.HttpMethod.GET],
       integration: devicesIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/devices/{serial_number}',
       methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.PATCH],
       integration: devicesIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Device merge endpoint (Admin only)
@@ -420,7 +421,7 @@ export class ApiConstruct extends Construct {
       path: '/v1/devices/merge',
       methods: [apigateway.HttpMethod.POST],
       integration: devicesIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Telemetry endpoints
@@ -433,28 +434,28 @@ export class ApiConstruct extends Construct {
       path: '/v1/devices/{serial_number}/telemetry',
       methods: [apigateway.HttpMethod.GET],
       integration: telemetryIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/devices/{serial_number}/location',
       methods: [apigateway.HttpMethod.GET],
       integration: telemetryIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/devices/{serial_number}/power',
       methods: [apigateway.HttpMethod.GET],
       integration: telemetryIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/devices/{serial_number}/health',
       methods: [apigateway.HttpMethod.GET],
       integration: telemetryIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Commands endpoints
@@ -468,7 +469,7 @@ export class ApiConstruct extends Construct {
       path: '/v1/commands',
       methods: [apigateway.HttpMethod.GET],
       integration: commandsIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Delete command endpoint
@@ -476,7 +477,7 @@ export class ApiConstruct extends Construct {
       path: '/v1/commands/{command_id}',
       methods: [apigateway.HttpMethod.DELETE],
       integration: commandsIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Device-specific commands
@@ -484,7 +485,7 @@ export class ApiConstruct extends Construct {
       path: '/v1/devices/{serial_number}/commands',
       methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
       integration: commandsIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Config endpoints
@@ -497,14 +498,14 @@ export class ApiConstruct extends Construct {
       path: '/v1/devices/{serial_number}/config',
       methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.PUT],
       integration: configIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/fleets/{fleet_uid}/config',
       methods: [apigateway.HttpMethod.PUT],
       integration: configIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Alerts endpoints
@@ -517,21 +518,21 @@ export class ApiConstruct extends Construct {
       path: '/v1/alerts',
       methods: [apigateway.HttpMethod.GET],
       integration: alertsIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/alerts/{alert_id}',
       methods: [apigateway.HttpMethod.GET],
       integration: alertsIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/alerts/{alert_id}/acknowledge',
       methods: [apigateway.HttpMethod.POST],
       integration: alertsIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Activity feed endpoint
@@ -544,7 +545,7 @@ export class ApiConstruct extends Construct {
       path: '/v1/activity',
       methods: [apigateway.HttpMethod.GET],
       integration: activityIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Settings endpoints
@@ -557,14 +558,14 @@ export class ApiConstruct extends Construct {
       path: '/v1/settings/fleet-defaults',
       methods: [apigateway.HttpMethod.GET],
       integration: settingsIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/settings/fleet-defaults/{fleet}',
       methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.PUT],
       integration: settingsIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Users endpoints (admin only - enforced in Lambda)
@@ -577,35 +578,35 @@ export class ApiConstruct extends Construct {
       path: '/v1/users',
       methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
       integration: usersIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/users/groups',
       methods: [apigateway.HttpMethod.GET],
       integration: usersIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/users/{userId}',
       methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.DELETE],
       integration: usersIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/users/{userId}/groups',
       methods: [apigateway.HttpMethod.PUT],
       integration: usersIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/users/{userId}/devices',
       methods: [apigateway.HttpMethod.PUT],
       integration: usersIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Single device assignment (each user can only have one device)
@@ -613,7 +614,7 @@ export class ApiConstruct extends Construct {
       path: '/v1/users/{userId}/device',
       methods: [apigateway.HttpMethod.PUT],
       integration: usersIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Unassigned devices endpoint (for device assignment dropdown)
@@ -621,7 +622,7 @@ export class ApiConstruct extends Construct {
       path: '/v1/devices/unassigned',
       methods: [apigateway.HttpMethod.GET],
       integration: usersIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Notehub status endpoints
@@ -634,14 +635,14 @@ export class ApiConstruct extends Construct {
       path: '/v1/notehub/status',
       methods: [apigateway.HttpMethod.GET],
       integration: notehubIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/notehub/fleets',
       methods: [apigateway.HttpMethod.GET],
       integration: notehubIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Firmware endpoints (admin only - enforced in Lambda)
@@ -654,28 +655,28 @@ export class ApiConstruct extends Construct {
       path: '/v1/firmware',
       methods: [apigateway.HttpMethod.GET],
       integration: firmwareIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/firmware/status',
       methods: [apigateway.HttpMethod.GET],
       integration: firmwareIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/firmware/update',
       methods: [apigateway.HttpMethod.POST],
       integration: firmwareIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/firmware/cancel',
       methods: [apigateway.HttpMethod.POST],
       integration: firmwareIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Event ingest endpoint (no auth - called by Notehub)
@@ -701,14 +702,14 @@ export class ApiConstruct extends Construct {
       path: '/v1/devices/{serial_number}/journeys',
       methods: [apigateway.HttpMethod.GET],
       integration: journeysIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/devices/{serial_number}/journeys/{journey_id}',
       methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.DELETE],
       integration: journeysIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Map matching endpoint for journeys
@@ -716,18 +717,53 @@ export class ApiConstruct extends Construct {
       path: '/v1/devices/{serial_number}/journeys/{journey_id}/match',
       methods: [apigateway.HttpMethod.POST],
       integration: journeysIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     this.api.addRoutes({
       path: '/v1/devices/{serial_number}/locations',
       methods: [apigateway.HttpMethod.GET],
       integration: journeysIntegration,
-      authorizer,
+      authorizer: this.authorizer,
     });
 
     // Store API URL
     this.apiUrl = this.api.url!;
     this.ingestUrl = `${this.api.url}v1/ingest`;
+  }
+
+  /**
+   * Add Analytics routes to the API
+   * This method should be called from the main stack after creating the Analytics construct
+   */
+  public addAnalyticsRoutes(
+    chatQueryLambda: lambda.Function,
+    chatHistoryLambda: lambda.Function
+  ) {
+    const chatQueryIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+      'ChatQueryIntegration',
+      chatQueryLambda
+    );
+
+    const chatHistoryIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+      'ChatHistoryIntegration',
+      chatHistoryLambda
+    );
+
+    // POST /analytics/chat - Execute analytics query
+    this.api.addRoutes({
+      path: '/analytics/chat',
+      methods: [apigateway.HttpMethod.POST],
+      integration: chatQueryIntegration,
+      authorizer: this.authorizer,
+    });
+
+    // GET /analytics/history - Get chat history
+    this.api.addRoutes({
+      path: '/analytics/history',
+      methods: [apigateway.HttpMethod.GET],
+      integration: chatHistoryIntegration,
+      authorizer: this.authorizer,
+    });
   }
 }

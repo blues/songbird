@@ -14,7 +14,9 @@ import { Map } from '@/pages/Map';
 import { Alerts } from '@/pages/Alerts';
 import { Commands } from '@/pages/Commands';
 import { Settings } from '@/pages/Settings';
+import { Analytics } from '@/pages/Analytics';
 import { PreferencesProvider } from '@/contexts/PreferencesContext';
+import { FeatureFlagsProvider } from '@/contexts/FeatureFlagsContext';
 import { initializeApi } from '@/api/client';
 import { useActiveAlerts } from '@/hooks/useAlerts';
 
@@ -179,10 +181,11 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Authenticator components={authenticatorComponents} formFields={authenticatorFormFields}>
-        {({ signOut, user }) => (
-          <PreferencesProvider>
-            <BrowserRouter>
+      <FeatureFlagsProvider>
+        <Authenticator components={authenticatorComponents} formFields={authenticatorFormFields}>
+          {({ signOut, user }) => (
+            <PreferencesProvider>
+              <BrowserRouter>
               <Routes>
               <Route
                 element={
@@ -227,15 +230,20 @@ function App() {
                   element={<Commands />}
                 />
                 <Route
+                  path="/analytics"
+                  element={<Analytics mapboxToken={mapboxToken} />}
+                />
+                <Route
                   path="/settings"
                   element={<Settings />}
                 />
               </Route>
               </Routes>
             </BrowserRouter>
-          </PreferencesProvider>
-        )}
-      </Authenticator>
+            </PreferencesProvider>
+          )}
+        </Authenticator>
+      </FeatureFlagsProvider>
     </QueryClientProvider>
   );
 }

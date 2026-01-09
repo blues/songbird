@@ -10,5 +10,5 @@
  * Note: When a Notecard is swapped, historical data is merged from all device_uids
  * associated with the serial_number.
  */
-import { APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 export declare const handler: (event: APIGatewayProxyEvent) => Promise<APIGatewayProxyResult>;
