@@ -87,7 +87,7 @@ async function fetchNotehubApi<T>(path: string): Promise<T> {
     throw new Error(`Notehub API error: ${response.status} ${response.statusText}`);
   }
 
-  return response.json();
+  return response.json() as Promise<T>;
 }
 
 async function getProjectInfo(): Promise<NotehubProject> {

@@ -6,7 +6,7 @@
  */
 
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
-import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
+import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
 
 const secretsClient = new SecretsManagerClient({});
 
@@ -45,7 +45,7 @@ async function getNotehubToken(): Promise<string> {
   return cachedToken;
 }
 
-function isAdmin(event: APIGatewayProxyEventV2): boolean {
+function isAdmin(event: APIGatewayProxyEventV2WithJWTAuthorizer): boolean {
   try {
     const claims = event.requestContext?.authorizer?.jwt?.claims;
     if (!claims) return false;
@@ -222,7 +222,7 @@ async function getDfuStatus(): Promise<DfuStatusResponse> {
   return result;
 }
 
-export async function handler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
+export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer): Promise<APIGatewayProxyResultV2> {
   console.log('Event:', JSON.stringify(event, null, 2));
 
   const method = event.requestContext.http.method;

@@ -40,7 +40,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // HTTP API v2 uses requestContext.http.method, REST API v1 uses httpMethod
     const method = (event.requestContext as any)?.http?.method || event.httpMethod;
     const serialNumber = event.pathParameters?.serial_number;
-    const path = event.rawPath || event.path || '';
+    const path = (event as any).rawPath || event.path || '';
 
     if (method === 'OPTIONS') {
       return { statusCode: 200, headers: corsHeaders, body: '' };

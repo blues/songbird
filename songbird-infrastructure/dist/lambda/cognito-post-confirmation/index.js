@@ -1,0 +1,41 @@
+"use strict";
+/**
+ * Cognito Post-Confirmation Trigger
+ *
+ * Automatically adds newly self-registered users to the Viewer group.
+ * This ensures all self-registered users have read-only access by default.
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.handler = void 0;
+const client_cognito_identity_provider_1 = require("@aws-sdk/client-cognito-identity-provider");
+const cognitoClient = new client_cognito_identity_provider_1.CognitoIdentityProviderClient({});
+const DEFAULT_GROUP = 'Viewer';
+const handler = async (event, _context, callback) => {
+    console.log('Post-confirmation trigger:', JSON.stringify(event, null, 2));
+    // Only process ConfirmSignUp trigger (not ConfirmForgotPassword)
+    if (event.triggerSource !== 'PostConfirmation_ConfirmSignUp') {
+        console.log(`Skipping trigger source: ${event.triggerSource}`);
+        return event;
+    }
+    const userPoolId = event.userPoolId;
+    const username = event.userName;
+    try {
+        // Add user to the default Viewer group
+        const command = new client_cognito_identity_provider_1.AdminAddUserToGroupCommand({
+            UserPoolId: userPoolId,
+            Username: username,
+            GroupName: DEFAULT_GROUP,
+        });
+        await cognitoClient.send(command);
+        console.log(`Added user ${username} to group ${DEFAULT_GROUP}`);
+    }
+    catch (error) {
+        console.error(`Failed to add user ${username} to group ${DEFAULT_GROUP}:`, error);
+        // Don't fail the sign-up process even if group assignment fails
+        // The user can still access the app, just without group permissions initially
+    }
+    // Return the event to continue the sign-up process
+    return event;
+};
+exports.handler = handler;
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiaW5kZXguanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyIuLi8uLi8uLi9sYW1iZGEvY29nbml0by1wb3N0LWNvbmZpcm1hdGlvbi9pbmRleC50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiO0FBQUE7Ozs7O0dBS0c7OztBQUVILGdHQUdtRDtBQUduRCxNQUFNLGFBQWEsR0FBRyxJQUFJLGdFQUE2QixDQUFDLEVBQUUsQ0FBQyxDQUFDO0FBRTVELE1BQU0sYUFBYSxHQUFHLFFBQVEsQ0FBQztBQUV4QixNQUFNLE9BQU8sR0FBRyxLQUFLLEVBQzFCLEtBQW1DLEVBQ25DLFFBQWlCLEVBQ2pCLFFBQWtCLEVBQ3FCLEVBQUU7SUFDekMsT0FBTyxDQUFDLEdBQUcsQ0FBQyw0QkFBNEIsRUFBRSxJQUFJLENBQUMsU0FBUyxDQUFDLEtBQUssRUFBRSxJQUFJLEVBQUUsQ0FBQyxDQUFDLENBQUMsQ0FBQztJQUUxRSxpRUFBaUU7SUFDakUsSUFBSSxLQUFLLENBQUMsYUFBYSxLQUFLLGdDQUFnQyxFQUFFLENBQUM7UUFDN0QsT0FBTyxDQUFDLEdBQUcsQ0FBQyw0QkFBNEIsS0FBSyxDQUFDLGFBQWEsRUFBRSxDQUFDLENBQUM7UUFDL0QsT0FBTyxLQUFLLENBQUM7SUFDZixDQUFDO0lBRUQsTUFBTSxVQUFVLEdBQUcsS0FBSyxDQUFDLFVBQVUsQ0FBQztJQUNwQyxNQUFNLFFBQVEsR0FBRyxLQUFLLENBQUMsUUFBUSxDQUFDO0lBRWhDLElBQUksQ0FBQztRQUNILHVDQUF1QztRQUN2QyxNQUFNLE9BQU8sR0FBRyxJQUFJLDZEQUEwQixDQUFDO1lBQzdDLFVBQVUsRUFBRSxVQUFVO1lBQ3RCLFFBQVEsRUFBRSxRQUFRO1lBQ2xCLFNBQVMsRUFBRSxhQUFhO1NBQ3pCLENBQUMsQ0FBQztRQUVILE1BQU0sYUFBYSxDQUFDLElBQUksQ0FBQyxPQUFPLENBQUMsQ0FBQztRQUNsQyxPQUFPLENBQUMsR0FBRyxDQUFDLGNBQWMsUUFBUSxhQUFhLGFBQWEsRUFBRSxDQUFDLENBQUM7SUFFbEUsQ0FBQztJQUFDLE9BQU8sS0FBSyxFQUFFLENBQUM7UUFDZixPQUFPLENBQUMsS0FBSyxDQUFDLHNCQUFzQixRQUFRLGFBQWEsYUFBYSxHQUFHLEVBQUUsS0FBSyxDQUFDLENBQUM7UUFDbEYsZ0VBQWdFO1FBQ2hFLDhFQUE4RTtJQUNoRixDQUFDO0lBRUQsbURBQW1EO0lBQ25ELE9BQU8sS0FBSyxDQUFDO0FBQ2YsQ0FBQyxDQUFDO0FBbkNXLFFBQUEsT0FBTyxXQW1DbEIiLCJzb3VyY2VzQ29udGVudCI6WyIvKipcbiAqIENvZ25pdG8gUG9zdC1Db25maXJtYXRpb24gVHJpZ2dlclxuICpcbiAqIEF1dG9tYXRpY2FsbHkgYWRkcyBuZXdseSBzZWxmLXJlZ2lzdGVyZWQgdXNlcnMgdG8gdGhlIFZpZXdlciBncm91cC5cbiAqIFRoaXMgZW5zdXJlcyBhbGwgc2VsZi1yZWdpc3RlcmVkIHVzZXJzIGhhdmUgcmVhZC1vbmx5IGFjY2VzcyBieSBkZWZhdWx0LlxuICovXG5cbmltcG9ydCB7XG4gIENvZ25pdG9JZGVudGl0eVByb3ZpZGVyQ2xpZW50LFxuICBBZG1pbkFkZFVzZXJUb0dyb3VwQ29tbWFuZCxcbn0gZnJvbSAnQGF3cy1zZGsvY2xpZW50LWNvZ25pdG8taWRlbnRpdHktcHJvdmlkZXInO1xuaW1wb3J0IHR5cGUgeyBQb3N0Q29uZmlybWF0aW9uVHJpZ2dlckV2ZW50LCBDb250ZXh0LCBDYWxsYmFjayB9IGZyb20gJ2F3cy1sYW1iZGEnO1xuXG5jb25zdCBjb2duaXRvQ2xpZW50ID0gbmV3IENvZ25pdG9JZGVudGl0eVByb3ZpZGVyQ2xpZW50KHt9KTtcblxuY29uc3QgREVGQVVMVF9HUk9VUCA9ICdWaWV3ZXInO1xuXG5leHBvcnQgY29uc3QgaGFuZGxlciA9IGFzeW5jIChcbiAgZXZlbnQ6IFBvc3RDb25maXJtYXRpb25UcmlnZ2VyRXZlbnQsXG4gIF9jb250ZXh0OiBDb250ZXh0LFxuICBjYWxsYmFjazogQ2FsbGJhY2tcbik6IFByb21pc2U8UG9zdENvbmZpcm1hdGlvblRyaWdnZXJFdmVudD4gPT4ge1xuICBjb25zb2xlLmxvZygnUG9zdC1jb25maXJtYXRpb24gdHJpZ2dlcjonLCBKU09OLnN0cmluZ2lmeShldmVudCwgbnVsbCwgMikpO1xuXG4gIC8vIE9ubHkgcHJvY2VzcyBDb25maXJtU2lnblVwIHRyaWdnZXIgKG5vdCBDb25maXJtRm9yZ290UGFzc3dvcmQpXG4gIGlmIChldmVudC50cmlnZ2VyU291cmNlICE9PSAnUG9zdENvbmZpcm1hdGlvbl9Db25maXJtU2lnblVwJykge1xuICAgIGNvbnNvbGUubG9nKGBTa2lwcGluZyB0cmlnZ2VyIHNvdXJjZTogJHtldmVudC50cmlnZ2VyU291cmNlfWApO1xuICAgIHJldHVybiBldmVudDtcbiAgfVxuXG4gIGNvbnN0IHVzZXJQb29sSWQgPSBldmVudC51c2VyUG9vbElkO1xuICBjb25zdCB1c2VybmFtZSA9IGV2ZW50LnVzZXJOYW1lO1xuXG4gIHRyeSB7XG4gICAgLy8gQWRkIHVzZXIgdG8gdGhlIGRlZmF1bHQgVmlld2VyIGdyb3VwXG4gICAgY29uc3QgY29tbWFuZCA9IG5ldyBBZG1pbkFkZFVzZXJUb0dyb3VwQ29tbWFuZCh7XG4gICAgICBVc2VyUG9vbElkOiB1c2VyUG9vbElkLFxuICAgICAgVXNlcm5hbWU6IHVzZXJuYW1lLFxuICAgICAgR3JvdXBOYW1lOiBERUZBVUxUX0dST1VQLFxuICAgIH0pO1xuXG4gICAgYXdhaXQgY29nbml0b0NsaWVudC5zZW5kKGNvbW1hbmQpO1xuICAgIGNvbnNvbGUubG9nKGBBZGRlZCB1c2VyICR7dXNlcm5hbWV9IHRvIGdyb3VwICR7REVGQVVMVF9HUk9VUH1gKTtcblxuICB9IGNhdGNoIChlcnJvcikge1xuICAgIGNvbnNvbGUuZXJyb3IoYEZhaWxlZCB0byBhZGQgdXNlciAke3VzZXJuYW1lfSB0byBncm91cCAke0RFRkFVTFRfR1JPVVB9OmAsIGVycm9yKTtcbiAgICAvLyBEb24ndCBmYWlsIHRoZSBzaWduLXVwIHByb2Nlc3MgZXZlbiBpZiBncm91cCBhc3NpZ25tZW50IGZhaWxzXG4gICAgLy8gVGhlIHVzZXIgY2FuIHN0aWxsIGFjY2VzcyB0aGUgYXBwLCBqdXN0IHdpdGhvdXQgZ3JvdXAgcGVybWlzc2lvbnMgaW5pdGlhbGx5XG4gIH1cblxuICAvLyBSZXR1cm4gdGhlIGV2ZW50IHRvIGNvbnRpbnVlIHRoZSBzaWduLXVwIHByb2Nlc3NcbiAgcmV0dXJuIGV2ZW50O1xufTtcbiJdfQ==

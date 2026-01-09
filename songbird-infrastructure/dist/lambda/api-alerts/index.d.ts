@@ -6,5 +6,5 @@
  * - GET /alerts/{alert_id} - Get single alert
  * - POST /alerts/{alert_id}/acknowledge - Acknowledge an alert
  */
-import { APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 export declare const handler: (event: APIGatewayProxyEvent) => Promise<APIGatewayProxyResult>;

@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react';
-import { Settings as SettingsIcon, User, Users, Building2, Cloud, HardDrive } from 'lucide-react';
+import { Settings as SettingsIcon, User, Users, Building2, Cloud, HardDrive, FlaskConical } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useIsAdmin } from '@/hooks/useAuth';
 import { DisplayPreferences } from '@/components/settings/DisplayPreferences';
@@ -13,6 +13,7 @@ import { FleetDefaults } from '@/components/settings/FleetDefaults';
 import { NotehubConnection } from '@/components/settings/NotehubConnection';
 import { UserManagement } from '@/components/settings/UserManagement';
 import { FirmwareManagement } from '@/components/settings/FirmwareManagement';
+import { FeatureFlags } from '@/components/settings/FeatureFlags';
 
 export function Settings() {
   const { isAdmin, isLoading } = useIsAdmin();
@@ -67,6 +68,12 @@ export function Settings() {
               User Management
             </TabsTrigger>
           )}
+          {isAdmin && (
+            <TabsTrigger value="feature-flags" className="gap-2 w-full justify-start">
+              <FlaskConical className="h-4 w-4" />
+              Feature Flags
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Desktop: horizontal tabs (original style) */}
@@ -97,6 +104,12 @@ export function Settings() {
               User Management
             </TabsTrigger>
           )}
+          {isAdmin && (
+            <TabsTrigger value="feature-flags" className="gap-2">
+              <FlaskConical className="h-4 w-4" />
+              Feature Flags
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="preferences">
@@ -122,6 +135,12 @@ export function Settings() {
         {isAdmin && (
           <TabsContent value="users">
             <UserManagement />
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="feature-flags">
+            <FeatureFlags />
           </TabsContent>
         )}
       </Tabs>

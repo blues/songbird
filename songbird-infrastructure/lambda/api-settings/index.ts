@@ -12,7 +12,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
-import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
+import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
@@ -91,7 +91,7 @@ const fleetDefaultsSchema: Record<string, { type: string; min?: number; max?: nu
   led_enabled: { type: 'boolean' },
 };
 
-function isAdmin(event: APIGatewayProxyEventV2): boolean {
+function isAdmin(event: APIGatewayProxyEventV2WithJWTAuthorizer): boolean {
   try {
     const claims = event.requestContext?.authorizer?.jwt?.claims;
     if (!claims) return false;
@@ -199,7 +199,7 @@ function validateFleetDefaults(config: Record<string, unknown>): { valid: boolea
   return { valid: errors.length === 0, errors };
 }
 
-export async function handler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
+export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer): Promise<APIGatewayProxyResultV2> {
   console.log('Event:', JSON.stringify(event, null, 2));
 
   const method = event.requestContext.http.method;
@@ -229,9 +229,9 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
         },
       }));
 
-      const fleetDefaults = (result.Items || []).map(item => ({
+      const fleetDefaults = (result.Items || []).map((item: Record<string, unknown>) => ({
         fleet_uid: item.setting_id,
-        ...item.config,
+        ...(item.config as Record<string, unknown> || {}),
         updated_at: item.updated_at,
         updated_by: item.updated_by,
       }));

@@ -8,6 +8,7 @@
  * - Command sending
  */
 import * as apigateway from 'aws-cdk-lib/aws-apigatewayv2';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
@@ -29,5 +30,11 @@ export declare class ApiConstruct extends Construct {
     readonly api: apigateway.HttpApi;
     readonly apiUrl: string;
     readonly ingestUrl: string;
+    private readonly authorizer;
     constructor(scope: Construct, id: string, props: ApiConstructProps);
+    /**
+     * Add Analytics routes to the API
+     * This method should be called from the main stack after creating the Analytics construct
+     */
+    addAnalyticsRoutes(chatQueryLambda: lambda.Function, chatHistoryLambda: lambda.Function): void;
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -16,19 +16,37 @@ import {
   Settings,
   Map,
   Terminal,
+  Sparkles,
 } from 'lucide-react';
+import { useFeatureFlags, type FeatureFlags } from '@/contexts/FeatureFlagsContext';
 
-const navItems = [
+interface NavItem {
+  to: string;
+  icon: typeof LayoutDashboard;
+  label: string;
+  featureFlag?: keyof FeatureFlags;
+}
+
+const navItems: NavItem[] = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/devices', icon: Cpu, label: 'Devices' },
   { to: '/map', icon: Map, label: 'Fleet Map' },
   { to: '/alerts', icon: AlertTriangle, label: 'Alerts' },
   { to: '/commands', icon: Terminal, label: 'Commands' },
+  { to: '/analytics', icon: Sparkles, label: 'Analytics', featureFlag: 'analytics' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
+  const { flags } = useFeatureFlags();
+
+  const visibleNavItems = useMemo(() => {
+    return navItems.filter(item => {
+      if (!item.featureFlag) return true;
+      return flags[item.featureFlag];
+    });
+  }, [flags]);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -49,7 +67,7 @@ export function MobileNav() {
           </SheetTitle>
         </SheetHeader>
         <nav className="flex-1 space-y-1 p-4">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
