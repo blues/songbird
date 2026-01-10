@@ -64,7 +64,7 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
 ## Key Features
 
 | Capability | Description |
-|------------|-------------|
+| --- | --- |
 | **Instant Connectivity** | Power on → connected to cloud in under 3 minutes |
 | **Environmental Monitoring** | Temperature, humidity, pressure via BME280 |
 | **GPS/GNSS Tracking** | Real-time and historical location visualization |
@@ -82,6 +82,7 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
 | **Location History** | View all location events with filtering by source (GPS, Cell, Wi-Fi) |
 | **CI/CD Deployment** | Automated dashboard deployment via GitHub Actions |
 | **Notecard Swapping** | Swap Notecard hardware while preserving device identity and all historical data |
+| **Analytics & Feature Flags** | PostHog integration for usage analytics and remote feature control |
 
 ## Project Structure
 
@@ -126,7 +127,7 @@ songbird/
 ## Hardware
 
 | Component | Description |
-|-----------|-------------|
+| --- | --- |
 | **Notecard** | Cell+WiFi (NBGL) with GPS/GNSS |
 | **Host MCU** | Blues Cygnet OR Notecarrier CX (STM32L433) |
 | **Carrier** | Notecarrier-F with ATTN→EN OR Notecarrier CX |
@@ -150,7 +151,7 @@ pio run
 pio run -t upload
 ```
 
-See [songbird-firmware/README.md](songbird-firmware/README.md) for details.
+See [README.md](./songbird-firmware/README.md) for details.
 
 ### 2. Infrastructure
 
@@ -167,7 +168,7 @@ aws configure
 npx cdk deploy --all
 ```
 
-See [songbird-infrastructure/README.md](songbird-infrastructure/README.md) for details.
+See [README.md](./songbird-infrastructure/README.md) for details.
 
 ### 3. Dashboard
 
@@ -185,12 +186,12 @@ cp public/config.json.example public/config.json
 npm run dev
 ```
 
-See [songbird-dashboard/README.md](songbird-dashboard/README.md) for details.
+See [README.md](./songbird-dashboard/README.md) for details.
 
 ## Operating Modes
 
 | Mode | Location Source | Sync Interval | Use Case |
-|------|-----------------|---------------|----------|
+| --- | --- | --- | --- |
 | **demo** | Triangulation only | Immediate | Live customer demonstrations |
 | **transit** | GPS tracking (60s) | 15 min | Asset in active transit |
 | **storage** | Triangulation only | 60 min | Asset at rest, periodic check-in |
@@ -235,7 +236,7 @@ The dashboard provides:
 The user button supports three functions:
 
 | Action | Result |
-|--------|--------|
+| --- | --- |
 | **Single-click** | Toggle transit lock (amber badge) |
 | **Double-click** | Toggle demo lock (green badge) |
 | **Triple-click** | Toggle audio mute |
@@ -284,7 +285,7 @@ When a new Notecard sends data with an existing serial number:
 ## Cloud-to-Device Commands
 
 | Command | Description |
-|---------|-------------|
+| --- | --- |
 | `ping` | Play notification chime |
 | `locate` | Play repeating "find me" pattern |
 | `play_melody` | Play specific melody |
@@ -294,7 +295,7 @@ When a new Notecard sends data with an existing serial number:
 ## Notefiles
 
 | Notefile | Direction | Description |
-|----------|-----------|-------------|
+| --- | --- | --- |
 | `track.qo` | Outbound | Telemetry (temp, humidity, pressure, voltage) |
 | `_track.qo` | Outbound | GPS tracking data (location, velocity, bearing, distance) |
 | `_geolocate.qo` | Outbound | Triangulated location (cell tower/Wi-Fi) |

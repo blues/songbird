@@ -26,7 +26,7 @@ React-based fleet management dashboard for the Songbird sales demo platform.
 ## Technology Stack
 
 | Layer | Technology |
-|-------|------------|
+| --- | --- |
 | Framework | React 18 + TypeScript |
 | Build Tool | Vite |
 | Styling | Tailwind CSS |
@@ -36,6 +36,7 @@ React-based fleet management dashboard for the Songbird sales demo platform.
 | Maps | Mapbox GL JS |
 | Charts | Recharts |
 | Authentication | AWS Amplify (Cognito) |
+| Analytics & Feature Flags | PostHog |
 
 ## Project Structure
 
@@ -81,6 +82,8 @@ songbird-dashboard/
 │   │   └── Settings.tsx
 │   ├── contexts/             # React contexts
 │   │   └── PreferencesContext.tsx
+│   ├── hooks/                # React hooks
+│   │   ├── useFeatureFlags.ts    # PostHog feature flags
 │   ├── types/                # TypeScript interfaces
 │   ├── utils/                # Formatters and helpers
 │   ├── App.tsx               # Main app with routing
@@ -97,22 +100,23 @@ songbird-dashboard/
 - Node.js 18+
 - npm or yarn
 - Mapbox account (for map token)
+- PostHog account (for analytics & feature flags)
 - Deployed Songbird infrastructure (API URL, Cognito)
 
 ## Setup
 
 1. **Install dependencies:**
-   ```bash
+```bash
    npm install
-   ```
+```
 
 2. **Create configuration file:**
-   ```bash
+```bash
    cp public/config.json.example public/config.json
-   ```
+```
 
 3. **Edit config.json with your values:**
-   ```json
+```json
    {
      "apiUrl": "https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com",
      "region": "us-east-1",
@@ -120,14 +124,24 @@ songbird-dashboard/
      "userPoolClientId": "XXXXXXXXXXXXXXXXXXXXXXXXXX",
      "mapboxToken": "pk.YOUR_MAPBOX_TOKEN"
    }
-   ```
+```
 
    > Get these values from the CloudFormation stack outputs after deploying the infrastructure.
 
-4. **Alternatively, use environment variable for Mapbox:**
-   ```bash
+4. **Set up PostHog (optional but recommended):**
+
+   Create a `.env` file with your PostHog credentials:
+```bash
+   VITE_POSTHOG_KEY=phc_your_key_here
+   VITE_POSTHOG_HOST=https://app.posthog.com
+```
+
+   > Get your API key from [PostHog Project Settings](https://app.posthog.com/settings/project).
+
+5. **Alternatively, use environment variable for Mapbox:**
+```bash
    export VITE_MAPBOX_TOKEN=pk.your_mapbox_token
-   ```
+```
 
 ## Development
 
@@ -157,13 +171,15 @@ The dashboard is automatically deployed to S3/CloudFront via GitHub Actions when
 **Required GitHub Secrets:**
 
 | Secret | Description |
-|--------|-------------|
+| --- | --- |
 | `AWS_ACCESS_KEY_ID` | AWS credentials for S3/CloudFront access |
 | `AWS_SECRET_ACCESS_KEY` | AWS credentials for S3/CloudFront access |
 | `API_URL` | API Gateway URL (e.g., `https://xxx.execute-api.us-east-1.amazonaws.com`) |
 | `USER_POOL_ID` | Cognito User Pool ID |
 | `USER_POOL_CLIENT_ID` | Cognito User Pool Client ID |
 | `MAPBOX_TOKEN` | Mapbox access token |
+| `POSTHOG_KEY` | PostHog project API key |
+| `POSTHOG_HOST` | PostHog host URL (default: `https://app.posthog.com`) |
 
 The workflow creates `config.json` from these secrets during build.
 
@@ -172,27 +188,27 @@ The workflow creates `config.json` from these secrets during build.
 For manual deployments:
 
 1. **Create config.json:**
-   ```bash
+```bash
    cp public/config.json.example public/config.json
    # Edit with your values
-   ```
+```
 
 2. **Build:**
-   ```bash
+```bash
    npm run build
-   ```
+```
 
 3. **Deploy to S3:**
-   ```bash
+```bash
    aws s3 sync dist/ s3://songbird-dashboard-ACCOUNT_ID/ --delete
-   ```
+```
 
 4. **Invalidate CloudFront cache:**
-   ```bash
+```bash
    aws cloudfront create-invalidation \
      --distribution-id DISTRIBUTION_ID \
      --paths "/*"
-   ```
+```
 
 ## Views
 
@@ -261,7 +277,7 @@ Individual device view includes:
 The dashboard allows configuring devices into different operating modes, each optimized for specific use cases:
 
 | Mode | GPS | Triangulation | Sync | Description |
-|------|-----|---------------|------|-------------|
+| --- | --- | --- | --- | --- |
 | **Demo** | Off | Enabled | Instant | For demonstrations - uses cell/Wi-Fi triangulation for location, syncs immediately |
 | **Transit** | On (60s tracking) | Enabled | 15 min | For shipping/transport - full GPS tracking with velocity and bearing data |
 | **Storage** | Off | Enabled | 60 min | For warehousing - minimal power consumption, hourly syncs |
@@ -298,7 +314,7 @@ Devices can be physically locked into transit mode by double-clicking the user b
 This visual indicator helps users understand when a device is in a locked shipping state and cannot be remotely reconfigured.
 
 | Lock State | Badge Appearance |
-|------------|------------------|
+| --- | --- |
 | Unlocked | Gray badge with mode name (e.g., "Demo", "Transit") |
 | Locked | Amber badge with lock icon and mode name |
 
@@ -332,6 +348,41 @@ Application and user settings (Admin users see additional options):
 - **Notehub Status**: Connection status and route configuration
 - **Fleet Defaults** (Admin only): Configure default settings per fleet (mode, intervals, alert thresholds, features). Settings are saved to DynamoDB and synced to Notehub as fleet environment variables, applying to all devices on their next sync.
 - **User Management** (Admin only): Invite new users, manage group assignments, assign devices to users
+
+## Analytics & Feature Flags (PostHog)
+
+The dashboard uses [PostHog](https://posthog.com) for product analytics and feature flag management.
+
+### Features
+
+- **Page view tracking**: Automatic tracking of all page navigations
+- **User identification**: Users are identified by their Cognito sub with email, name, and group properties
+- **Feature flags**: Control feature visibility remotely without deployments
+- **Event tracking**: Custom events for key user actions
+
+### Feature Flags
+
+Feature flags are managed in the [PostHog dashboard](https://app.posthog.com/feature_flags). Current flags:
+
+| Flag | Description |
+| --- | --- |
+| `analytics` | Enable the Analytics page with natural language queries |
+
+### Targeting Users
+
+You can target feature flags by user properties:
+
+| Property | Description | Example |
+| --- | --- | --- |
+| `email` | User's email address | `admin@blues.com` |
+| `group` | Primary Cognito group | `Admin` |
+| `groups` | All Cognito groups | `["Admin", "Sales"]` |
+
+Example: Enable `analytics` flag for all Admin users by adding a condition: `group equals "Admin"`.
+
+### Local Development
+
+PostHog is optional for local development. If `VITE_POSTHOG_KEY` is not set, analytics are disabled but the app functions normally. Feature flags will default to `false`.
 
 ## Authentication
 
