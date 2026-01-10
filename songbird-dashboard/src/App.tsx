@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Amplify } from 'aws-amplify';
 import { Authenticator } from '@aws-amplify/ui-react';
 import type { AuthenticatorProps } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
+import { usePostHog } from 'posthog-js/react';
 
 import { Layout } from '@/components/layout/Layout';
 import { Dashboard } from '@/pages/Dashboard';
@@ -16,9 +17,9 @@ import { Commands } from '@/pages/Commands';
 import { Settings } from '@/pages/Settings';
 import { Analytics } from '@/pages/Analytics';
 import { PreferencesProvider } from '@/contexts/PreferencesContext';
-import { FeatureFlagsProvider } from '@/contexts/FeatureFlagsContext';
 import { initializeApi } from '@/api/client';
 import { useActiveAlerts } from '@/hooks/useAlerts';
+import { usePostHogIdentify } from '@/hooks/useAuth';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -156,6 +157,20 @@ function App() {
     },
   };
 
+  // Component to track page views with PostHog
+  function PageViewTracker() {
+    const location = useLocation();
+    const posthog = usePostHog();
+
+    useEffect(() => {
+      posthog?.capture('$pageview', {
+        $current_url: window.location.href,
+      });
+    }, [location.pathname, posthog]);
+
+    return null;
+  }
+
   // Wrapper component to use hooks inside QueryClientProvider
   function AppLayout({
     user,
@@ -166,6 +181,9 @@ function App() {
   }) {
     const { data: alertsData } = useActiveAlerts();
     const alertCount = alertsData?.active_count || 0;
+
+    // Identify user to PostHog on login
+    usePostHogIdentify();
 
     return (
       <Layout
@@ -181,11 +199,11 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <FeatureFlagsProvider>
-        <Authenticator components={authenticatorComponents} formFields={authenticatorFormFields}>
-          {({ signOut, user }) => (
-            <PreferencesProvider>
-              <BrowserRouter>
+      <Authenticator components={authenticatorComponents} formFields={authenticatorFormFields}>
+        {({ signOut, user }) => (
+          <PreferencesProvider>
+            <BrowserRouter>
+              <PageViewTracker />
               <Routes>
               <Route
                 element={
@@ -240,10 +258,9 @@ function App() {
               </Route>
               </Routes>
             </BrowserRouter>
-            </PreferencesProvider>
-          )}
-        </Authenticator>
-      </FeatureFlagsProvider>
+          </PreferencesProvider>
+        )}
+      </Authenticator>
     </QueryClientProvider>
   );
 }

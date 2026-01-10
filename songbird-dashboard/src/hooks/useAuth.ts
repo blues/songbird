@@ -2,10 +2,12 @@
  * Authentication hooks
  *
  * Provides role detection and user group information.
+ * Integrates with PostHog for user identification.
  */
 
 import { useState, useEffect } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import posthog from 'posthog-js';
 import type { UserGroup } from '@/types';
 
 /**
@@ -120,4 +122,39 @@ export function useCurrentUserEmail() {
   }, []);
 
   return { email, isLoading };
+}
+
+/**
+ * Hook to identify the current user to PostHog for analytics.
+ * Should be called once when the user is authenticated.
+ */
+export function usePostHogIdentify() {
+  useEffect(() => {
+    async function identifyUser() {
+      try {
+        const session = await fetchAuthSession();
+        const payload = session.tokens?.idToken?.payload;
+
+        if (!payload) return;
+
+        const userId = payload['sub'] as string;
+        const email = payload['email'] as string | undefined;
+        const name = payload['name'] as string | undefined;
+        const groups = payload['cognito:groups'];
+
+        if (userId) {
+          posthog.identify(userId, {
+            email,
+            name,
+            group: Array.isArray(groups) ? groups[0] : groups,
+            groups: Array.isArray(groups) ? groups : groups ? [groups] : [],
+          });
+        }
+      } catch {
+        // Silently fail - analytics shouldn't break the app
+      }
+    }
+
+    identifyUser();
+  }, []);
 }

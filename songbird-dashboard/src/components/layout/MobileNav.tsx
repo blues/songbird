@@ -18,13 +18,13 @@ import {
   Terminal,
   Sparkles,
 } from 'lucide-react';
-import { useFeatureFlags, type FeatureFlags } from '@/contexts/FeatureFlagsContext';
+import { useFeatureFlags, type FeatureFlagKey } from '@/hooks/useFeatureFlags';
 
 interface NavItem {
   to: string;
   icon: typeof LayoutDashboard;
   label: string;
-  featureFlag?: keyof FeatureFlags;
+  featureFlag?: FeatureFlagKey;
 }
 
 const navItems: NavItem[] = [
@@ -39,7 +39,7 @@ const navItems: NavItem[] = [
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
-  const { flags } = useFeatureFlags();
+  const flags = useFeatureFlags();
 
   const visibleNavItems = useMemo(() => {
     return navItems.filter(item => {

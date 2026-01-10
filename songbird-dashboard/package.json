@@ -29,6 +29,7 @@
     "date-fns": "^3.2.0",
     "lucide-react": "^0.309.0",
     "mapbox-gl": "^3.0.1",
+    "posthog-js": "^1.318.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-map-gl": "^7.1.7",
