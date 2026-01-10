@@ -30,6 +30,9 @@ export class AnalyticsConstruct extends Construct {
   public readonly chatHistoryTable: dynamodb.Table;
   public readonly chatQueryLambda: lambda.Function;
   public readonly chatHistoryLambda: lambda.Function;
+  public readonly listSessionsLambda: lambda.Function;
+  public readonly getSessionLambda: lambda.Function;
+  public readonly deleteSessionLambda: lambda.Function;
 
   constructor(scope: Construct, id: string, props: AnalyticsConstructProps) {
     super(scope, id);
@@ -250,6 +253,66 @@ export class AnalyticsConstruct extends Construct {
     });
 
     this.chatHistoryTable.grantReadData(this.chatHistoryLambda);
+
+    // ==========================================================================
+    // Lambda: List Sessions
+    // ==========================================================================
+    this.listSessionsLambda = new NodejsFunction(this, 'ListSessionsLambda', {
+      functionName: 'songbird-analytics-list-sessions',
+      description: 'List analytics chat sessions',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/analytics/list-sessions.ts'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        CHAT_HISTORY_TABLE: this.chatHistoryTable.tableName,
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+
+    this.chatHistoryTable.grantReadData(this.listSessionsLambda);
+
+    // ==========================================================================
+    // Lambda: Get Session
+    // ==========================================================================
+    this.getSessionLambda = new NodejsFunction(this, 'GetSessionLambda', {
+      functionName: 'songbird-analytics-get-session',
+      description: 'Get analytics chat session details',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/analytics/get-session.ts'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        CHAT_HISTORY_TABLE: this.chatHistoryTable.tableName,
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+
+    this.chatHistoryTable.grantReadData(this.getSessionLambda);
+
+    // ==========================================================================
+    // Lambda: Delete Session
+    // ==========================================================================
+    this.deleteSessionLambda = new NodejsFunction(this, 'DeleteSessionLambda', {
+      functionName: 'songbird-analytics-delete-session',
+      description: 'Delete analytics chat session',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/analytics/delete-session.ts'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        CHAT_HISTORY_TABLE: this.chatHistoryTable.tableName,
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+
+    this.chatHistoryTable.grantReadWriteData(this.deleteSessionLambda);
 
     // ==========================================================================
     // Lambda: Backfill (one-time historical data migration)

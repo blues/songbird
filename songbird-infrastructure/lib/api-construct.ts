@@ -738,7 +738,10 @@ export class ApiConstruct extends Construct {
    */
   public addAnalyticsRoutes(
     chatQueryLambda: lambda.Function,
-    chatHistoryLambda: lambda.Function
+    chatHistoryLambda: lambda.Function,
+    listSessionsLambda?: lambda.Function,
+    getSessionLambda?: lambda.Function,
+    deleteSessionLambda?: lambda.Function
   ) {
     const chatQueryIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
       'ChatQueryIntegration',
@@ -765,5 +768,51 @@ export class ApiConstruct extends Construct {
       integration: chatHistoryIntegration,
       authorizer: this.authorizer,
     });
+
+    // Session management routes
+    if (listSessionsLambda) {
+      const listSessionsIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+        'ListSessionsIntegration',
+        listSessionsLambda
+      );
+
+      // GET /analytics/sessions - List all sessions
+      this.api.addRoutes({
+        path: '/analytics/sessions',
+        methods: [apigateway.HttpMethod.GET],
+        integration: listSessionsIntegration,
+        authorizer: this.authorizer,
+      });
+    }
+
+    if (getSessionLambda) {
+      const getSessionIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+        'GetSessionIntegration',
+        getSessionLambda
+      );
+
+      // GET /analytics/sessions/{sessionId} - Get session details
+      this.api.addRoutes({
+        path: '/analytics/sessions/{sessionId}',
+        methods: [apigateway.HttpMethod.GET],
+        integration: getSessionIntegration,
+        authorizer: this.authorizer,
+      });
+    }
+
+    if (deleteSessionLambda) {
+      const deleteSessionIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+        'DeleteSessionIntegration',
+        deleteSessionLambda
+      );
+
+      // DELETE /analytics/sessions/{sessionId} - Delete session
+      this.api.addRoutes({
+        path: '/analytics/sessions/{sessionId}',
+        methods: [apigateway.HttpMethod.DELETE],
+        integration: deleteSessionIntegration,
+        authorizer: this.authorizer,
+      });
+    }
   }
 }

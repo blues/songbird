@@ -73,7 +73,13 @@ export class SongbirdStack extends cdk.Stack {
     });
 
     // Add Analytics routes to API
-    api.addAnalyticsRoutes(analytics.chatQueryLambda, analytics.chatHistoryLambda);
+    api.addAnalyticsRoutes(
+      analytics.chatQueryLambda,
+      analytics.chatHistoryLambda,
+      analytics.listSessionsLambda,
+      analytics.getSessionLambda,
+      analytics.deleteSessionLambda
+    );
 
     // ==========================================================================
     // Post-Confirmation Lambda Trigger (for self-signup with Viewer role)

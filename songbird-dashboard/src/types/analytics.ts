@@ -28,3 +28,23 @@ export interface ChatHistoryResponse {
   history: ChatHistoryItem[];
   total: number;
 }
+
+export interface SessionSummary {
+  sessionId: string;
+  firstQuestion: string;
+  lastQuestion: string;
+  startTimestamp: number;
+  lastTimestamp: number;
+  messageCount: number;
+}
+
+export interface SessionListResponse {
+  sessions: SessionSummary[];
+  total: number;
+}
+
+export interface SessionResponse {
+  sessionId: string;
+  messages: ChatHistoryItem[];
+  total: number;
+}
