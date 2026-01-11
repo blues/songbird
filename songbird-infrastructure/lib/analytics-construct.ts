@@ -33,6 +33,7 @@ export class AnalyticsConstruct extends Construct {
   public readonly listSessionsLambda: lambda.Function;
   public readonly getSessionLambda: lambda.Function;
   public readonly deleteSessionLambda: lambda.Function;
+  public readonly rerunQueryLambda: lambda.Function;
 
   constructor(scope: Construct, id: string, props: AnalyticsConstructProps) {
     super(scope, id);
@@ -313,6 +314,30 @@ export class AnalyticsConstruct extends Construct {
     });
 
     this.chatHistoryTable.grantReadWriteData(this.deleteSessionLambda);
+
+    // ==========================================================================
+    // Lambda: Rerun Query (re-execute stored SQL for visualizations)
+    // ==========================================================================
+    this.rerunQueryLambda = new NodejsFunction(this, 'RerunQueryLambda', {
+      functionName: 'songbird-analytics-rerun-query',
+      description: 'Re-execute stored SQL query for visualizations',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/analytics/rerun-query.ts'),
+      timeout: cdk.Duration.seconds(60),
+      memorySize: 512,
+      environment: {
+        CLUSTER_ARN: this.cluster.clusterArn,
+        SECRET_ARN: this.cluster.secret!.secretArn,
+        DATABASE_NAME: 'songbird_analytics',
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+    });
+
+    this.cluster.grantDataApiAccess(this.rerunQueryLambda);
 
     // ==========================================================================
     // Lambda: Backfill (one-time historical data migration)

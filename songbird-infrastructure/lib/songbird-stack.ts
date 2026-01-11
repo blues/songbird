@@ -78,7 +78,8 @@ export class SongbirdStack extends cdk.Stack {
       analytics.chatHistoryLambda,
       analytics.listSessionsLambda,
       analytics.getSessionLambda,
-      analytics.deleteSessionLambda
+      analytics.deleteSessionLambda,
+      analytics.rerunQueryLambda
     );
 
     // ==========================================================================

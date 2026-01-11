@@ -117,3 +117,27 @@ export async function deleteSession(sessionId: string, userEmail: string): Promi
     throw new Error(error.error || `Failed to delete session: ${response.status}`);
   }
 }
+
+/**
+ * Re-execute a stored SQL query to get fresh visualization data
+ */
+export async function rerunQuery(sql: string, userEmail: string): Promise<{ data: any[] }> {
+  const session = await fetchAuthSession();
+  const token = session.tokens?.idToken?.toString();
+
+  const response = await fetch(`${getApiBaseUrl()}/analytics/rerun`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ sql, userEmail }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `Failed to rerun query: ${response.status}`);
+  }
+
+  return response.json();
+}

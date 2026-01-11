@@ -741,7 +741,8 @@ export class ApiConstruct extends Construct {
     chatHistoryLambda: lambda.Function,
     listSessionsLambda?: lambda.Function,
     getSessionLambda?: lambda.Function,
-    deleteSessionLambda?: lambda.Function
+    deleteSessionLambda?: lambda.Function,
+    rerunQueryLambda?: lambda.Function
   ) {
     const chatQueryIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
       'ChatQueryIntegration',
@@ -811,6 +812,21 @@ export class ApiConstruct extends Construct {
         path: '/analytics/sessions/{sessionId}',
         methods: [apigateway.HttpMethod.DELETE],
         integration: deleteSessionIntegration,
+        authorizer: this.authorizer,
+      });
+    }
+
+    if (rerunQueryLambda) {
+      const rerunQueryIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+        'RerunQueryIntegration',
+        rerunQueryLambda
+      );
+
+      // POST /analytics/rerun - Re-execute stored SQL query for visualization
+      this.api.addRoutes({
+        path: '/analytics/rerun',
+        methods: [apigateway.HttpMethod.POST],
+        integration: rerunQueryIntegration,
         authorizer: this.authorizer,
       });
     }

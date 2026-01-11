@@ -12,6 +12,7 @@ interface ChatMessageProps {
     content: string;
     result?: QueryResult;
     timestamp: number;
+    isLoadingData?: boolean;
   };
   mapboxToken: string;
 }
@@ -52,7 +53,15 @@ export function ChatMessage({ message, mapboxToken }: ChatMessageProps) {
         </Card>
 
         {/* Visualization */}
-        {message.result && message.result.data && message.result.data.length > 0 && (
+        {message.result && message.isLoadingData && (
+          <Card className="p-4">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="animate-spin h-4 w-4 border-2 border-purple-500 border-t-transparent rounded-full" />
+              <span>Loading visualization data...</span>
+            </div>
+          </Card>
+        )}
+        {message.result && !message.isLoadingData && message.result.data && message.result.data.length > 0 && (
           <Card className="p-4">
             <QueryVisualization result={message.result} mapboxToken={mapboxToken} />
           </Card>

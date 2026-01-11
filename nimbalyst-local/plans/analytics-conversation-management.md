@@ -15,7 +15,6 @@ planStatus:
   updated: "2026-01-10T23:17:36.000Z"
   progress: 100
 ---
-
 # Analytics Conversation Management
 
 ## Goals
@@ -80,7 +79,7 @@ GET    /analytics/sessions                   → listSessionsLambda
 
 ### Phase 2: Frontend API Client
 
-**2.1 Update `src/api/analytics.ts`**
+**2.1 Update \****`src/api/analytics.ts`**
 
 Add new functions:
 ```typescript
@@ -94,7 +93,7 @@ export async function deleteAnalyticsSession(sessionId: string): Promise<void>
 export async function loadAnalyticsSession(sessionId: string): Promise<ChatHistoryItem[]>
 ```
 
-**2.2 Update `src/hooks/useAnalytics.ts`**
+**2.2 Update \****`src/hooks/useAnalytics.ts`**
 
 Add hooks:
 ```typescript
@@ -197,7 +196,7 @@ interface SessionListResponse {
 ### Infrastructure (songbird-infrastructure)
 
 | File | Action |
-|------|--------|
+| --- | --- |
 | `lambda/analytics/list-sessions.ts` | Create |
 | `lambda/analytics/delete-conversation.ts` | Create |
 | `lib/api-construct.ts` | Add routes |
@@ -206,7 +205,7 @@ interface SessionListResponse {
 ### Dashboard (songbird-dashboard)
 
 | File | Action |
-|------|--------|
+| --- | --- |
 | `src/api/analytics.ts` | Add functions |
 | `src/hooks/useAnalytics.ts` | Add hooks |
 | `src/components/analytics/ConversationList.tsx` | Create |
@@ -237,6 +236,23 @@ interface SessionListResponse {
 - Pin/favorite important conversations
 - Conversation naming/renaming
 - Multi-turn context (Claude remembers previous queries in session)
+
+---
+
+## Post-Implementation Update: Visualization Re-rendering
+
+**Added**: Visualization data re-execution when loading historical conversations
+
+When a conversation is loaded from history, the stored SQL queries are automatically re-executed to fetch fresh data for visualizations (charts, maps). This ensures:
+- Maps and charts render correctly when loading old conversations
+- Data reflects current state (not stale snapshots)
+- No need to store large result sets in DynamoDB
+
+**Implementation:**
+- New Lambda: `lambda/analytics/rerun-query.ts`
+- New API endpoint: `POST /analytics/rerun`
+- Frontend: Analytics page re-executes stored SQL for each message when loading a session
+- UI shows "Loading visualization data..." spinner while queries execute
 
 ---
 

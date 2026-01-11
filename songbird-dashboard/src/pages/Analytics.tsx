@@ -7,6 +7,7 @@ import { ChatMessage } from '@/components/analytics/ChatMessage';
 import { SuggestedQuestions } from '@/components/analytics/SuggestedQuestions';
 import { ConversationList } from '@/components/analytics/ConversationList';
 import { useChatQuery, useChatHistory, useAnalyticsSession } from '@/hooks/useAnalytics';
+import { rerunQuery } from '@/api/analytics';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import type { QueryResult } from '@/types/analytics';
 import { cn } from '@/lib/utils';
@@ -31,6 +32,7 @@ export function Analytics({ mapboxToken }: AnalyticsProps) {
     content: string;
     result?: QueryResult;
     timestamp: number;
+    isLoadingData?: boolean;
   }>>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loadedSessionId, setLoadedSessionId] = useState<string | null>(null);
@@ -51,32 +53,87 @@ export function Analytics({ mapboxToken }: AnalyticsProps) {
     });
   }, []);
 
-  // Load selected session
+  // Load selected session and re-execute queries to get visualization data
   useEffect(() => {
-    if (sessionData?.messages && loadedSessionId) {
-      const loadedMessages = sessionData.messages.flatMap((item) => [
-        {
-          type: 'user' as const,
-          content: item.question,
-          timestamp: item.timestamp,
-        },
-        {
-          type: 'assistant' as const,
-          content: item.insights,
-          result: {
-            sql: item.sql,
-            explanation: item.explanation,
-            visualizationType: item.visualization_type as QueryResult['visualizationType'],
-            data: [], // Historical data not stored
-            insights: item.insights,
-          },
-          timestamp: item.timestamp + 1,
-        },
-      ]);
-      setMessages(loadedMessages);
-      setSessionId(loadedSessionId);
+    if (sessionData?.messages && loadedSessionId && userEmail) {
+      const loadSession = async () => {
+        const loadedMessages: Array<{
+          type: 'user' | 'assistant';
+          content: string;
+          result?: QueryResult;
+          timestamp: number;
+          isLoadingData?: boolean;
+        }> = [];
+
+        // First, create messages with empty data
+        for (const item of sessionData.messages) {
+          loadedMessages.push({
+            type: 'user' as const,
+            content: item.question,
+            timestamp: item.timestamp,
+          });
+          loadedMessages.push({
+            type: 'assistant' as const,
+            content: item.insights,
+            result: {
+              sql: item.sql,
+              explanation: item.explanation,
+              visualizationType: item.visualization_type as QueryResult['visualizationType'],
+              data: [],
+              insights: item.insights,
+            },
+            timestamp: item.timestamp + 1,
+            isLoadingData: true,
+          });
+        }
+
+        setMessages(loadedMessages);
+        setSessionId(loadedSessionId);
+
+        // Then, re-execute queries to get visualization data
+        for (let i = 0; i < sessionData.messages.length; i++) {
+          const item = sessionData.messages[i];
+          if (item.sql) {
+            try {
+              const { data } = await rerunQuery(item.sql, userEmail);
+              setMessages((prev) => {
+                const updated = [...prev];
+                // Find the assistant message for this query (every other message starting at index 1)
+                const assistantIndex = i * 2 + 1;
+                if (updated[assistantIndex] && updated[assistantIndex].result) {
+                  updated[assistantIndex] = {
+                    ...updated[assistantIndex],
+                    result: {
+                      ...updated[assistantIndex].result!,
+                      data,
+                    },
+                    isLoadingData: false,
+                  };
+                }
+                return updated;
+              });
+            } catch (error) {
+              console.error('Failed to re-execute query:', error);
+              // Mark as done loading even on error
+              setMessages((prev) => {
+                const updated = [...prev];
+                const assistantIndex = i * 2 + 1;
+                if (updated[assistantIndex]) {
+                  updated[assistantIndex] = {
+                    ...updated[assistantIndex],
+                    isLoadingData: false,
+                  };
+                }
+                return updated;
+              });
+            }
+          }
+        }
+      };
+
+      loadSession();
     }
-  }, [sessionData, loadedSessionId]);
+  }, [sessionData, loadedSessionId, userEmail]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
