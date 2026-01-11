@@ -30,6 +30,7 @@ export interface ApiConstructProps {
   journeysTable: dynamodb.Table;
   locationsTable: dynamodb.Table;
   deviceAliasesTable: dynamodb.Table;
+  auditTable: dynamodb.Table;
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
   notehubProjectUid: string;
@@ -690,6 +691,43 @@ export class ApiConstruct extends Construct {
       methods: [apigateway.HttpMethod.POST],
       integration: ingestIntegration,
       // No authorizer - Notehub HTTP routes don't support Cognito auth
+    });
+
+    // ==========================================================================
+    // Public Device API (no auth - for shareable device links)
+    // ==========================================================================
+    const publicDeviceFunction = new NodejsFunction(this, 'PublicDeviceFunction', {
+      functionName: 'songbird-api-public-device',
+      description: 'Songbird Public Device API (unauthenticated)',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/api-public-device/index.ts'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        DEVICES_TABLE: props.devicesTable.tableName,
+        TELEMETRY_TABLE: props.telemetryTable.tableName,
+        DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
+        AUDIT_TABLE: props.auditTable.tableName,
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+    props.devicesTable.grantReadData(publicDeviceFunction);
+    props.telemetryTable.grantReadData(publicDeviceFunction);
+    props.deviceAliasesTable.grantReadData(publicDeviceFunction);
+    props.auditTable.grantWriteData(publicDeviceFunction);
+
+    const publicDeviceIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+      'PublicDeviceIntegration',
+      publicDeviceFunction
+    );
+
+    this.api.addRoutes({
+      path: '/v1/public/devices/{serial_number}',
+      methods: [apigateway.HttpMethod.GET],
+      integration: publicDeviceIntegration,
+      // No authorizer - public endpoint for shareable device links
     });
 
     // Journeys endpoints

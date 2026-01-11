@@ -2,7 +2,7 @@
  * Devices API
  */
 
-import { apiGet, apiPatch, apiPost } from './client';
+import { apiGet, apiPatch, apiPost, apiFetch } from './client';
 import type { Device, DevicesResponse } from '@/types';
 
 interface MergeDevicesRequest {
@@ -56,4 +56,27 @@ export async function mergeDevices(
     source_serial_number: sourceSerialNumber,
     target_serial_number: targetSerialNumber,
   } as MergeDevicesRequest);
+}
+
+/**
+ * Public device response includes recent telemetry
+ */
+export interface PublicDeviceResponse extends Device {
+  recent_telemetry?: Array<{
+    timestamp: string;
+    temperature?: number;
+    humidity?: number;
+    pressure?: number;
+    voltage?: number;
+  }>;
+}
+
+/**
+ * Get a single device by serial number (public, no auth required)
+ */
+export async function getPublicDevice(serialNumber: string): Promise<PublicDeviceResponse> {
+  return apiFetch<PublicDeviceResponse>(`/v1/public/devices/${serialNumber}`, {
+    method: 'GET',
+    skipAuth: true,
+  });
 }

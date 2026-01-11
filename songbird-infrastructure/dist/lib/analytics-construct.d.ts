@@ -20,5 +20,9 @@ export declare class AnalyticsConstruct extends Construct {
     readonly chatHistoryTable: dynamodb.Table;
     readonly chatQueryLambda: lambda.Function;
     readonly chatHistoryLambda: lambda.Function;
+    readonly listSessionsLambda: lambda.Function;
+    readonly getSessionLambda: lambda.Function;
+    readonly deleteSessionLambda: lambda.Function;
+    readonly rerunQueryLambda: lambda.Function;
     constructor(scope: Construct, id: string, props: AnalyticsConstructProps);
 }

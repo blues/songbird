@@ -21,6 +21,7 @@ export interface ApiConstructProps {
     journeysTable: dynamodb.Table;
     locationsTable: dynamodb.Table;
     deviceAliasesTable: dynamodb.Table;
+    auditTable: dynamodb.Table;
     userPool: cognito.UserPool;
     userPoolClient: cognito.UserPoolClient;
     notehubProjectUid: string;
@@ -36,5 +37,5 @@ export declare class ApiConstruct extends Construct {
      * Add Analytics routes to the API
      * This method should be called from the main stack after creating the Analytics construct
      */
-    addAnalyticsRoutes(chatQueryLambda: lambda.Function, chatHistoryLambda: lambda.Function): void;
+    addAnalyticsRoutes(chatQueryLambda: lambda.Function, chatHistoryLambda: lambda.Function, listSessionsLambda?: lambda.Function, getSessionLambda?: lambda.Function, deleteSessionLambda?: lambda.Function, rerunQueryLambda?: lambda.Function): void;
 }

@@ -11,6 +11,7 @@ import { Layout } from '@/components/layout/Layout';
 import { Dashboard } from '@/pages/Dashboard';
 import { Devices } from '@/pages/Devices';
 import { DeviceDetail } from '@/pages/DeviceDetail';
+import { PublicDeviceView } from '@/pages/PublicDeviceView';
 import { Map } from '@/pages/Map';
 import { Alerts } from '@/pages/Alerts';
 import { Commands } from '@/pages/Commands';
@@ -199,68 +200,82 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Authenticator components={authenticatorComponents} formFields={authenticatorFormFields}>
-        {({ signOut, user }) => (
-          <PreferencesProvider>
-            <BrowserRouter>
-              <PageViewTracker />
-              <Routes>
-              <Route
-                element={
-                  <AppLayout
-                    user={user ? { username: user.username || '', email: user.signInDetails?.loginId || '' } : undefined}
-                    signOut={signOut}
-                  />
-                }
-              >
-                <Route
-                  index
-                  element={
-                    <Dashboard
-                      mapboxToken={mapboxToken}
-                      selectedFleet={selectedFleet}
-                    />
-                  }
-                />
-                <Route
-                  path="/devices"
-                  element={<Devices />}
-                />
-                <Route
-                  path="/devices/:serialNumber"
-                  element={<DeviceDetail mapboxToken={mapboxToken} />}
-                />
-                <Route
-                  path="/map"
-                  element={
-                    <Map
-                      mapboxToken={mapboxToken}
-                      selectedFleet={selectedFleet}
-                    />
-                  }
-                />
-                <Route
-                  path="/alerts"
-                  element={<Alerts />}
-                />
-                <Route
-                  path="/commands"
-                  element={<Commands />}
-                />
-                <Route
-                  path="/analytics"
-                  element={<Analytics mapboxToken={mapboxToken} />}
-                />
-                <Route
-                  path="/settings"
-                  element={<Settings />}
-                />
-              </Route>
-              </Routes>
-            </BrowserRouter>
-          </PreferencesProvider>
-        )}
-      </Authenticator>
+      <BrowserRouter>
+        <PageViewTracker />
+        <Routes>
+          {/* Public routes - no authentication required */}
+          <Route
+            path="/public/device/:serialNumber"
+            element={<PublicDeviceView mapboxToken={mapboxToken} />}
+          />
+
+          {/* Authenticated routes */}
+          <Route
+            path="/*"
+            element={
+              <Authenticator components={authenticatorComponents} formFields={authenticatorFormFields}>
+                {({ signOut, user }) => (
+                  <PreferencesProvider>
+                    <Routes>
+                      <Route
+                        element={
+                          <AppLayout
+                            user={user ? { username: user.username || '', email: user.signInDetails?.loginId || '' } : undefined}
+                            signOut={signOut}
+                          />
+                        }
+                      >
+                        <Route
+                          index
+                          element={
+                            <Dashboard
+                              mapboxToken={mapboxToken}
+                              selectedFleet={selectedFleet}
+                            />
+                          }
+                        />
+                        <Route
+                          path="/devices"
+                          element={<Devices />}
+                        />
+                        <Route
+                          path="/devices/:serialNumber"
+                          element={<DeviceDetail mapboxToken={mapboxToken} />}
+                        />
+                        <Route
+                          path="/map"
+                          element={
+                            <Map
+                              mapboxToken={mapboxToken}
+                              selectedFleet={selectedFleet}
+                            />
+                          }
+                        />
+                        <Route
+                          path="/alerts"
+                          element={<Alerts />}
+                        />
+                        <Route
+                          path="/commands"
+                          element={<Commands />}
+                        />
+                        <Route
+                          path="/analytics"
+                          element={<Analytics mapboxToken={mapboxToken} />}
+                        />
+                        <Route
+                          path="/settings"
+                          element={<Settings />}
+                        />
+                      </Route>
+                    </Routes>
+                  </PreferencesProvider>
+                )}
+              </Authenticator>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
     </QueryClientProvider>
   );
 }

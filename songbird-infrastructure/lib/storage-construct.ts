@@ -22,6 +22,7 @@ export class StorageConstruct extends Construct {
   public readonly journeysTable: dynamodb.Table;
   public readonly locationsTable: dynamodb.Table;
   public readonly deviceAliasesTable: dynamodb.Table;
+  public readonly auditTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: StorageConstructProps) {
     super(scope, id);
@@ -314,6 +315,57 @@ export class StorageConstruct extends Construct {
       partitionKey: {
         name: 'device_uid',
         type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // ==========================================================================
+    // DynamoDB Table for Audit Logs
+    // ==========================================================================
+    // Tracks public device access and other auditable events
+    this.auditTable = new dynamodb.Table(this, 'AuditTable', {
+      tableName: 'songbird-audit',
+
+      // Primary key: audit_id (UUID with timestamp prefix)
+      partitionKey: {
+        name: 'audit_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+
+      // Billing mode - on-demand for unpredictable usage
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+
+      // Remove table on stack deletion (demo environment)
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+
+      // TTL to automatically delete old audit records (90 days)
+      timeToLiveAttribute: 'ttl',
+    });
+
+    // GSI for querying audits by action type
+    this.auditTable.addGlobalSecondaryIndex({
+      indexName: 'action-index',
+      partitionKey: {
+        name: 'action',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'timestamp',
+        type: dynamodb.AttributeType.NUMBER,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // GSI for querying audits by serial_number
+    this.auditTable.addGlobalSecondaryIndex({
+      indexName: 'serial-number-index',
+      partitionKey: {
+        name: 'serial_number',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'timestamp',
+        type: dynamodb.AttributeType.NUMBER,
       },
       projectionType: dynamodb.ProjectionType.ALL,
     });
