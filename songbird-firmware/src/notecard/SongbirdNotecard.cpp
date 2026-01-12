@@ -87,7 +87,6 @@ bool notecardConfigure(OperatingMode mode) {
     // Configure hub.set
     J* req = s_notecard.newRequest("hub.set");
     JAddStringToObject(req, "product", PRODUCT_UID);
-    JAddStringToObject(req, "sn", "songbird");  // Will be overwritten by Notehub
 
     // Set mode based on operating mode
     switch (mode) {
