@@ -15,7 +15,6 @@ planStatus:
   updated: "2026-01-11T19:30:00.000Z"
   progress: 100
 ---
-
 # Public Device View for Unauthenticated Users
 
 ## Goals
@@ -36,28 +35,28 @@ Currently, all device views require authentication. For sales demos and customer
 ### Frontend Changes
 
 1. **New Public Device Route**
-   - Create a new route that doesn't require authentication
-   - Conditionally render navigation based on auth state
-   - Reuse existing DeviceDetail component
+  - Create a new route that doesn't require authentication
+  - Conditionally render navigation based on auth state
+  - Reuse existing DeviceDetail component
 
 2. **Layout Modifications**
-   - Create a minimal layout wrapper for unauthenticated views
-   - Hide sidebar/navigation for unauthenticated users
-   - Show "Sign in" link/button for unauthenticated users
+  - Create a minimal layout wrapper for unauthenticated views
+  - Hide sidebar/navigation for unauthenticated users
+  - Show "Sign in" link/button for unauthenticated users
 
 3. **Auth Context Updates**
-   - Ensure auth context handles unauthenticated state gracefully
-   - Don't redirect to login for public routes
+  - Ensure auth context handles unauthenticated state gracefully
+  - Don't redirect to login for public routes
 
 ### Backend Changes
 
 1. **New Public API Endpoint**
-   - `GET /public/devices/:serialNumber` - Returns full device info without auth
-   - Returns all device data in read-only form
+  - `GET /public/devices/:serialNumber` - Returns full device info without auth
+  - Returns all device data in read-only form
 
 2. **Audit Logging**
-   - Log all public device access requests
-   - Include: serial number, timestamp, IP address, user agent
+  - Log all public device access requests
+  - Include: serial number, timestamp, IP address, user agent
 
 ### Security Considerations
 - Rate limiting on public endpoints to prevent abuse

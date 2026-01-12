@@ -22,6 +22,7 @@ React-based fleet management dashboard for the Songbird sales demo platform.
 - Responsive UI with container queries for adaptive layouts
 - GitHub Actions CI/CD for automated deployments
 - **Notecard swapping**: Swap Notecard hardware while preserving device identity and history (serial number-based routing)
+- **Public device sharing**: Share device views via public URL without requiring authentication
 
 ## Technology Stack
 
@@ -248,6 +249,15 @@ Full-screen map view with:
     - Latest telemetry (temperature, battery)
     - Quick action buttons: Ping, Locate, View Details
 
+### Public Device View (`/public/device/:serialNumber`)
+
+Shareable device view for demos and customer presentations:
+- **No authentication required**: Anyone with the link can view
+- **Read-only access**: Current readings, location, 24h telemetry chart, device info
+- **Sign in option**: Button to access full dashboard with navigation
+- **Auto-redirect**: Authenticated users are automatically redirected to the full device detail view
+- **Audit logging**: All public access is logged for security
+
 ### Device Detail
 
 Individual device view includes:
@@ -455,6 +465,9 @@ The dashboard communicates with the Songbird API via:
 - `PUT /v1/users/{userId}/device` - Assign device to user
 
 All API calls include the Cognito JWT token for authorization.
+
+### Public API (No Auth)
+- `GET /v1/public/devices/{serial_number}` - Get device details without authentication (for shareable links)
 
 ## License
 

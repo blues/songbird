@@ -83,6 +83,7 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
 | **CI/CD Deployment** | Automated dashboard deployment via GitHub Actions |
 | **Notecard Swapping** | Swap Notecard hardware while preserving device identity and all historical data |
 | **Analytics & Feature Flags** | PostHog integration for usage analytics and remote feature control |
+| **Public Device Sharing** | Share device views via public URL without authentication (audit logged) |
 
 ## Project Structure
 
@@ -326,6 +327,13 @@ When a new Notecard sends data with an existing serial number:
 2. Send locate command - hear repeating beacon
 3. Show command acknowledgment on dashboard
 4. "Instant response from anywhere"
+
+### Share Device View (2 min)
+1. Copy public device URL: `/public/device/{serial_number}` or scan QR code on top of box.
+2. Share link with customer (no login required)
+3. Show read-only view with live telemetry
+4. Customer clicks "Sign In" for full dashboard access
+5. "Easy sharing for stakeholders"
 
 ## License
 

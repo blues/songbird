@@ -242,11 +242,12 @@ Save these for configuring the dashboard application.
 
 Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com`
 
-### Event Ingest (Notehub Route)
+### Public APIs (No Auth Required)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/v1/ingest` | Receive events from Notehub HTTP route (no auth) |
+| POST | `/v1/ingest` | Receive events from Notehub HTTP route |
+| GET | `/v1/public/devices/{serial_number}` | Get device details for public sharing (audit logged) |
 
 ### Dashboard APIs (Cognito Auth Required)
 
@@ -347,6 +348,7 @@ Lambda function logs are available in CloudWatch Logs:
 - `/aws/lambda/songbird-api-settings` - User preferences
 - `/aws/lambda/songbird-api-users` - User management (Admin)
 - `/aws/lambda/songbird-api-notehub` - Notehub status
+- `/aws/lambda/songbird-api-public-device` - Public device access (audit logged)
 
 ### DynamoDB Tables
 
@@ -361,6 +363,7 @@ The infrastructure creates the following DynamoDB tables:
 | `songbird-locations` | `device_uid` | `timestamp` | All location events (GPS, Cell, Wi-Fi) |
 | `songbird-commands` | `device_uid` | `timestamp` | Command history |
 | `songbird-alerts` | `device_uid` | `created_at` | Alert history |
+| `songbird-audit` | `audit_id` | - | Audit logs for public access (90-day TTL) |
 
 ### Device Aliasing (Notecard Swapping)
 
