@@ -4,6 +4,13 @@ import { AlertTriangle, Check, Clock, MapPin } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useAlerts, useAcknowledgeAlert } from '@/hooks/useAlerts';
 import { useCanSendCommands } from '@/hooks/useAuth';
 import { formatRelativeTime } from '@/utils/formatters';
@@ -122,6 +129,7 @@ function AlertCard({ alert, onAcknowledge, isAcknowledging, onDeviceClick, canAc
 export function Alerts() {
   const navigate = useNavigate();
   const [showAcknowledged, setShowAcknowledged] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<string>('all');
 
   const { canSend: canAcknowledgeAlerts } = useCanSendCommands();
   const { data, isLoading, error } = useAlerts({
@@ -139,7 +147,10 @@ export function Alerts() {
     navigate(`/devices/${serialNumber}`);
   };
 
-  const alerts = data?.alerts || [];
+  const allAlerts = data?.alerts || [];
+  const alerts = typeFilter === 'all'
+    ? allAlerts
+    : allAlerts.filter(alert => alert.type === typeFilter);
   const activeCount = data?.active_count || 0;
 
   if (error) {
@@ -164,12 +175,28 @@ export function Alerts() {
           </p>
         </div>
 
-        <Button
-          variant="outline"
-          onClick={() => setShowAcknowledged(!showAcknowledged)}
-        >
-          {showAcknowledged ? 'Show Active Only' : 'Show All Alerts'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {Object.entries(alertTypeLabels).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            variant="outline"
+            onClick={() => setShowAcknowledged(!showAcknowledged)}
+          >
+            {showAcknowledged ? 'Show Active Only' : 'Show All Alerts'}
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
