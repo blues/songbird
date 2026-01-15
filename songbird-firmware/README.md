@@ -16,7 +16,7 @@ Firmware for the Songbird sales demo device - a portable, battery-powered asset 
 ## Hardware
 
 | Component | Description |
-|-----------|-------------|
+| --- | --- |
 | MCU | Blues Cygnet OR Notecarrier CX (STM32L433) |
 | Notecarrier | Notecarrier-F with ATTN→EN connection OR Notecarrier CX |
 | Notecard | Cell+WiFi (MBGLW) |
@@ -147,7 +147,7 @@ pio debug
 ### Troubleshooting ST-Link Connection
 
 | Issue | Solution |
-|-------|----------|
+| --- | --- |
 | ST-Link not detected | Check USB connection, try different port |
 | Upload fails | Verify SWD wiring, check ST-Link firmware |
 | No serial output | Ensure debug build is flashed, check VCP port |
@@ -158,7 +158,7 @@ pio debug
 The firmware uses FreeRTOS with 6 tasks:
 
 | Task | Priority | Description |
-|------|----------|-------------|
+| --- | --- | --- |
 | MainTask | 3 | System initialization, config management, sleep coordination |
 | SensorTask | 2 | Periodic BME280 readings, alert detection |
 | AudioTask | 4 | Audio event processing, melody playback |
@@ -175,7 +175,7 @@ The firmware uses FreeRTOS with 6 tasks:
 ## Operating Modes
 
 | Mode | Location | Description |
-|------|----------|-------------|
+| --- | --- | --- |
 | `demo` | Triangulation only | Continuous sync, all features enabled |
 | `transit` | GPS tracking | Periodic sync, autonomous GPS tracking enabled |
 | `storage` | Triangulation only | Hourly sync, minimal power consumption |
@@ -190,7 +190,7 @@ Songbird supports multiple methods for determining device location:
 In **transit mode**, autonomous GPS tracking is enabled via `card.location.track`:
 
 | Setting | Value | Description |
-|---------|-------|-------------|
+| --- | --- | --- |
 | `card.location.mode` | periodic, 60s | GPS sampling every 60 seconds |
 | `card.location.track` | start, heartbeat, sync | Autonomous tracking with hourly heartbeat |
 
@@ -220,7 +220,7 @@ Triangulated location data is sent via `_geolocate.qo` events. The location sour
 When in transit mode, the firmware includes intelligent GPS power management to conserve battery when GPS signal is unavailable (e.g., device is indoors or in a covered location):
 
 | Setting | Default | Description |
-|---------|---------|-------------|
+| --- | --- | --- |
 | `gps_power_save_enabled` | true | Enable GPS power management |
 | `gps_signal_timeout_min` | 15 | Minutes to wait for GPS signal after activation |
 | `gps_retry_interval_min` | 30 | Minutes between GPS retry attempts |
@@ -243,7 +243,7 @@ This prevents the device from continuously draining the battery trying to acquir
 ### Mode-based Location Summary
 
 | Mode | GPS | Triangulation | Location Source |
-|------|-----|---------------|-----------------|
+| --- | --- | --- | --- |
 | Demo | Off | Enabled | `_geolocate.qo` (triangulation) |
 | Transit | On (60s tracking) | Enabled | `_track.qo` (GPS) + `_geolocate.qo` |
 | Storage | Off | Enabled | `_geolocate.qo` (triangulation) |
@@ -261,7 +261,7 @@ This prevents the device from continuously draining the battery trying to acquir
 ### Data Collected
 
 | Metric | Description |
-|--------|-------------|
+| --- | --- |
 | `voltage` | Battery voltage (V) |
 | `temperature` | Mojo board temperature (°C) |
 | `milliamp_hours` | Cumulative energy consumed (mAh) |
@@ -271,7 +271,7 @@ This prevents the device from continuously draining the battery trying to acquir
 Mojo readings are automatically configured based on the operating mode:
 
 | Mode | Interval |
-|------|----------|
+| --- | --- |
 | Demo | Every 1 minute |
 | Transit | Every 5 minutes |
 | Storage | Every 60 minutes |
@@ -316,7 +316,7 @@ Battery voltage data flows through Notehub system events rather than being sent 
 ### Data Sources
 
 | Source | Notefile | Data | When |
-|--------|----------|------|------|
+| --- | --- | --- | --- |
 | Mojo (if present) | `_log.qo` | voltage, temperature, mAh | Per mode interval |
 | Notecard | `_health.qo` | voltage, voltage_mode | On sync/health events |
 | Notecard | `_session.qo` | usb power status | On session start |
@@ -332,7 +332,7 @@ The user button on the Notecarrier supports three functions via single-click, do
 ### Button Actions
 
 | Action | Result | Audio Feedback |
-|--------|--------|----------------|
+| --- | --- | --- |
 | **Single-click** | Toggle transit lock | Descending (E6→C6→G5) = locked, Ascending (G5→C6→E6) = unlocked |
 | **Double-click** | Toggle demo lock | Descending (A6→F6→D6) = locked, Ascending (D6→F6→A6) = unlocked |
 | **Triple-click** | Toggle mute | Rising (C→E→G) = unmuted, Falling (G→E→C) = muted |
@@ -342,7 +342,7 @@ The user button on the Notecarrier supports three functions via single-click, do
 Transit Lock allows you to physically lock the device into transit mode, preventing remote mode changes during shipping:
 
 | State | Behavior |
-|-------|----------|
+| --- | --- |
 | **Unlocked** | Single-click saves current mode and switches to transit mode with GPS tracking |
 | **Locked** | Single-click restores the saved mode and unlocks |
 
@@ -359,7 +359,7 @@ This feature is useful when shipping devices - it ensures GPS tracking remains a
 Demo Lock allows you to physically lock the device into demo mode, preventing remote mode changes during demonstrations:
 
 | State | Behavior |
-|-------|----------|
+| --- | --- |
 | **Unlocked** | Double-click saves current mode and switches to demo mode |
 | **Locked** | Double-click restores the saved mode and unlocks |
 
@@ -378,7 +378,7 @@ This feature is useful during demonstrations - it ensures demo mode remains acti
 - **Falling tone (G→E→C)** confirms audio is now **muted**
 
 | State | Audio Behavior |
-|-------|----------------|
+| --- | --- |
 | Unmuted | All audio plays normally (power-on, alerts, notifications) |
 | Muted | All audio is silenced, including alerts and locate mode |
 
@@ -400,7 +400,7 @@ The button connects to GPIO pin PA9 with an internal pull-up resistor. The butto
 Configuration is managed via Notehub environment variables:
 
 | Variable | Type | Default | Description |
-|----------|------|---------|-------------|
+| --- | --- | --- | --- |
 | `mode` | string | demo | Operating mode |
 | `gps_interval_min` | number | 5 | GPS update interval (minutes) |
 | `sync_interval_min` | number | 15 | Cloud sync interval (minutes) |
@@ -418,7 +418,7 @@ Configuration is managed via Notehub environment variables:
 The device accepts commands via the `command.qi` notefile in the format `{"cmd":"<command>"}`:
 
 | Command | Description |
-|---------|-------------|
+| --- | --- |
 | `ping` | Device responds with acknowledgment |
 | `locate` | Play locate beep pattern for specified duration |
 | `play_melody` | Play named melody (power_on, connected, alert, etc.) |
@@ -428,7 +428,7 @@ The device accepts commands via the `command.qi` notefile in the format `{"cmd":
 ## Notefiles
 
 | Notefile | Direction | Description |
-|----------|-----------|-------------|
+| --- | --- | --- |
 | `track.qo` | Outbound | Telemetry data (temp, humidity, pressure, motion) |
 | `_track.qo` | Outbound | GPS tracking data (location, velocity, bearing, distance) - Transit mode only |
 | `_geolocate.qo` | Outbound | Triangulated location (cell tower/Wi-Fi) |
@@ -472,38 +472,38 @@ Version information includes:
 ### Preparing Firmware for OTA Update
 
 1. **Build the firmware:**
-   ```bash
+```bash
    pio run
-   ```
+```
 
 2. **Package the binary using Notecard CLI:**
-   ```bash
+```bash
    # Install Notecard CLI if needed
    # https://dev.blues.io/tools-and-sdks/notecard-cli/
 
    # Package the firmware binary
    notecard -binpack stm32 0x8000000:.pio/build/blues_cygnet/firmware.bin
-   ```
+```
 
    This creates a `firmware.binpack` file with the proper metadata.
 
 3. **Upload to Notehub:**
-   - Go to your Notehub project
-   - Navigate to **Settings → Host Firmware**
-   - Click **Upload firmware** and select the `.binpack` file
-   - Add version notes (optional)
+  - Go to your Notehub project
+  - Navigate to **Settings → Host Firmware**
+  - Click **Upload firmware** and select the `.binpack` file
+  - Add version notes (optional)
 
 ### Deploying Firmware Updates
 
 1. **Via Notehub Console:**
-   - Navigate to **Devices → [Device] → Host Firmware**
-   - Select the firmware version to deploy
-   - Click **Apply DFU**
+  - Navigate to **Devices → [Device] → Host Firmware**
+  - Select the firmware version to deploy
+  - Click **Apply DFU**
 
 2. **Via Fleet-wide Deployment:**
-   - Navigate to **Settings → Host Firmware**
-   - Select the firmware version
-   - Choose **Deploy to fleet** or select specific devices
+  - Navigate to **Settings → Host Firmware**
+  - Select the firmware version
+  - Choose **Deploy to fleet** or select specific devices
 
 ### Monitoring Updates
 
@@ -513,7 +513,7 @@ Version information includes:
 ### Troubleshooting
 
 | Issue | Solution |
-|-------|----------|
+| --- | --- |
 | Update stuck at "Downloading" | Check cellular/WiFi connectivity |
 | Update fails repeatedly | Verify binary was built for correct target (STM32L433) |
 | Device unresponsive after update | Check BOOT0/NRST wiring, try manual recovery via ST-Link |
@@ -525,9 +525,9 @@ If OTA update fails and the device is unresponsive:
 
 1. Connect ST-Link programmer
 2. Flash firmware manually:
-   ```bash
+```bash
    pio run -t upload
-   ```
+```
 
 ### References
 
