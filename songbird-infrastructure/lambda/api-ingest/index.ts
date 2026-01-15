@@ -497,6 +497,9 @@ async function writePowerTelemetry(event: SongbirdEvent): Promise<void> {
   }
 }
 
+// Low battery threshold in volts
+const LOW_BATTERY_THRESHOLD = 3.0;
+
 async function writeHealthEvent(event: SongbirdEvent): Promise<void> {
   const timestamp = event.timestamp * 1000; // Convert to milliseconds
   const ttl = Math.floor(Date.now() / 1000) + TTL_SECONDS;
@@ -543,6 +546,92 @@ async function writeHealthEvent(event: SongbirdEvent): Promise<void> {
 
   await docClient.send(command);
   console.log(`Wrote health event record for ${event.device_uid}: ${event.body.method}`);
+
+  // Check for low battery condition: voltage < 3.0V and device restarted
+  if (
+    typeof event.body.voltage === 'number' &&
+    event.body.voltage < LOW_BATTERY_THRESHOLD &&
+    typeof event.body.text === 'string' &&
+    event.body.text.includes('restarted')
+  ) {
+    await createLowBatteryAlert(event);
+  }
+}
+
+/**
+ * Create a low battery alert when device restarts due to insufficient power
+ */
+async function createLowBatteryAlert(event: SongbirdEvent): Promise<void> {
+  const now = Date.now();
+  const ttl = Math.floor(now / 1000) + TTL_SECONDS;
+  const alertId = `alert_${event.device_uid}_${now}_${Math.random().toString(36).substring(7)}`;
+
+  const alertRecord = {
+    alert_id: alertId,
+    device_uid: event.device_uid,
+    serial_number: event.serial_number || 'unknown',
+    fleet: event.fleet || 'default',
+    type: 'low_battery',
+    value: event.body.voltage,
+    message: `Device restarted due to low battery (${event.body.voltage?.toFixed(2)}V)`,
+    created_at: now,
+    event_timestamp: event.timestamp * 1000,
+    acknowledged: 'false',
+    ttl,
+    location: event.location ? {
+      lat: event.location.lat,
+      lon: event.location.lon,
+    } : undefined,
+    metadata: {
+      voltage: event.body.voltage,
+      voltage_mode: event.body.voltage_mode,
+      milliamp_hours: event.body.milliamp_hours,
+      health_text: event.body.text,
+    },
+  };
+
+  const command = new PutCommand({
+    TableName: ALERTS_TABLE,
+    Item: alertRecord,
+  });
+
+  await docClient.send(command);
+  console.log(`Created low battery alert ${alertId} for ${event.device_uid} (${event.body.voltage?.toFixed(2)}V)`);
+
+  // Publish to SNS for notifications
+  const alertMessage = {
+    device_uid: event.device_uid,
+    serial_number: event.serial_number,
+    fleet: event.fleet,
+    alert_type: 'low_battery',
+    value: event.body.voltage,
+    message: `Device restarted due to low battery (${event.body.voltage?.toFixed(2)}V)`,
+    timestamp: event.timestamp,
+    location: event.location,
+  };
+
+  const publishCommand = new PublishCommand({
+    TopicArn: ALERT_TOPIC_ARN,
+    Subject: `Songbird Alert: Low Battery - ${event.serial_number || event.device_uid}`,
+    Message: JSON.stringify(alertMessage, null, 2),
+    MessageAttributes: {
+      alert_type: {
+        DataType: 'String',
+        StringValue: 'low_battery',
+      },
+      device_uid: {
+        DataType: 'String',
+        StringValue: event.device_uid,
+      },
+      fleet: {
+        DataType: 'String',
+        StringValue: event.fleet || 'default',
+      },
+    },
+  });
+
+  await snsClient.send(publishCommand);
+  console.log(`Published low battery alert to SNS for ${event.device_uid}`);
 }
 
 async function writeLocationEvent(event: SongbirdEvent): Promise<void> {

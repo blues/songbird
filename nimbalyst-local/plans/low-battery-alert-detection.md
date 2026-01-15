@@ -16,7 +16,6 @@ planStatus:
   updated: "2025-01-15"
   progress: 0
 ---
-
 # Low Battery Alert Detection
 
 ## Goals
