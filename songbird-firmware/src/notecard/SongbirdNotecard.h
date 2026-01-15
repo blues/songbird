@@ -296,9 +296,35 @@ bool notecardConfigureTriangulation(void);
  * @param lat Output: latitude (if hasLock)
  * @param lon Output: longitude (if hasLock)
  * @param timeSeconds Output: seconds since location acquired
+ * @param isActive Output: true if GPS is active ({gps-active} in status)
+ * @param hasSignal Output: true if GPS has satellite signal ({gps-signal} in status)
  * @return true if status retrieved
  */
-bool notecardGetGPSStatus(bool* hasLock, double* lat, double* lon, uint32_t* timeSeconds);
+bool notecardGetGPSStatus(bool* hasLock, double* lat, double* lon, uint32_t* timeSeconds, bool* isActive, bool* hasSignal);
+
+/**
+ * @brief Disable GPS to conserve power
+ *
+ * Used for GPS power management when device is in transit mode
+ * and cannot acquire a GPS signal (penalty box).
+ *
+ * Caller must hold I2C mutex.
+ *
+ * @return true if GPS disabled successfully
+ */
+bool notecardDisableGPS(void);
+
+/**
+ * @brief Re-enable GPS for transit mode tracking
+ *
+ * Re-enables periodic GPS with 60-second interval for transit tracking.
+ * Used after a retry interval when GPS was disabled due to penalty box.
+ *
+ * Caller must hold I2C mutex.
+ *
+ * @return true if GPS enabled successfully
+ */
+bool notecardEnableTransitGPS(void);
 
 // =============================================================================
 // Environment Variables

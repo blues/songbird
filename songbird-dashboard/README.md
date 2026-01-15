@@ -328,6 +328,24 @@ This visual indicator helps users understand when a device is in a locked shippi
 | Unlocked | Gray badge with mode name (e.g., "Demo", "Transit") |
 | Locked | Amber badge with lock icon and mode name |
 
+### GPS Status Indicators
+
+In transit mode, the dashboard displays GPS status indicators to help users understand the device's location tracking state:
+
+| Indicator | Description |
+| --- | --- |
+| **GPS Off** (gray badge) | GPS is disabled for power saving (no signal acquired within timeout) |
+| **No Satellite** (orange badge) | Device is actively trying to acquire GPS but cannot see satellites |
+
+These indicators appear next to the device mode badge on the device detail page. They help users understand why GPS location data may not be updating:
+
+- **GPS Off**: The device disabled GPS to save battery after failing to acquire a signal. GPS will retry after the configured interval.
+- **No Satellite**: The Notecard is actively searching but cannot acquire satellites (device may be indoors or in a poor signal area).
+
+Related alerts are also generated and appear in the Alerts page:
+- `GPS Power Save` - Created when GPS is disabled for power saving
+- `Unable to obtain GPS location` - Created when the device reports it cannot acquire satellites
+
 ### Commands
 
 Fleet-wide command management:

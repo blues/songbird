@@ -195,6 +195,12 @@ typedef enum {
 #define DEFAULT_LED_ENABLED             true
 #define DEFAULT_DEBUG_MODE              false
 
+// GPS Power Management (Transit Mode)
+// When enabled, monitors GPS activity and disables GPS if no signal within timeout
+#define DEFAULT_GPS_POWER_SAVE_ENABLED  true
+#define DEFAULT_GPS_SIGNAL_TIMEOUT_MIN  15      // Minutes to wait for GPS signal before disabling
+#define DEFAULT_GPS_RETRY_INTERVAL_MIN  30      // Minutes between GPS retry attempts
+
 // =============================================================================
 // Task Intervals (milliseconds)
 // =============================================================================
@@ -276,6 +282,11 @@ typedef struct {
     // Debug
     bool ledEnabled;
     bool debugMode;
+
+    // GPS Power Management (Transit Mode)
+    bool gpsPowerSaveEnabled;       // Actively manage GPS power based on signal
+    uint8_t gpsSignalTimeoutMin;    // Minutes to wait for GPS signal before disabling
+    uint8_t gpsRetryIntervalMin;    // Minutes between GPS retry attempts
 } SongbirdConfig;
 
 // =============================================================================

@@ -79,6 +79,11 @@ const CONFIG_SCHEMA: Record<string, { type: string; min?: number; max?: number; 
   locate_duration_sec: { type: 'number', min: 5, max: 300 },
   led_enabled: { type: 'boolean' },
   debug_mode: { type: 'boolean' },
+  // GPS Power Management (Transit Mode)
+  // Actively manages GPS power based on signal acquisition
+  gps_power_save_enabled: { type: 'boolean' },
+  gps_signal_timeout_min: { type: 'number', min: 10, max: 30 },
+  gps_retry_interval_min: { type: 'number', min: 5, max: 120 },
 };
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {

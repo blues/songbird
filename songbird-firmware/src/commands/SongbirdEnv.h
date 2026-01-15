@@ -40,6 +40,11 @@
 #define ENV_LED_ENABLED             "led_enabled"
 #define ENV_DEBUG_MODE              "debug_mode"
 
+// GPS Power Management (Transit Mode)
+#define ENV_GPS_POWER_SAVE_ENABLED  "gps_power_save_enabled"
+#define ENV_GPS_SIGNAL_TIMEOUT_MIN  "gps_signal_timeout_min"
+#define ENV_GPS_RETRY_INTERVAL_MIN  "gps_retry_interval_min"
+
 // =============================================================================
 // Environment Module Interface
 // =============================================================================

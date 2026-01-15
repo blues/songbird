@@ -73,6 +73,10 @@ interface FleetDefaults {
   motion_sensitivity?: string;
   audio_enabled?: boolean;
   led_enabled?: boolean;
+  // GPS Power Management (actively manages GPS based on signal)
+  gps_power_save_enabled?: boolean;
+  gps_signal_timeout_min?: number;
+  gps_retry_interval_min?: number;
 }
 
 // Validation schema for fleet defaults
@@ -89,6 +93,10 @@ const fleetDefaultsSchema: Record<string, { type: string; min?: number; max?: nu
   motion_sensitivity: { type: 'string', values: ['low', 'medium', 'high'] },
   audio_enabled: { type: 'boolean' },
   led_enabled: { type: 'boolean' },
+  // GPS Power Management (actively manages GPS based on signal)
+  gps_power_save_enabled: { type: 'boolean' },
+  gps_signal_timeout_min: { type: 'number', min: 10, max: 30 },
+  gps_retry_interval_min: { type: 'number', min: 5, max: 120 },
 };
 
 function isAdmin(event: APIGatewayProxyEventV2WithJWTAuthorizer): boolean {

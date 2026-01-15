@@ -279,6 +279,8 @@ function transformDevice(item: any): any {
     mode: item.current_mode,
     transit_locked: item.transit_locked || false,
     demo_locked: item.demo_locked || false,
+    gps_power_saving: item.gps_power_saving || false,
+    gps_no_sat: item.gps_no_sat || false,
     usb_powered: item.usb_powered || false,
     created_at: item.created_at ? new Date(item.created_at).toISOString() : undefined,
     updated_at: item.updated_at ? new Date(item.updated_at).toISOString() : undefined,

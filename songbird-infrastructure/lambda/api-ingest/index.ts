@@ -55,6 +55,7 @@ interface NotehubEvent {
     mode?: string;
     transit_locked?: boolean;
     demo_locked?: boolean;
+    gps_power_saving?: boolean;
     // Alert-specific fields
     type?: string;
     value?: number;
@@ -83,6 +84,9 @@ interface NotehubEvent {
     jcount?: number;       // Point number in current journey (starts at 1)
     time?: number;         // Timestamp when GPS fix was captured
   };
+  // _track.qo status field indicates GPS fix status (at top level of event)
+  // "no-sat" means device cannot acquire satellite fix
+  status?: string;
   best_location_type?: string;
   best_location_when?: number;
   best_lat?: number;
@@ -168,6 +172,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Extract session info (firmware versions, SKU) from _session.qo events
     const sessionInfo = extractSessionInfo(notehubEvent);
 
+    // For _track.qo events, the "status" field (e.g., "no-sat") can appear at the top level
+    // or inside the body, depending on Notehub HTTP route configuration
+    const gpsStatus = notehubEvent.status || notehubEvent.body?.status;
+
     const songbirdEvent = {
       device_uid: notehubEvent.device,
       serial_number: notehubEvent.sn,
@@ -178,6 +186,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       body: notehubEvent.body || {},
       location,
       session: sessionInfo,
+      status: gpsStatus,  // GPS status from _track.qo events (e.g., "no-sat")
     };
 
     // Write telemetry to DynamoDB (for track.qo events)
@@ -210,6 +219,13 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     if (songbirdEvent.event_type === '_track.qo') {
       await writeTrackingEvent(songbirdEvent);
       await upsertJourney(songbirdEvent);
+      // Check for no-sat status (GPS cannot acquire satellite fix)
+      // Status can be at top level or in body depending on Notehub route config
+      console.log(`_track.qo event - status: ${songbirdEvent.status}, body.status: ${songbirdEvent.body?.status}`);
+      if (songbirdEvent.status === 'no-sat') {
+        console.log(`Detected no-sat status for ${songbirdEvent.device_uid}`);
+        await checkNoSatAlert(songbirdEvent);
+      }
     }
 
     // Write to location history table for all events with location
@@ -234,6 +250,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     if (songbirdEvent.event_type === 'alert.qo') {
       await storeAlert(songbirdEvent);
       await publishAlert(songbirdEvent);
+    }
+
+    // Check for GPS power save state change (track.qo only)
+    if (songbirdEvent.event_type === 'track.qo' && songbirdEvent.body.gps_power_saving === true) {
+      await checkGpsPowerSaveAlert(songbirdEvent);
     }
 
     // Process command acknowledgment
@@ -383,6 +404,7 @@ interface SongbirdEvent {
     mode?: string;
     transit_locked?: boolean;
     demo_locked?: boolean;
+    gps_power_saving?: boolean;
     type?: string;
     value?: number;
     threshold?: number;
@@ -414,6 +436,8 @@ interface SongbirdEvent {
     source?: string;
     name?: string;
   };
+  // Top-level status from _track.qo events (e.g., "no-sat")
+  status?: string;
 }
 
 async function writeTelemetry(event: SongbirdEvent, dataType: string): Promise<void> {
@@ -634,6 +658,198 @@ async function createLowBatteryAlert(event: SongbirdEvent): Promise<void> {
   console.log(`Published low battery alert to SNS for ${event.device_uid}`);
 }
 
+/**
+ * Check if GPS power save alert should be created
+ * Only creates alert if gps_power_saving state changed from false to true
+ */
+async function checkGpsPowerSaveAlert(event: SongbirdEvent): Promise<void> {
+  try {
+    // Get current device state to check if gps_power_saving was already true
+    const getCommand = new GetCommand({
+      TableName: DEVICES_TABLE,
+      Key: { device_uid: event.device_uid },
+      ProjectionExpression: 'gps_power_saving',
+    });
+
+    const result = await docClient.send(getCommand);
+    const wasGpsPowerSaving = result.Item?.gps_power_saving === true;
+
+    // Only create alert if state changed from false to true
+    if (!wasGpsPowerSaving) {
+      await createGpsPowerSaveAlert(event);
+    }
+  } catch (error) {
+    // Log but don't fail the request - alert creation is not critical
+    console.error(`Error checking GPS power save alert: ${error}`);
+  }
+}
+
+/**
+ * Create a GPS power save alert when device disables GPS due to no signal
+ */
+async function createGpsPowerSaveAlert(event: SongbirdEvent): Promise<void> {
+  const now = Date.now();
+  const ttl = Math.floor(now / 1000) + TTL_SECONDS;
+  const alertId = `alert_${event.device_uid}_${now}_${Math.random().toString(36).substring(7)}`;
+
+  const alertRecord = {
+    alert_id: alertId,
+    device_uid: event.device_uid,
+    serial_number: event.serial_number || 'unknown',
+    fleet: event.fleet || 'default',
+    type: 'gps_power_save',
+    message: 'GPS disabled for power saving - unable to acquire satellite signal',
+    created_at: now,
+    event_timestamp: event.timestamp * 1000,
+    acknowledged: 'false',
+    ttl,
+    location: event.location ? {
+      lat: event.location.lat,
+      lon: event.location.lon,
+    } : undefined,
+    metadata: {
+      mode: event.body.mode,
+      transit_locked: event.body.transit_locked,
+    },
+  };
+
+  const command = new PutCommand({
+    TableName: ALERTS_TABLE,
+    Item: alertRecord,
+  });
+
+  await docClient.send(command);
+  console.log(`Created GPS power save alert ${alertId} for ${event.device_uid}`);
+
+  // Publish to SNS for notifications
+  const alertMessage = {
+    device_uid: event.device_uid,
+    serial_number: event.serial_number,
+    fleet: event.fleet,
+    alert_type: 'gps_power_save',
+    message: 'GPS disabled for power saving - unable to acquire satellite signal',
+    timestamp: event.timestamp,
+    location: event.location,
+  };
+
+  const publishCommand = new PublishCommand({
+    TopicArn: ALERT_TOPIC_ARN,
+    Subject: `Songbird Alert: GPS Power Save - ${event.serial_number || event.device_uid}`,
+    Message: JSON.stringify(alertMessage, null, 2),
+    MessageAttributes: {
+      alert_type: {
+        DataType: 'String',
+        StringValue: 'gps_power_save',
+      },
+      device_uid: {
+        DataType: 'String',
+        StringValue: event.device_uid,
+      },
+      fleet: {
+        DataType: 'String',
+        StringValue: event.fleet || 'default',
+      },
+    },
+  });
+
+  await snsClient.send(publishCommand);
+  console.log(`Published GPS power save alert to SNS for ${event.device_uid}`);
+}
+
+/**
+ * Check if no-sat alert should be created
+ * Only creates alert if gps_no_sat state changed from false to true
+ */
+async function checkNoSatAlert(event: SongbirdEvent): Promise<void> {
+  try {
+    // Get current device state to check if gps_no_sat was already true
+    const getCommand = new GetCommand({
+      TableName: DEVICES_TABLE,
+      Key: { device_uid: event.device_uid },
+      ProjectionExpression: 'gps_no_sat',
+    });
+
+    const result = await docClient.send(getCommand);
+    const wasNoSat = result.Item?.gps_no_sat === true;
+
+    // Only create alert if state changed from false to true
+    if (!wasNoSat) {
+      await createNoSatAlert(event);
+    }
+  } catch (error) {
+    // Log but don't fail the request - alert creation is not critical
+    console.error(`Error checking no-sat alert: ${error}`);
+  }
+}
+
+/**
+ * Create a no-sat alert when device cannot acquire satellite fix
+ */
+async function createNoSatAlert(event: SongbirdEvent): Promise<void> {
+  const now = Date.now();
+  const ttl = Math.floor(now / 1000) + TTL_SECONDS;
+  const alertId = `alert_${event.device_uid}_${now}_${Math.random().toString(36).substring(7)}`;
+
+  const alertRecord = {
+    alert_id: alertId,
+    device_uid: event.device_uid,
+    serial_number: event.serial_number || 'unknown',
+    fleet: event.fleet || 'default',
+    type: 'gps_no_sat',
+    message: 'Unable to obtain GPS location',
+    created_at: now,
+    event_timestamp: event.timestamp * 1000,
+    acknowledged: 'false',
+    ttl,
+    location: event.location ? {
+      lat: event.location.lat,
+      lon: event.location.lon,
+    } : undefined,
+  };
+
+  const command = new PutCommand({
+    TableName: ALERTS_TABLE,
+    Item: alertRecord,
+  });
+
+  await docClient.send(command);
+  console.log(`Created no-sat alert ${alertId} for ${event.device_uid}`);
+
+  // Publish to SNS for notifications
+  const alertMessage = {
+    device_uid: event.device_uid,
+    serial_number: event.serial_number,
+    fleet: event.fleet,
+    alert_type: 'gps_no_sat',
+    message: 'Unable to obtain GPS location',
+    timestamp: event.timestamp,
+    location: event.location,
+  };
+
+  const publishCommand = new PublishCommand({
+    TopicArn: ALERT_TOPIC_ARN,
+    Subject: `Songbird Alert: Unable to obtain GPS location - ${event.serial_number || event.device_uid}`,
+    Message: JSON.stringify(alertMessage, null, 2),
+    MessageAttributes: {
+      alert_type: {
+        DataType: 'String',
+        StringValue: 'gps_no_sat',
+      },
+      device_uid: {
+        DataType: 'String',
+        StringValue: event.device_uid,
+      },
+      fleet: {
+        DataType: 'String',
+        StringValue: event.fleet || 'default',
+      },
+    },
+  });
+
+  await snsClient.send(publishCommand);
+  console.log(`Published no-sat alert to SNS for ${event.device_uid}`);
+}
+
 async function writeLocationEvent(event: SongbirdEvent): Promise<void> {
   if (!event.location?.lat || !event.location?.lon) {
     console.log('No location data in event, skipping');
@@ -703,8 +919,8 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
     expressionAttributeValues[':mode'] = event.body.mode;
   }
 
-  // For track.qo events, update lock states based on presence of the field
-  // If locked is true, set it; if absent or false, clear it
+  // For track.qo events, update lock states and GPS power state
+  // If locked/gps_power_saving is true, set it; if absent or false, clear it
   if (event.event_type === 'track.qo') {
     updateExpressions.push('#transit_locked = :transit_locked');
     expressionAttributeNames['#transit_locked'] = 'transit_locked';
@@ -713,6 +929,17 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
     updateExpressions.push('#demo_locked = :demo_locked');
     expressionAttributeNames['#demo_locked'] = 'demo_locked';
     expressionAttributeValues[':demo_locked'] = event.body.demo_locked === true;
+
+    updateExpressions.push('#gps_power_saving = :gps_power_saving');
+    expressionAttributeNames['#gps_power_saving'] = 'gps_power_saving';
+    expressionAttributeValues[':gps_power_saving'] = event.body.gps_power_saving === true;
+  }
+
+  // For _track.qo events, track gps_no_sat status
+  if (event.event_type === '_track.qo') {
+    updateExpressions.push('#gps_no_sat = :gps_no_sat');
+    expressionAttributeNames['#gps_no_sat'] = 'gps_no_sat';
+    expressionAttributeValues[':gps_no_sat'] = event.status === 'no-sat';
   }
 
   if (event.location?.lat !== undefined && event.location?.lon !== undefined) {

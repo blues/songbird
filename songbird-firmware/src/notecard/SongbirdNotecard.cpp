@@ -410,6 +410,9 @@ bool notecardSendTrackNote(const SensorData* data, OperatingMode mode, bool forc
     if (stateIsDemoLocked()) {
         JAddBoolToObject(body, "demo_locked", true);
     }
+    if (stateIsGpsPowerSaving()) {
+        JAddBoolToObject(body, "gps_power_saving", true);
+    }
     JAddItemToObject(req, "body", body);
 
     J* rsp = s_notecard.requestAndResponse(req);
@@ -950,7 +953,7 @@ bool notecardConfigureTriangulation(void) {
     return true;
 }
 
-bool notecardGetGPSStatus(bool* hasLock, double* lat, double* lon, uint32_t* timeSeconds) {
+bool notecardGetGPSStatus(bool* hasLock, double* lat, double* lon, uint32_t* timeSeconds, bool* isActive, bool* hasSignal) {
     if (!s_initialized) {
         return false;
     }
@@ -961,6 +964,8 @@ bool notecardGetGPSStatus(bool* hasLock, double* lat, double* lon, uint32_t* tim
     if (rsp == NULL || s_notecard.responseError(rsp)) {
         if (rsp) s_notecard.deleteResponse(rsp);
         if (hasLock) *hasLock = false;
+        if (isActive) *isActive = false;
+        if (hasSignal) *hasSignal = false;
         return false;
     }
 
@@ -971,7 +976,80 @@ bool notecardGetGPSStatus(bool* hasLock, double* lat, double* lon, uint32_t* tim
     if (lon) *lon = JGetNumber(rsp, "lon");
     if (timeSeconds) *timeSeconds = JGetInt(rsp, "time");
 
+    // Check GPS status flags in the status string
+    const char* status = JGetString(rsp, "status");
+    if (isActive) {
+        // GPS is active if {gps-active} is present (not {gps-inactive})
+        *isActive = (status != NULL && strstr(status, "{gps-active}") != NULL);
+    }
+    if (hasSignal) {
+        // GPS has signal if {gps-signal} is present
+        *hasSignal = (status != NULL && strstr(status, "{gps-signal}") != NULL);
+    }
+
+    #ifdef DEBUG_MODE
+    if (status) {
+        DEBUG_SERIAL.print("[Notecard] GPS status: ");
+        DEBUG_SERIAL.println(status);
+    }
+    #endif
+
     s_notecard.deleteResponse(rsp);
+    return true;
+}
+
+bool notecardDisableGPS(void) {
+    if (!s_initialized) {
+        return false;
+    }
+
+    J* req = s_notecard.newRequest("card.location.mode");
+    JAddStringToObject(req, "mode", "off");
+
+    J* rsp = s_notecard.requestAndResponse(req);
+    if (rsp == NULL || s_notecard.responseError(rsp)) {
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.println("[Notecard] Failed to disable GPS");
+        #endif
+        if (rsp) s_notecard.deleteResponse(rsp);
+        NC_ERROR();
+        return false;
+    }
+
+    s_notecard.deleteResponse(rsp);
+
+    #ifdef DEBUG_MODE
+    DEBUG_SERIAL.println("[Notecard] GPS disabled for power saving");
+    #endif
+
+    return true;
+}
+
+bool notecardEnableTransitGPS(void) {
+    if (!s_initialized) {
+        return false;
+    }
+
+    J* req = s_notecard.newRequest("card.location.mode");
+    JAddStringToObject(req, "mode", "periodic");
+    JAddNumberToObject(req, "seconds", 60);  // 60-second interval for transit
+
+    J* rsp = s_notecard.requestAndResponse(req);
+    if (rsp == NULL || s_notecard.responseError(rsp)) {
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.println("[Notecard] Failed to enable transit GPS");
+        #endif
+        if (rsp) s_notecard.deleteResponse(rsp);
+        NC_ERROR();
+        return false;
+    }
+
+    s_notecard.deleteResponse(rsp);
+
+    #ifdef DEBUG_MODE
+    DEBUG_SERIAL.println("[Notecard] GPS re-enabled for transit (periodic 60s)");
+    #endif
+
     return true;
 }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, Clock, Activity, MapPin, Satellite, Radio, Lock, Route, Navigation } from 'lucide-react';
+import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, Clock, Activity, MapPin, Satellite, SatelliteIcon, Radio, Lock, Route, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -39,6 +39,8 @@ const alertTypeLabels: Record<string, string> = {
   pressure_change: 'Pressure Change',
   low_battery: 'Low Battery',
   motion: 'Motion Detected',
+  gps_power_save: 'GPS Power Save',
+  gps_no_sat: 'Unable to obtain GPS location',
 };
 
 const healthMethodLabels: Record<string, string> = {
@@ -278,6 +280,18 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
               {(device.transit_locked || device.demo_locked) && <Lock className="h-3 w-3" />}
               {formatMode(device.mode)}
             </Badge>
+            {device.gps_power_saving && device.mode === 'transit' && (
+              <Badge variant="outline" className="gap-1 bg-yellow-50 border-yellow-200 text-yellow-700">
+                <Satellite className="h-3 w-3" />
+                GPS Off
+              </Badge>
+            )}
+            {device.gps_no_sat && device.mode === 'transit' && (
+              <Badge variant="outline" className="gap-1 bg-orange-50 border-orange-200 text-orange-700">
+                <Satellite className="h-3 w-3" />
+                No Satellite
+              </Badge>
+            )}
             {device.last_seen && (
               <>
                 <span>•</span>

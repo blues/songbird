@@ -21,7 +21,7 @@
 
 // Magic number to validate state data
 #define STATE_MAGIC 0x534F4E47  // "SONG"
-#define STATE_VERSION 3
+#define STATE_VERSION 4
 
 /**
  * @brief Persistent state structure
@@ -45,7 +45,14 @@ typedef struct {
     OperatingMode preTransitMode; // Mode before transit lock was engaged
     bool demoLocked;            // Demo lock is active (triple-click engaged)
     OperatingMode preDemoMode;  // Mode before demo lock was engaged
-    uint8_t reserved[10];       // Reserved for future use
+
+    // GPS Power Management (Transit Mode)
+    bool gpsPowerSaving;        // GPS is currently disabled for power saving
+    bool gpsWasActive;          // GPS was active in last status check (for transition detection)
+    uint32_t gpsActiveStartTime; // millis() when GPS became active without signal
+    uint32_t lastGpsRetryTime;  // millis() when GPS was last re-enabled for retry
+
+    uint8_t reserved[1];        // Reserved for future use
     uint32_t checksum;          // CRC32 checksum
 } SongbirdState;
 
@@ -233,6 +240,66 @@ bool stateIsDemoLocked(void);
  * @return The previous operating mode
  */
 OperatingMode stateGetPreDemoMode(void);
+
+// =============================================================================
+// GPS Power Management
+// =============================================================================
+
+/**
+ * @brief Set GPS power saving state
+ *
+ * @param enabled true if GPS is in power-saving mode (disabled)
+ */
+void stateSetGpsPowerSaving(bool enabled);
+
+/**
+ * @brief Check if GPS is in power saving mode
+ *
+ * @return true if GPS is disabled for power saving
+ */
+bool stateIsGpsPowerSaving(void);
+
+/**
+ * @brief Set last GPS retry time
+ *
+ * @param time millis() timestamp when GPS was re-enabled
+ */
+void stateSetLastGpsRetryTime(uint32_t time);
+
+/**
+ * @brief Get last GPS retry time
+ *
+ * @return millis() timestamp when GPS was last re-enabled, or 0 if never
+ */
+uint32_t stateGetLastGpsRetryTime(void);
+
+/**
+ * @brief Set GPS active state for transition detection
+ *
+ * @param active true if GPS is currently active
+ */
+void stateSetGpsWasActive(bool active);
+
+/**
+ * @brief Get previous GPS active state
+ *
+ * @return true if GPS was active in previous check
+ */
+bool stateGetGpsWasActive(void);
+
+/**
+ * @brief Set GPS active start time
+ *
+ * @param time millis() timestamp when GPS became active
+ */
+void stateSetGpsActiveStartTime(uint32_t time);
+
+/**
+ * @brief Get GPS active start time
+ *
+ * @return millis() timestamp when GPS became active, or 0 if not tracking
+ */
+uint32_t stateGetGpsActiveStartTime(void);
 
 // =============================================================================
 // Checksum

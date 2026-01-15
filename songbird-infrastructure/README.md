@@ -365,6 +365,18 @@ The infrastructure creates the following DynamoDB tables:
 | `songbird-alerts` | `device_uid` | `created_at` | Alert history |
 | `songbird-audit` | `audit_id` | - | Audit logs for public access (90-day TTL) |
 
+### Alert Types
+
+The ingest Lambda generates alerts for the following conditions:
+
+| Type | Description | Source |
+|------|-------------|--------|
+| `temp_high` | Temperature exceeds high threshold | `alert.qo` from firmware |
+| `temp_low` | Temperature below low threshold | `alert.qo` from firmware |
+| `low_battery` | Device restarted due to low battery (< 3.0V) | `_health.qo` analysis |
+| `gps_power_save` | GPS disabled to conserve battery (no signal acquired) | `track.qo` with `gps_power_saving: true` |
+| `gps_no_sat` | GPS cannot acquire satellite fix | `_track.qo` with `status: "no-sat"` |
+
 ### Device Aliasing (Notecard Swapping)
 
 The `songbird-device-aliases` table enables Notecard hardware swapping while preserving device identity and history:

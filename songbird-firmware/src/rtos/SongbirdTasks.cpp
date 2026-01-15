@@ -337,6 +337,18 @@ void MainTask(void* pvParameters) {
                         queueImmediateTrackNote(newConfig.mode);
                         syncReleaseI2C();
                     }
+
+                    // Reset GPS power state when changing modes
+                    // GPS will be reconfigured based on new mode settings
+                    if (newConfig.mode == MODE_TRANSIT || oldMode == MODE_TRANSIT) {
+                        stateSetGpsPowerSaving(false);
+                        stateSetGpsWasActive(false);
+                        stateSetGpsActiveStartTime(0);
+                        stateSetLastGpsRetryTime(0);
+                        #ifdef DEBUG_MODE
+                        DEBUG_SERIAL.println("[MainTask] GPS power state reset for mode change");
+                        #endif
+                    }
                 }
 
                 // Update audio settings
@@ -892,12 +904,98 @@ void NotecardTask(void* pvParameters) {
                 bool hasLock;
                 double lat, lon;
                 uint32_t timeSec;
-                if (notecardGetGPSStatus(&hasLock, &lat, &lon, &timeSec)) {
+                bool isActive = false;
+                bool hasSignal = false;
+                if (notecardGetGPSStatus(&hasLock, &lat, &lon, &timeSec, &isActive, &hasSignal)) {
                     if (hasLock && timeSec < 10) {
                         // Fresh GPS fix
                         stateUpdateGpsFixTime();
                         audioQueueEvent(AUDIO_EVENT_GPS_LOCK);
                     }
+                }
+
+                // GPS Power Management for Transit Mode
+                // Monitor GPS activity and disable if no signal after timeout
+                // After retry interval, re-enable GPS to try again
+                if (config.mode == MODE_TRANSIT && config.gpsPowerSaveEnabled) {
+                    bool gpsIsDisabled = stateIsGpsPowerSaving();
+                    bool wasActive = stateGetGpsWasActive();
+                    uint32_t activeStartTime = stateGetGpsActiveStartTime();
+                    uint32_t now = millis();
+
+                    if (gpsIsDisabled) {
+                        // GPS is disabled - check if it's time to retry
+                        uint32_t retryIntervalMs = (uint32_t)config.gpsRetryIntervalMin * 60UL * 1000UL;
+                        uint32_t lastRetry = stateGetLastGpsRetryTime();
+                        uint32_t elapsed = now - lastRetry;
+
+                        if (elapsed >= retryIntervalMs) {
+                            // Time to retry - re-enable GPS
+                            #ifdef DEBUG_MODE
+                            DEBUG_SERIAL.print("[NotecardTask] GPS retry interval elapsed (");
+                            DEBUG_SERIAL.print(config.gpsRetryIntervalMin);
+                            DEBUG_SERIAL.println(" min) - re-enabling GPS");
+                            #endif
+                            if (notecardEnableTransitGPS()) {
+                                stateSetGpsPowerSaving(false);
+                                stateSetGpsActiveStartTime(0);
+                                stateSetLastGpsRetryTime(now);
+                            }
+                        }
+                    } else {
+                        // GPS is enabled - monitor for signal timeout
+
+                        // Detect transition from inactive to active
+                        if (isActive && !wasActive) {
+                            // GPS just became active - start timing if no signal
+                            if (!hasSignal && !hasLock) {
+                                #ifdef DEBUG_MODE
+                                DEBUG_SERIAL.println("[NotecardTask] GPS became active without signal - starting timeout");
+                                #endif
+                                stateSetGpsActiveStartTime(now);
+                            }
+                        }
+
+                        // Check if we have signal or lock - reset timeout tracking
+                        if (hasSignal || hasLock) {
+                            if (activeStartTime != 0) {
+                                #ifdef DEBUG_MODE
+                                DEBUG_SERIAL.println("[NotecardTask] GPS has signal - clearing timeout");
+                                #endif
+                                stateSetGpsActiveStartTime(0);
+                            }
+                        }
+                        // Check if active without signal for too long
+                        else if (isActive && activeStartTime != 0) {
+                            uint32_t timeoutMs = (uint32_t)config.gpsSignalTimeoutMin * 60UL * 1000UL;
+                            uint32_t activeElapsed = now - activeStartTime;
+
+                            if (activeElapsed >= timeoutMs) {
+                                // Timeout - disable GPS to save power
+                                #ifdef DEBUG_MODE
+                                DEBUG_SERIAL.print("[NotecardTask] GPS active ");
+                                DEBUG_SERIAL.print(config.gpsSignalTimeoutMin);
+                                DEBUG_SERIAL.println(" min without signal - disabling GPS");
+                                #endif
+                                if (notecardDisableGPS()) {
+                                    stateSetGpsPowerSaving(true);
+                                    stateSetGpsActiveStartTime(0);
+                                    stateSetLastGpsRetryTime(now);
+                                }
+                            }
+                        }
+                        // If not active and was active (transition to inactive)
+                        else if (!isActive && wasActive && activeStartTime != 0) {
+                            // GPS went inactive while we were timing - reset
+                            #ifdef DEBUG_MODE
+                            DEBUG_SERIAL.println("[NotecardTask] GPS went inactive - resetting timeout");
+                            #endif
+                            stateSetGpsActiveStartTime(0);
+                        }
+                    }
+
+                    // Update previous active state for next iteration
+                    stateSetGpsWasActive(isActive);
                 }
 
                 // Check if we need to sync

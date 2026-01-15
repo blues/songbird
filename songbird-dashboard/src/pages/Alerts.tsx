@@ -17,6 +17,8 @@ const alertTypeLabels: Record<string, string> = {
   pressure_change: 'Pressure Change',
   low_battery: 'Low Battery',
   motion: 'Motion Detected',
+  gps_power_save: 'GPS Power Save',
+  gps_no_sat: 'Unable to obtain GPS location',
 };
 
 const alertTypeColors: Record<string, string> = {
@@ -27,6 +29,8 @@ const alertTypeColors: Record<string, string> = {
   pressure_change: 'bg-purple-500',
   low_battery: 'bg-yellow-500',
   motion: 'bg-green-500',
+  gps_power_save: 'bg-amber-500',
+  gps_no_sat: 'bg-orange-500',
 };
 
 interface AlertCardProps {

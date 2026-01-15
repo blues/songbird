@@ -62,6 +62,12 @@ void stateInit(void) {
     s_state.demoLocked = false;
     s_state.preDemoMode = MODE_DEMO;
 
+    // GPS Power Management
+    s_state.gpsPowerSaving = false;
+    s_state.gpsWasActive = false;
+    s_state.gpsActiveStartTime = 0;
+    s_state.lastGpsRetryTime = 0;
+
     s_bootStartTime = millis();
     s_warmBoot = false;
 
@@ -272,6 +278,42 @@ bool stateIsDemoLocked(void) {
 
 OperatingMode stateGetPreDemoMode(void) {
     return s_state.preDemoMode;
+}
+
+// =============================================================================
+// GPS Power Management
+// =============================================================================
+
+void stateSetGpsPowerSaving(bool enabled) {
+    s_state.gpsPowerSaving = enabled;
+}
+
+bool stateIsGpsPowerSaving(void) {
+    return s_state.gpsPowerSaving;
+}
+
+void stateSetLastGpsRetryTime(uint32_t time) {
+    s_state.lastGpsRetryTime = time;
+}
+
+uint32_t stateGetLastGpsRetryTime(void) {
+    return s_state.lastGpsRetryTime;
+}
+
+void stateSetGpsWasActive(bool active) {
+    s_state.gpsWasActive = active;
+}
+
+bool stateGetGpsWasActive(void) {
+    return s_state.gpsWasActive;
+}
+
+void stateSetGpsActiveStartTime(uint32_t time) {
+    s_state.gpsActiveStartTime = time;
+}
+
+uint32_t stateGetGpsActiveStartTime(void) {
+    return s_state.gpsActiveStartTime;
 }
 
 // =============================================================================

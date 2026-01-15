@@ -47,6 +47,8 @@ export interface Device {
   mode: OperatingMode;
   transit_locked?: boolean;
   demo_locked?: boolean;
+  gps_power_saving?: boolean;
+  gps_no_sat?: boolean;
   usb_powered?: boolean;
   firmware_version?: string;
   notecard_version?: string;
@@ -178,6 +180,10 @@ export interface DeviceConfig {
   locate_duration_sec: number;
   led_enabled: boolean;
   debug_mode: boolean;
+  // GPS Power Management (actively manages GPS based on signal)
+  gps_power_save_enabled?: boolean;
+  gps_signal_timeout_min?: number;
+  gps_retry_interval_min?: number;
 }
 
 /**
@@ -413,6 +419,10 @@ export interface FleetDefaults {
   motion_sensitivity?: MotionSensitivity;
   audio_enabled?: boolean;
   led_enabled?: boolean;
+  // GPS Power Management (actively manages GPS based on signal)
+  gps_power_save_enabled?: boolean;
+  gps_signal_timeout_min?: number;
+  gps_retry_interval_min?: number;
   updated_at?: number;
   updated_by?: string;
 }

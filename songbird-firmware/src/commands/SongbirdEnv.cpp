@@ -44,6 +44,11 @@ void envInitDefaults(SongbirdConfig* config) {
 
     config->ledEnabled = DEFAULT_LED_ENABLED;
     config->debugMode = DEFAULT_DEBUG_MODE;
+
+    // GPS Power Management
+    config->gpsPowerSaveEnabled = DEFAULT_GPS_POWER_SAVE_ENABLED;
+    config->gpsSignalTimeoutMin = DEFAULT_GPS_SIGNAL_TIMEOUT_MIN;
+    config->gpsRetryIntervalMin = DEFAULT_GPS_RETRY_INTERVAL_MIN;
 }
 
 // =============================================================================
@@ -186,6 +191,24 @@ bool envFetchConfig(SongbirdConfig* config) {
         anySuccess = true;
     }
 
+    // GPS Power Management
+    if (notecardEnvGet(ENV_GPS_POWER_SAVE_ENABLED, buffer, sizeof(buffer))) {
+        config->gpsPowerSaveEnabled = (strcmp(buffer, "true") == 0 || strcmp(buffer, "1") == 0);
+        anySuccess = true;
+    }
+
+    intVal = notecardEnvGetInt(ENV_GPS_SIGNAL_TIMEOUT_MIN, -1);
+    if (intVal >= 0) {
+        config->gpsSignalTimeoutMin = CLAMP(intVal, 10, 30);  // 10-30 minutes
+        anySuccess = true;
+    }
+
+    intVal = notecardEnvGetInt(ENV_GPS_RETRY_INTERVAL_MIN, -1);
+    if (intVal >= 0) {
+        config->gpsRetryIntervalMin = CLAMP(intVal, 5, 120);  // 5-120 minutes
+        anySuccess = true;
+    }
+
     return anySuccess;
 }
 
@@ -228,6 +251,11 @@ bool envConfigChanged(const SongbirdConfig* a, const SongbirdConfig* b) {
 
     if (a->ledEnabled != b->ledEnabled) return true;
     if (a->debugMode != b->debugMode) return true;
+
+    // GPS Power Management
+    if (a->gpsPowerSaveEnabled != b->gpsPowerSaveEnabled) return true;
+    if (a->gpsSignalTimeoutMin != b->gpsSignalTimeoutMin) return true;
+    if (a->gpsRetryIntervalMin != b->gpsRetryIntervalMin) return true;
 
     return false;
 }
@@ -605,5 +633,25 @@ void envLogConfigChanges(const SongbirdConfig* oldConfig, const SongbirdConfig* 
         Serial.print(oldConfig->debugMode ? "true" : "false");
         Serial.print(" -> ");
         Serial.println(newConfig->debugMode ? "true" : "false");
+    }
+
+    // GPS Power Management
+    if (oldConfig->gpsPowerSaveEnabled != newConfig->gpsPowerSaveEnabled) {
+        Serial.print("  gps_power_save_enabled: ");
+        Serial.print(oldConfig->gpsPowerSaveEnabled ? "true" : "false");
+        Serial.print(" -> ");
+        Serial.println(newConfig->gpsPowerSaveEnabled ? "true" : "false");
+    }
+    if (oldConfig->gpsSignalTimeoutMin != newConfig->gpsSignalTimeoutMin) {
+        Serial.print("  gps_signal_timeout_min: ");
+        Serial.print(oldConfig->gpsSignalTimeoutMin);
+        Serial.print(" -> ");
+        Serial.println(newConfig->gpsSignalTimeoutMin);
+    }
+    if (oldConfig->gpsRetryIntervalMin != newConfig->gpsRetryIntervalMin) {
+        Serial.print("  gps_retry_interval_min: ");
+        Serial.print(oldConfig->gpsRetryIntervalMin);
+        Serial.print(" -> ");
+        Serial.println(newConfig->gpsRetryIntervalMin);
     }
 }

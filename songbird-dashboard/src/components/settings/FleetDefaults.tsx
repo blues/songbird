@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Building2, Settings, Thermometer, Timer, Volume2, Zap } from 'lucide-react';
+import { Building2, Satellite, Settings, Thermometer, Timer, Volume2, Zap } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -363,6 +363,70 @@ export function FleetDefaults() {
                         onCheckedChange={(v) => updateLocalConfig('led_enabled', v)}
                       />
                     </div>
+                  </div>
+                </div>
+
+                {/* GPS Power Management Section */}
+                <div className="border-t pt-6 space-y-4">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
+                    <Satellite className="h-4 w-4" />
+                    GPS Power Management (Transit Mode)
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    When enabled, GPS is disabled after no signal is acquired within the timeout period
+                  </p>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>GPS Power Management</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Disable GPS when no signal to save power
+                      </p>
+                    </div>
+                    <Switch
+                      checked={localConfig.gps_power_save_enabled !== false}
+                      onCheckedChange={(v) => updateLocalConfig('gps_power_save_enabled', v)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <Label>Signal Timeout</Label>
+                      <span className="text-sm text-muted-foreground">
+                        {localConfig.gps_signal_timeout_min || 15} min
+                      </span>
+                    </div>
+                    <Slider
+                      value={[localConfig.gps_signal_timeout_min || 15]}
+                      onValueChange={([v]) => updateLocalConfig('gps_signal_timeout_min', v)}
+                      min={10}
+                      max={30}
+                      step={5}
+                      disabled={localConfig.gps_power_save_enabled === false}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Time to wait for GPS signal before disabling GPS
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <Label>Retry Interval</Label>
+                      <span className="text-sm text-muted-foreground">
+                        {localConfig.gps_retry_interval_min || 30} min
+                      </span>
+                    </div>
+                    <Slider
+                      value={[localConfig.gps_retry_interval_min || 30]}
+                      onValueChange={([v]) => updateLocalConfig('gps_retry_interval_min', v)}
+                      min={5}
+                      max={120}
+                      step={5}
+                      disabled={localConfig.gps_power_save_enabled === false}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Time between attempts to re-enable GPS after disabling
+                    </p>
                   </div>
                 </div>
 

@@ -215,6 +215,31 @@ Triangulation uses the Cell+WiFi Notecard's ability to scan nearby cell towers a
 
 Triangulated location data is sent via `_geolocate.qo` events. The location source (gps, cell, wifi, triangulation) is included with each location data point so the dashboard can indicate the accuracy level.
 
+### GPS Power Management (Transit Mode)
+
+When in transit mode, the firmware includes intelligent GPS power management to conserve battery when GPS signal is unavailable (e.g., device is indoors or in a covered location):
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `gps_power_save_enabled` | true | Enable GPS power management |
+| `gps_signal_timeout_min` | 15 | Minutes to wait for GPS signal after activation |
+| `gps_retry_interval_min` | 30 | Minutes between GPS retry attempts |
+
+**How it works:**
+
+1. When GPS becomes active (`{gps-active}` status), the firmware starts a timer
+2. If no GPS signal (`{gps-signal}`) is acquired within the timeout period, GPS is disabled
+3. After the retry interval, GPS is re-enabled to try again
+4. When GPS successfully acquires a signal, the timer is reset
+
+This prevents the device from continuously draining the battery trying to acquire a GPS fix when indoors or in poor signal conditions.
+
+**Status reporting:**
+
+- The `gps_power_saving` flag is included in `track.qo` events when GPS is disabled for power saving
+- A `gps_no_sat` alert is created when the Notecard reports it cannot acquire satellites
+- The dashboard shows visual indicators for both states
+
 ### Mode-based Location Summary
 
 | Mode | GPS | Triangulation | Location Source |
@@ -384,6 +409,9 @@ Configuration is managed via Notehub environment variables:
 | `audio_enabled` | boolean | true | Enable audio feedback |
 | `audio_volume` | number | 50 | Audio volume (0-100) |
 | `motion_sensitivity` | string | medium | Motion sensitivity (low/medium/high) |
+| `gps_power_save_enabled` | boolean | true | Enable GPS power management in transit mode |
+| `gps_signal_timeout_min` | number | 15 | Minutes to wait for GPS signal before disabling (10-30) |
+| `gps_retry_interval_min` | number | 30 | Minutes between GPS retry attempts |
 
 ## Commands
 
