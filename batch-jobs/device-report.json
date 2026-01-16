@@ -1,0 +1,14 @@
+{
+  "comment": "Generate a report on all devices",
+  "select":{
+    "all_devices": true
+  },
+  "report_options":{
+    "app_info": true,
+    "app_vars": true,
+    "app_fleets": true,
+    "device_info": true,
+    "device_vars": true,
+    "device_activity": true
+  }
+}
