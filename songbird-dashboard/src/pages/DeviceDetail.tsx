@@ -571,7 +571,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                       <span className="text-muted-foreground">Loading chart...</span>
                     </div>
                   ) : filteredPower.length > 0 ? (
-                    <PowerChart data={filteredPower} height={350} />
+                    <PowerChart data={filteredPower} />
                   ) : (
                     <div className="h-[300px] flex items-center justify-center">
                       <span className="text-muted-foreground">
