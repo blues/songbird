@@ -9,6 +9,7 @@ import {
   Legend,
 } from 'recharts';
 import { format, parseISO } from 'date-fns';
+import { Thermometer, Droplets, Gauge, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { celsiusToFahrenheit } from '@/utils/formatters';
 import type { TelemetryPoint } from '@/types';
 
@@ -19,6 +20,42 @@ interface TelemetryChartProps {
   showPressure?: boolean;
   height?: number;
   tempUnit?: 'C' | 'F';
+}
+
+interface StatsSummary {
+  min: number;
+  max: number;
+  avg: number;
+  current: number;
+  trend: 'up' | 'down' | 'stable';
+}
+
+function calculateStats(values: number[]): StatsSummary | null {
+  if (values.length === 0) return null;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  const current = values[values.length - 1];
+
+  // Calculate trend from last 25% of data points
+  const trendWindow = Math.max(2, Math.floor(values.length * 0.25));
+  const recentValues = values.slice(-trendWindow);
+  const trendStart = recentValues[0];
+  const trendEnd = recentValues[recentValues.length - 1];
+  const trendDelta = trendEnd - trendStart;
+  const threshold = (max - min) * 0.05; // 5% of range
+
+  let trend: 'up' | 'down' | 'stable' = 'stable';
+  if (trendDelta > threshold) trend = 'up';
+  else if (trendDelta < -threshold) trend = 'down';
+
+  return { min, max, avg, current, trend };
+}
+
+function TrendIcon({ trend }: { trend: 'up' | 'down' | 'stable' }) {
+  if (trend === 'up') return <TrendingUp className="h-3 w-3 text-green-500" />;
+  if (trend === 'down') return <TrendingDown className="h-3 w-3 text-red-500" />;
+  return <Minus className="h-3 w-3 text-muted-foreground" />;
 }
 
 export function TelemetryChart({
@@ -39,6 +76,23 @@ export function TelemetryChart({
       : undefined,
   }));
 
+  // Calculate stats for each metric
+  const tempValues = chartData
+    .filter((d) => d.temperature !== undefined)
+    .map((d) => d.temperature!);
+  const humidityValues = chartData
+    .filter((d) => d.humidity !== undefined)
+    .map((d) => d.humidity!);
+  const pressureValues = chartData
+    .filter((d) => d.pressure !== undefined)
+    .map((d) => d.pressure!);
+
+  const tempStats = showTemperature ? calculateStats(tempValues) : null;
+  const humidityStats = showHumidity ? calculateStats(humidityValues) : null;
+  const pressureStats = showPressure ? calculateStats(pressureValues) : null;
+
+  const hasAnyStats = tempStats || humidityStats || pressureStats;
+
   const formatXAxis = (timestamp: number) => {
     return format(new Date(timestamp), 'HH:mm');
   };
@@ -48,104 +102,178 @@ export function TelemetryChart({
   };
 
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-        <XAxis
-          dataKey="timestamp"
-          tickFormatter={formatXAxis}
-          className="text-xs"
-          stroke="currentColor"
-        />
+    <div className="space-y-4">
+      {/* Summary Stats Card */}
+      {hasAnyStats && (
+        <div className="rounded-lg border bg-card p-4">
+          <div className="grid grid-cols-3 gap-4">
+            {/* Temperature Stats */}
+            {tempStats && (
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1.5 text-muted-foreground text-xs mb-2">
+                  <Thermometer className="h-3 w-3 text-orange-500" />
+                  Temperature
+                  <TrendIcon trend={tempStats.trend} />
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-semibold text-orange-500">
+                    {tempStats.current.toFixed(1)}°{tempUnit}
+                  </span>
+                </div>
+                <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                  <span>Min: {tempStats.min.toFixed(1)}°</span>
+                  <span>Max: {tempStats.max.toFixed(1)}°</span>
+                  <span>Avg: {tempStats.avg.toFixed(1)}°</span>
+                </div>
+              </div>
+            )}
 
-        {/* Temperature Y-Axis */}
-        {showTemperature && (
-          <YAxis
-            yAxisId="temp"
-            domain={['auto', 'auto']}
-            tickFormatter={(v) => `${v}°`}
+            {/* Humidity Stats */}
+            {humidityStats && (
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1.5 text-muted-foreground text-xs mb-2">
+                  <Droplets className="h-3 w-3 text-blue-500" />
+                  Humidity
+                  <TrendIcon trend={humidityStats.trend} />
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-semibold text-blue-500">
+                    {humidityStats.current.toFixed(0)}%
+                  </span>
+                </div>
+                <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                  <span>Min: {humidityStats.min.toFixed(0)}%</span>
+                  <span>Max: {humidityStats.max.toFixed(0)}%</span>
+                  <span>Avg: {humidityStats.avg.toFixed(0)}%</span>
+                </div>
+              </div>
+            )}
+
+            {/* Pressure Stats */}
+            {pressureStats && (
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1.5 text-muted-foreground text-xs mb-2">
+                  <Gauge className="h-3 w-3 text-purple-500" />
+                  Pressure
+                  <TrendIcon trend={pressureStats.trend} />
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-semibold text-purple-500">
+                    {pressureStats.current.toFixed(0)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">hPa</span>
+                </div>
+                <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                  <span>Min: {pressureStats.min.toFixed(0)}</span>
+                  <span>Max: {pressureStats.max.toFixed(0)}</span>
+                  <span>Avg: {pressureStats.avg.toFixed(0)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Chart */}
+      <ResponsiveContainer width="100%" height={height}>
+        <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+          <XAxis
+            dataKey="timestamp"
+            tickFormatter={formatXAxis}
             className="text-xs"
-            stroke="#f97316"
-            width={40}
+            stroke="currentColor"
           />
-        )}
 
-        {/* Humidity Y-Axis */}
-        {showHumidity && !showTemperature && (
-          <YAxis
-            yAxisId="humidity"
-            domain={[0, 100]}
-            tickFormatter={(v) => `${v}%`}
-            className="text-xs"
-            stroke="#3b82f6"
-            width={40}
+          {/* Temperature Y-Axis */}
+          {showTemperature && (
+            <YAxis
+              yAxisId="temp"
+              domain={['auto', 'auto']}
+              tickFormatter={(v) => `${v}°`}
+              className="text-xs"
+              stroke="#f97316"
+              width={40}
+            />
+          )}
+
+          {/* Humidity Y-Axis */}
+          {showHumidity && !showTemperature && (
+            <YAxis
+              yAxisId="humidity"
+              domain={[0, 100]}
+              tickFormatter={(v) => `${v}%`}
+              className="text-xs"
+              stroke="#3b82f6"
+              width={40}
+            />
+          )}
+
+          {showHumidity && showTemperature && (
+            <YAxis
+              yAxisId="humidity"
+              orientation="right"
+              domain={[0, 100]}
+              tickFormatter={(v) => `${v}%`}
+              className="text-xs"
+              stroke="#3b82f6"
+              width={40}
+            />
+          )}
+
+          <Tooltip
+            labelFormatter={formatTooltip}
+            contentStyle={{
+              backgroundColor: 'hsl(var(--popover))',
+              border: '1px solid hsl(var(--border))',
+              borderRadius: '8px',
+            }}
           />
-        )}
-
-        {showHumidity && showTemperature && (
-          <YAxis
-            yAxisId="humidity"
-            orientation="right"
-            domain={[0, 100]}
-            tickFormatter={(v) => `${v}%`}
-            className="text-xs"
-            stroke="#3b82f6"
-            width={40}
+          <Legend
+            wrapperStyle={{ fontSize: '12px' }}
+            iconSize={12}
           />
-        )}
 
-        <Tooltip
-          labelFormatter={formatTooltip}
-          contentStyle={{
-            backgroundColor: 'hsl(var(--popover))',
-            border: '1px solid hsl(var(--border))',
-            borderRadius: '8px',
-          }}
-        />
-        <Legend
-          wrapperStyle={{ fontSize: '12px' }}
-          iconSize={12}
-        />
+          {showTemperature && (
+            <Line
+              yAxisId="temp"
+              type="monotone"
+              dataKey="temperature"
+              name={`Temperature (°${tempUnit})`}
+              stroke="#f97316"
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4 }}
+            />
+          )}
 
-        {showTemperature && (
-          <Line
-            yAxisId="temp"
-            type="monotone"
-            dataKey="temperature"
-            name={`Temperature (°${tempUnit})`}
-            stroke="#f97316"
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 4 }}
-          />
-        )}
+          {showHumidity && (
+            <Line
+              yAxisId={showTemperature ? 'humidity' : 'humidity'}
+              type="monotone"
+              dataKey="humidity"
+              name="Humidity (%)"
+              stroke="#3b82f6"
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4 }}
+            />
+          )}
 
-        {showHumidity && (
-          <Line
-            yAxisId={showTemperature ? 'humidity' : 'humidity'}
-            type="monotone"
-            dataKey="humidity"
-            name="Humidity (%)"
-            stroke="#3b82f6"
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 4 }}
-          />
-        )}
-
-        {showPressure && (
-          <Line
-            yAxisId="temp"
-            type="monotone"
-            dataKey="pressure"
-            name="Pressure (hPa)"
-            stroke="#a855f7"
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 4 }}
-          />
-        )}
-      </LineChart>
-    </ResponsiveContainer>
+          {showPressure && (
+            <Line
+              yAxisId="temp"
+              type="monotone"
+              dataKey="pressure"
+              name="Pressure (hPa)"
+              stroke="#a855f7"
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4 }}
+            />
+          )}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
