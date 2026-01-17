@@ -30,18 +30,19 @@ static const char* const EVENT_NAMES[] = {
     "POWER_ON",
     "CONNECTED",
     "GPS_LOCK",
-    "NOTE_SENT",
-    "MOTION",
     "TEMP_ALERT",
     "HUMIDITY_ALERT",
     "LOW_BATTERY",
-    "BUTTON",
     "SLEEP",
     "ERROR",
     "PING",
     "LOCATE_START",
     "LOCATE_STOP",
-    "CUSTOM_TONE"
+    "CUSTOM_TONE",
+    "TRANSIT_LOCK_ON",
+    "TRANSIT_LOCK_OFF",
+    "DEMO_LOCK_ON",
+    "DEMO_LOCK_OFF"
 };
 
 // =============================================================================

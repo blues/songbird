@@ -80,32 +80,32 @@ typedef struct {
 } Melody;
 
 // =============================================================================
-// Power On - Rising arpeggio C5→E5→G5→C6
-// Signals device startup
+// Power On - Quick boot beeps: two short beeps
+// Technical startup confirmation
 // =============================================================================
 
 static const uint16_t MELODY_POWER_ON_NOTES[] = {
-    NOTE_C5, NOTE_E5, NOTE_G5, NOTE_C6
+    NOTE_G5, NOTE_REST, NOTE_C6
 };
 static const uint16_t MELODY_POWER_ON_DURATIONS[] = {
-    100, 100, 100, 200
+    60, 40, 100
 };
 static const Melody MELODY_POWER_ON = {
     MELODY_POWER_ON_NOTES,
     MELODY_POWER_ON_DURATIONS,
-    4
+    3
 };
 
 // =============================================================================
-// Connected - Signature melody E5→G5→B5→C6
+// Connected - Musical flourish: rising "ta-da" fanfare
 // "Songbird melody" - played on successful Notehub connection
 // =============================================================================
 
 static const uint16_t MELODY_CONNECTED_NOTES[] = {
-    NOTE_E5, NOTE_G5, NOTE_B5, NOTE_C6
+    NOTE_G5, NOTE_C6, NOTE_E6, NOTE_G6
 };
 static const uint16_t MELODY_CONNECTED_DURATIONS[] = {
-    100, 100, 100, 200
+    80, 80, 80, 250
 };
 static const Melody MELODY_CONNECTED = {
     MELODY_CONNECTED_NOTES,
@@ -127,40 +127,6 @@ static const uint16_t MELODY_GPS_LOCK_DURATIONS[] = {
 static const Melody MELODY_GPS_LOCK = {
     MELODY_GPS_LOCK_NOTES,
     MELODY_GPS_LOCK_DURATIONS,
-    3
-};
-
-// =============================================================================
-// Note Sent - Single chirp C6
-// Confirms data transmission
-// =============================================================================
-
-static const uint16_t MELODY_NOTE_SENT_NOTES[] = {
-    NOTE_C6
-};
-static const uint16_t MELODY_NOTE_SENT_DURATIONS[] = {
-    100
-};
-static const Melody MELODY_NOTE_SENT = {
-    MELODY_NOTE_SENT_NOTES,
-    MELODY_NOTE_SENT_DURATIONS,
-    1
-};
-
-// =============================================================================
-// Motion Detected - Quick double-beep E5
-// Wake-on-motion feedback
-// =============================================================================
-
-static const uint16_t MELODY_MOTION_NOTES[] = {
-    NOTE_E5, NOTE_REST, NOTE_E5
-};
-static const uint16_t MELODY_MOTION_DURATIONS[] = {
-    60, 30, 60
-};
-static const Melody MELODY_MOTION = {
-    MELODY_MOTION_NOTES,
-    MELODY_MOTION_DURATIONS,
     3
 };
 
@@ -213,23 +179,6 @@ static const Melody MELODY_LOW_BATTERY = {
     MELODY_LOW_BATTERY_NOTES,
     MELODY_LOW_BATTERY_DURATIONS,
     3
-};
-
-// =============================================================================
-// Button Press - Quick click C6
-// User input confirmation
-// =============================================================================
-
-static const uint16_t MELODY_BUTTON_NOTES[] = {
-    NOTE_C6
-};
-static const uint16_t MELODY_BUTTON_DURATIONS[] = {
-    50
-};
-static const Melody MELODY_BUTTON = {
-    MELODY_BUTTON_NOTES,
-    MELODY_BUTTON_DURATIONS,
-    1
 };
 
 // =============================================================================
@@ -408,21 +357,18 @@ static const Melody MELODY_DEMO_LOCK_OFF = {
 
 // Array index corresponds to AudioEventType enum values
 static const Melody* const MELODY_TABLE[] = {
-    &MELODY_POWER_ON,       // AUDIO_EVENT_POWER_ON
-    &MELODY_CONNECTED,      // AUDIO_EVENT_CONNECTED
-    &MELODY_GPS_LOCK,       // AUDIO_EVENT_GPS_LOCK
-    &MELODY_NOTE_SENT,      // AUDIO_EVENT_NOTE_SENT
-    &MELODY_MOTION,         // AUDIO_EVENT_MOTION
-    &MELODY_TEMP_ALERT,     // AUDIO_EVENT_TEMP_ALERT
-    &MELODY_HUMIDITY_ALERT, // AUDIO_EVENT_HUMIDITY_ALERT
-    &MELODY_LOW_BATTERY,    // AUDIO_EVENT_LOW_BATTERY
-    &MELODY_BUTTON,         // AUDIO_EVENT_BUTTON
-    &MELODY_SLEEP,          // AUDIO_EVENT_SLEEP
-    &MELODY_ERROR,          // AUDIO_EVENT_ERROR
-    &MELODY_PING,           // AUDIO_EVENT_PING
-    &MELODY_LOCATE,         // AUDIO_EVENT_LOCATE_START (single beep)
-    NULL,                   // AUDIO_EVENT_LOCATE_STOP (no sound)
-    NULL,                   // AUDIO_EVENT_CUSTOM_TONE (handled separately)
+    &MELODY_POWER_ON,         // AUDIO_EVENT_POWER_ON
+    &MELODY_CONNECTED,        // AUDIO_EVENT_CONNECTED
+    &MELODY_GPS_LOCK,         // AUDIO_EVENT_GPS_LOCK
+    &MELODY_TEMP_ALERT,       // AUDIO_EVENT_TEMP_ALERT
+    &MELODY_HUMIDITY_ALERT,   // AUDIO_EVENT_HUMIDITY_ALERT
+    &MELODY_LOW_BATTERY,      // AUDIO_EVENT_LOW_BATTERY
+    &MELODY_SLEEP,            // AUDIO_EVENT_SLEEP
+    &MELODY_ERROR,            // AUDIO_EVENT_ERROR
+    &MELODY_PING,             // AUDIO_EVENT_PING
+    &MELODY_LOCATE,           // AUDIO_EVENT_LOCATE_START (single beep)
+    NULL,                     // AUDIO_EVENT_LOCATE_STOP (no sound)
+    NULL,                     // AUDIO_EVENT_CUSTOM_TONE (handled separately)
     &MELODY_TRANSIT_LOCK_ON,  // AUDIO_EVENT_TRANSIT_LOCK_ON
     &MELODY_TRANSIT_LOCK_OFF, // AUDIO_EVENT_TRANSIT_LOCK_OFF
     &MELODY_DEMO_LOCK_ON,     // AUDIO_EVENT_DEMO_LOCK_ON

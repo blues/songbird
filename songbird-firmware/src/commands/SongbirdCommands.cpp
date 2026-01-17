@@ -40,7 +40,6 @@ static const MelodyMapping MELODY_MAPPINGS[] = {
     {"error", AUDIO_EVENT_ERROR},
     {"low_battery", AUDIO_EVENT_LOW_BATTERY},
     {"gps_lock", AUDIO_EVENT_GPS_LOCK},
-    {"motion", AUDIO_EVENT_MOTION},
     {"sleep", AUDIO_EVENT_SLEEP},
     {NULL, AUDIO_EVENT_ERROR}  // Terminator
 };
@@ -256,7 +255,7 @@ void commandsHandleSetVolume(const Command* cmd, const SongbirdConfig* config, C
              "Volume set to %d%%", volume);
 
     // Play confirmation beep at new volume
-    audioQueueEvent(AUDIO_EVENT_BUTTON);
+    audioQueueEvent(AUDIO_EVENT_PING);
 }
 
 // =============================================================================
