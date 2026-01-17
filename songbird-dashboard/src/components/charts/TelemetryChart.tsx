@@ -174,106 +174,145 @@ export function TelemetryChart({
         </div>
       )}
 
-      {/* Chart */}
-      <ResponsiveContainer width="100%" height={height}>
-        <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis
-            dataKey="timestamp"
-            tickFormatter={formatXAxis}
-            className="text-xs"
-            stroke="currentColor"
-          />
+      {/* Temperature & Humidity Chart */}
+      {(showTemperature || showHumidity) && (
+        <div>
+          <h4 className="text-sm font-medium mb-2 text-muted-foreground">
+            Temperature & Humidity
+          </h4>
+          <ResponsiveContainer width="100%" height={height}>
+            <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis
+                dataKey="timestamp"
+                tickFormatter={formatXAxis}
+                className="text-xs"
+                stroke="currentColor"
+              />
 
-          {/* Temperature Y-Axis */}
-          {showTemperature && (
-            <YAxis
-              yAxisId="temp"
-              domain={['auto', 'auto']}
-              tickFormatter={(v) => `${v}°`}
-              className="text-xs"
-              stroke="#f97316"
-              width={40}
-            />
-          )}
+              {/* Temperature Y-Axis */}
+              {showTemperature && (
+                <YAxis
+                  yAxisId="temp"
+                  domain={['auto', 'auto']}
+                  tickFormatter={(v) => `${v}°`}
+                  className="text-xs"
+                  stroke="#f97316"
+                  width={40}
+                />
+              )}
 
-          {/* Humidity Y-Axis */}
-          {showHumidity && !showTemperature && (
-            <YAxis
-              yAxisId="humidity"
-              domain={[0, 100]}
-              tickFormatter={(v) => `${v}%`}
-              className="text-xs"
-              stroke="#3b82f6"
-              width={40}
-            />
-          )}
+              {/* Humidity Y-Axis */}
+              {showHumidity && !showTemperature && (
+                <YAxis
+                  yAxisId="humidity"
+                  domain={[0, 100]}
+                  tickFormatter={(v) => `${v}%`}
+                  className="text-xs"
+                  stroke="#3b82f6"
+                  width={40}
+                />
+              )}
 
-          {showHumidity && showTemperature && (
-            <YAxis
-              yAxisId="humidity"
-              orientation="right"
-              domain={[0, 100]}
-              tickFormatter={(v) => `${v}%`}
-              className="text-xs"
-              stroke="#3b82f6"
-              width={40}
-            />
-          )}
+              {showHumidity && showTemperature && (
+                <YAxis
+                  yAxisId="humidity"
+                  orientation="right"
+                  domain={[0, 100]}
+                  tickFormatter={(v) => `${v}%`}
+                  className="text-xs"
+                  stroke="#3b82f6"
+                  width={40}
+                />
+              )}
 
-          <Tooltip
-            labelFormatter={formatTooltip}
-            contentStyle={{
-              backgroundColor: 'hsl(var(--popover))',
-              border: '1px solid hsl(var(--border))',
-              borderRadius: '8px',
-            }}
-          />
-          <Legend
-            wrapperStyle={{ fontSize: '12px' }}
-            iconSize={12}
-          />
+              <Tooltip
+                labelFormatter={formatTooltip}
+                contentStyle={{
+                  backgroundColor: 'hsl(var(--popover))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px',
+                }}
+              />
+              <Legend
+                wrapperStyle={{ fontSize: '12px' }}
+                iconSize={12}
+              />
 
-          {showTemperature && (
-            <Line
-              yAxisId="temp"
-              type="monotone"
-              dataKey="temperature"
-              name={`Temperature (°${tempUnit})`}
-              stroke="#f97316"
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4 }}
-            />
-          )}
+              {showTemperature && (
+                <Line
+                  yAxisId="temp"
+                  type="monotone"
+                  dataKey="temperature"
+                  name={`Temperature (°${tempUnit})`}
+                  stroke="#f97316"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+              )}
 
-          {showHumidity && (
-            <Line
-              yAxisId={showTemperature ? 'humidity' : 'humidity'}
-              type="monotone"
-              dataKey="humidity"
-              name="Humidity (%)"
-              stroke="#3b82f6"
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4 }}
-            />
-          )}
+              {showHumidity && (
+                <Line
+                  yAxisId={showTemperature ? 'humidity' : 'humidity'}
+                  type="monotone"
+                  dataKey="humidity"
+                  name="Humidity (%)"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+              )}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
-          {showPressure && (
-            <Line
-              yAxisId="temp"
-              type="monotone"
-              dataKey="pressure"
-              name="Pressure (hPa)"
-              stroke="#a855f7"
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4 }}
-            />
-          )}
-        </LineChart>
-      </ResponsiveContainer>
+      {/* Pressure Chart - Separate chart with its own scale */}
+      {showPressure && pressureValues.length > 0 && (
+        <div>
+          <h4 className="text-sm font-medium mb-2 text-purple-500">
+            Barometric Pressure
+          </h4>
+          <ResponsiveContainer width="100%" height={120}>
+            <LineChart data={chartData} margin={{ top: 5, right: 10, left: 5, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis
+                dataKey="timestamp"
+                tickFormatter={formatXAxis}
+                className="text-xs"
+                stroke="currentColor"
+              />
+              <YAxis
+                domain={['auto', 'auto']}
+                tickFormatter={(v) => `${Math.round(v)}`}
+                className="text-xs"
+                stroke="#a855f7"
+                width={40}
+              />
+              <Tooltip
+                labelFormatter={formatTooltip}
+                contentStyle={{
+                  backgroundColor: 'hsl(var(--popover))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px',
+                }}
+                formatter={(value: number) => [`${Math.round(value)} hPa`, 'Pressure']}
+              />
+              <Line
+                type="monotone"
+                dataKey="pressure"
+                name="Pressure (hPa)"
+                stroke="#a855f7"
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }

@@ -552,6 +552,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                       data={filteredTelemetry}
                       showTemperature
                       showHumidity
+                      showPressure
                       height={300}
                       tempUnit={tempUnit}
                     />

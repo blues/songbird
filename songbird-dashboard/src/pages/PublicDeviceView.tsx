@@ -291,6 +291,7 @@ export function PublicDeviceView({ mapboxToken }: PublicDeviceViewProps) {
                   data={chartData}
                   showTemperature
                   showHumidity
+                  showPressure
                   height={300}
                   tempUnit="C"
                 />
