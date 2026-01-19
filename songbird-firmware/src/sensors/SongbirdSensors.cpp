@@ -351,8 +351,7 @@ void sensorsBuildAlert(uint8_t alertFlag,
             alert->value = data->voltage;
             alert->threshold = config->voltageAlertLow;
             snprintf(alert->message, sizeof(alert->message),
-                     "Battery %.2fV below %.2fV threshold",
-                     data->voltage, config->voltageAlertLow);
+                     "Battery voltage low. Charge now.");
             break;
 
         default:
