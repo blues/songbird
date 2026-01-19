@@ -393,7 +393,7 @@ PUT /v1/projects/{uid}/devices/{uid}/environment_variables
 
 **Blues Notecard**:
 ```json
-{"req": "card.dfu", "name": "stm32", "on": true}
+{"req": "card.dfu", "name": "stm32", "mode": "altdfu", "on": true}
 ```
 
 **Notecard handles everything**:

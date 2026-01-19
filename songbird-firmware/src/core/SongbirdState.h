@@ -241,6 +241,13 @@ bool stateIsDemoLocked(void);
  */
 OperatingMode stateGetPreDemoMode(void);
 
+/**
+ * @brief Update lock indicator LED based on current lock state
+ *
+ * LED is ON when either transit lock or demo lock is engaged.
+ */
+void stateUpdateLockLED(void);
+
 // =============================================================================
 // GPS Power Management
 // =============================================================================

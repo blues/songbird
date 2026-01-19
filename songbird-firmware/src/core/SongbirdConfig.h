@@ -46,7 +46,9 @@
 // Pin Definitions (Blues Cygnet - STM32L433)
 // =============================================================================
 
-#define BUTTON_PIN      USER_BTN    // User button (optional), internal pull-up
+#define BUTTON_PIN      PB9         // External panel mount button (D6)
+#define BUTTON_PIN_ALT  USER_BTN    // Internal Cygnet button (PC13) as backup
+#define LOCK_LED_PIN    PB13        // Panel mount button LED (D10)
 #define LED_PIN         LED_BUILTIN // Built-in LED on Cygnet
 
 // =============================================================================

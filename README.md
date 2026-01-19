@@ -135,6 +135,7 @@ songbird/
 | **Mojo** | Blues hardware accessory for battery power monitoring |
 | **Sensor** | BME280 Qwiic breakout |
 | **Audio** | Passive piezo buzzer |
+| **Button** | [SparkFun Metal Pushbutton 16mm Green](https://www.sparkfun.com/metal-pushbutton-momentary-16mm-green.html) with LED |
 | **Battery** | 3.7V LiPo, 2000mAh |
 
 ## Getting Started
@@ -234,13 +235,15 @@ The dashboard provides:
 
 ### Button Actions
 
-The user button supports three functions:
+The device has two buttons: an external panel-mount LED button and the internal Cygnet button (backup). Either button can trigger the following actions:
 
 | Action | Result |
 | --- | --- |
-| **Single-click** | Toggle transit lock (amber badge) |
-| **Double-click** | Toggle demo lock (green badge) |
+| **Single-click** | Toggle transit lock (amber badge, LED on) |
+| **Double-click** | Toggle demo lock (green badge, LED on) |
 | **Triple-click** | Toggle audio mute |
+
+The panel-mount button's integrated LED illuminates when either transit lock or demo lock is engaged, providing visual feedback of the lock state.
 
 ### Transit Lock (Single-click)
 

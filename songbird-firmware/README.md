@@ -22,6 +22,7 @@ Firmware for the Songbird sales demo device - a portable, battery-powered asset 
 | Notecard | Cell+WiFi (MBGLW) |
 | Sensor | BME280 Qwiic breakout (I2C address 0x77) |
 | Audio | [SparkFun Qwiic Buzzer](https://www.sparkfun.com/sparkfun-qwiic-buzzer.html) (I2C address 0x34) |
+| Button | [SparkFun Metal Pushbutton 16mm Green](https://www.sparkfun.com/metal-pushbutton-momentary-16mm-green.html) with LED |
 | Power Monitor | [Blues Mojo](https://dev.blues.io/quickstart/mojo-quickstart/) (optional) |
 
 ## Project Structure
@@ -327,15 +328,21 @@ The firmware still generates `low_battery` alerts locally when voltage falls bel
 
 ## User Button
 
-The user button on the Notecarrier supports three functions via single-click, double-click, and triple-click:
+The device supports two buttons for user interaction:
+- **External panel-mount LED button** (SparkFun Metal Pushbutton 16mm Green) - Primary button with lock indicator LED
+- **Internal Cygnet button** (PC13) - Backup button on the Notecarrier CX
+
+Either button can trigger the following functions via single-click, double-click, and triple-click:
 
 ### Button Actions
 
-| Action | Result | Audio Feedback |
-| --- | --- | --- |
-| **Single-click** | Toggle transit lock | Descending (E6→C6→G5) = locked, Ascending (G5→C6→E6) = unlocked |
-| **Double-click** | Toggle demo lock | Descending (A6→F6→D6) = locked, Ascending (D6→F6→A6) = unlocked |
-| **Triple-click** | Toggle mute | Rising (C→E→G) = unmuted, Falling (G→E→C) = muted |
+| Action | Result | Audio Feedback | LED |
+| --- | --- | --- | --- |
+| **Single-click** | Toggle transit lock | Descending (E6→C6→G5) = locked, Ascending (G5→C6→E6) = unlocked | ON when locked |
+| **Double-click** | Toggle demo lock | Descending (A6→F6→D6) = locked, Ascending (D6→F6→A6) = unlocked | ON when locked |
+| **Triple-click** | Toggle mute | Rising (C→E→G) = unmuted, Falling (G→E→C) = muted | Unchanged |
+
+The panel-mount button's integrated LED illuminates when either transit lock or demo lock is engaged, providing visual feedback of the lock state. The LED state persists across power cycles.
 
 ### Transit Lock (Single-click)
 
@@ -393,7 +400,23 @@ This feature is useful during demonstrations - it ensures demo mode remains acti
 
 ### Hardware
 
-The button connects to GPIO pin PA9 with an internal pull-up resistor. The button is active-low (pressed = LOW).
+The device uses two button inputs and one LED output:
+
+| Function | GPIO Pin | Arduino Pin | Description |
+| --- | --- | --- | --- |
+| External Button | PB9 | D6 | Panel-mount button input (active-low, internal pull-up) |
+| Internal Button | PC13 | USER_BTN | Cygnet button backup (active-low, internal pull-up) |
+| Lock LED | PB13 | D10 | Panel-mount button LED (active-high, via 100Ω resistor) |
+
+#### Panel-Mount Button Wiring
+
+| Wire Color | Function | Connection |
+| --- | --- | --- |
+| Yellow | Switch Common (C1) | PB9 (D6) |
+| White | Normally Open (NO1) | GND |
+| Blue | Normally Closed (NC1) | Not connected |
+| Red | LED+ (Anode) | PB13 (D10) via 100Ω resistor |
+| Black | LED- (Cathode) | GND |
 
 ## Configuration
 

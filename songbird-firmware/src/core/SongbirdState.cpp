@@ -139,6 +139,9 @@ bool stateRestore(void) {
 
     s_warmBoot = true;
 
+    // Restore lock LED state
+    stateUpdateLockLED();
+
     #ifdef DEBUG_MODE
     DEBUG_SERIAL.print("[State] Restored (boot #");
     DEBUG_SERIAL.print(s_state.bootCount);
@@ -278,6 +281,11 @@ bool stateIsDemoLocked(void) {
 
 OperatingMode stateGetPreDemoMode(void) {
     return s_state.preDemoMode;
+}
+
+void stateUpdateLockLED(void) {
+    bool lockActive = s_state.transitLocked || s_state.demoLocked;
+    digitalWrite(LOCK_LED_PIN, lockActive ? HIGH : LOW);
 }
 
 // =============================================================================

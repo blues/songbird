@@ -362,8 +362,9 @@ void MainTask(void* pvParameters) {
         // (In a real implementation, this would be more sophisticated)
         // For now, we don't automatically sleep - let the device run continuously
 
-        // Handle user button: 1-click=mute, 2-click=transit lock, 3-click=demo lock
-        bool currentButtonState = digitalRead(BUTTON_PIN);
+        // Handle user button: 1-click=transit lock, 2-click=demo lock, 3-click=mute
+        // Read both buttons (either can trigger) - both are active-low with pull-up
+        bool currentButtonState = digitalRead(BUTTON_PIN) && digitalRead(BUTTON_PIN_ALT);
         uint32_t now = millis();
 
         // Handle button state change with debounce
@@ -433,6 +434,7 @@ void MainTask(void* pvParameters) {
                     }
 
                     audioQueueEvent(AUDIO_EVENT_DEMO_LOCK_OFF);
+                    stateUpdateLockLED();
 
                     #ifdef DEBUG_MODE
                     DEBUG_SERIAL.print("[MainTask] Demo lock OFF, restored mode: ");
@@ -456,6 +458,7 @@ void MainTask(void* pvParameters) {
                     }
 
                     audioQueueEvent(AUDIO_EVENT_DEMO_LOCK_ON);
+                    stateUpdateLockLED();
 
                     #ifdef DEBUG_MODE
                     DEBUG_SERIAL.print("[MainTask] Demo lock ON, saved mode: ");
@@ -497,6 +500,7 @@ void MainTask(void* pvParameters) {
                     }
 
                     audioQueueEvent(AUDIO_EVENT_TRANSIT_LOCK_OFF);
+                    stateUpdateLockLED();
 
                     #ifdef DEBUG_MODE
                     DEBUG_SERIAL.print("[MainTask] Transit lock OFF, restored mode: ");
@@ -520,6 +524,7 @@ void MainTask(void* pvParameters) {
                     }
 
                     audioQueueEvent(AUDIO_EVENT_TRANSIT_LOCK_ON);
+                    stateUpdateLockLED();
 
                     #ifdef DEBUG_MODE
                     DEBUG_SERIAL.print("[MainTask] Transit lock ON, saved mode: ");

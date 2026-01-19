@@ -83,7 +83,10 @@ void setup() {
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, HIGH);  // LED on during init
 
-    pinMode(BUTTON_PIN, INPUT_PULLUP);
+    pinMode(BUTTON_PIN, INPUT_PULLUP);      // External panel mount button
+    pinMode(BUTTON_PIN_ALT, INPUT_PULLUP);  // Internal Cygnet button (backup)
+    pinMode(LOCK_LED_PIN, OUTPUT);
+    digitalWrite(LOCK_LED_PIN, LOW);        // Lock LED off initially
 
     // Initialize I2C at standard speed for reliable startup
     // (Fast mode can be unreliable at lower battery voltages)
