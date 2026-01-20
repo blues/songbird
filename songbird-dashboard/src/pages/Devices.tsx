@@ -93,8 +93,8 @@ export function Devices() {
       setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
-  const [sortField, setSortField] = useState<SortField>('name');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [sortField, setSortField] = useState<SortField>('last_seen');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
 
   const devices = devicesData?.devices || [];
@@ -290,7 +290,7 @@ export function Devices() {
             ))}
           </SelectContent>
         </Select>
-      </div>
+              </div>
 
       {/* Mobile Card View */}
       <div className="sm:hidden space-y-3">
