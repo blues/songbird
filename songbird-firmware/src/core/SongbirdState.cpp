@@ -285,7 +285,13 @@ OperatingMode stateGetPreDemoMode(void) {
 
 void stateUpdateLockLED(void) {
     bool lockActive = s_state.transitLocked || s_state.demoLocked;
+    // Note: LED is active-high (GPIO HIGH = LED on)
     digitalWrite(LOCK_LED_PIN, lockActive ? HIGH : LOW);
+
+    #ifdef DEBUG_MODE
+    DEBUG_SERIAL.print("[State] Lock LED: ");
+    DEBUG_SERIAL.println(lockActive ? "ON" : "OFF");
+    #endif
 }
 
 // =============================================================================
