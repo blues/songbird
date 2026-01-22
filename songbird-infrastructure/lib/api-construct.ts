@@ -362,6 +362,25 @@ export class ApiConstruct extends Construct {
     props.telemetryTable.grantReadData(journeysFunction); // Need read for power consumption
     props.deviceAliasesTable.grantReadData(journeysFunction);
 
+    // Visited Cities API (aggregates location history by city)
+    const visitedCitiesFunction = new NodejsFunction(this, 'VisitedCitiesFunction', {
+      functionName: 'songbird-api-visited-cities',
+      description: 'Songbird Visited Cities API',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/api-visited-cities/index.ts'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        LOCATIONS_TABLE: props.locationsTable.tableName,
+        DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+    props.locationsTable.grantReadData(visitedCitiesFunction);
+    props.deviceAliasesTable.grantReadData(visitedCitiesFunction);
+
     // ==========================================================================
     // HTTP API Gateway
     // ==========================================================================
@@ -762,6 +781,19 @@ export class ApiConstruct extends Construct {
       path: '/v1/devices/{serial_number}/locations',
       methods: [apigateway.HttpMethod.GET],
       integration: journeysIntegration,
+      authorizer: this.authorizer,
+    });
+
+    // Visited Cities endpoint
+    const visitedCitiesIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+      'VisitedCitiesIntegration',
+      visitedCitiesFunction
+    );
+
+    this.api.addRoutes({
+      path: '/v1/devices/{serial_number}/visited-cities',
+      methods: [apigateway.HttpMethod.GET],
+      integration: visitedCitiesIntegration,
       authorizer: this.authorizer,
     });
 

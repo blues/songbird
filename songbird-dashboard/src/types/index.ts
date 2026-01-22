@@ -336,6 +336,30 @@ export interface LocationHistoryResponse {
   locations: LocationHistoryPoint[];
 }
 
+/**
+ * Visited city - aggregated location data at city level
+ */
+export interface VisitedCity {
+  cityName: string;
+  state?: string;
+  country?: string;
+  latitude: number;
+  longitude: number;
+  visitCount: number;
+  firstVisit: string;
+  lastVisit: string;
+}
+
+export interface VisitedCitiesResponse {
+  serial_number: string;
+  cities: VisitedCity[];
+  totalLocations: number;
+  dateRange: {
+    from: string | null;
+    to: string | null;
+  };
+}
+
 export interface ConfigResponse {
   device_uid: string;
   config: Partial<DeviceConfig>;

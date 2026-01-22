@@ -264,6 +264,22 @@ async function updateDeviceBySerial(
 }
 
 /**
+ * Calculate device status based on last_seen timestamp
+ * Online if seen within 15 minutes, offline otherwise
+ */
+function calculateDeviceStatus(item: any): string {
+  if (item.status === 'alert') {
+    return 'alert';
+  }
+  const now = Date.now();
+  const offlineThreshold = 15 * 60 * 1000; // 15 minutes
+  if (item.last_seen && now - item.last_seen < offlineThreshold) {
+    return 'online';
+  }
+  return 'offline';
+}
+
+/**
  * Transform DynamoDB device record to frontend format
  * Flattens nested objects like last_location and last_telemetry
  */
@@ -273,7 +289,7 @@ function transformDevice(item: any): any {
     serial_number: item.serial_number,
     name: item.name,
     fleet: item.fleet,
-    status: item.status,
+    status: calculateDeviceStatus(item),
     // Convert millisecond timestamp to ISO string for frontend
     last_seen: item.last_seen ? new Date(item.last_seen).toISOString() : undefined,
     mode: item.current_mode,

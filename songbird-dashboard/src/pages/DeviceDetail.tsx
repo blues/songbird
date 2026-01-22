@@ -16,6 +16,8 @@ import { JourneyMap, JourneySelector, LocationHistoryTable } from '@/components/
 import { useDevice } from '@/hooks/useDevices';
 import { useTelemetry, useLocationHistory, usePowerHistory, useHealthHistory } from '@/hooks/useTelemetry';
 import { useJourneys, useJourneyDetail, useLocationHistoryFull, useLatestJourney, useMapMatch, useDeleteJourney } from '@/hooks/useJourneys';
+import { useVisitedCities } from '@/hooks/useVisitedCities';
+import { VisitedCitiesMap } from '@/components/maps/VisitedCitiesMap';
 import { useCommands } from '@/hooks/useCommands';
 import { useDeviceAlerts, useAcknowledgeAlert } from '@/hooks/useAlerts';
 import { useIsAdmin, useCanSendCommands } from '@/hooks/useAuth';
@@ -142,6 +144,8 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const { data: latestJourney } = useLatestJourney(serialNumber!);
   const mapMatchMutation = useMapMatch(serialNumber!, selectedJourneyId);
   const deleteJourneyMutation = useDeleteJourney();
+  const { data: visitedCitiesData, isLoading: visitedCitiesLoading } = useVisitedCities(serialNumber!);
+  const visitedCities = visitedCitiesData?.cities || [];
 
   // Check if user can delete journeys (admin or device owner)
   const { isAdmin } = useIsAdmin();
@@ -386,7 +390,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
               </CardTitle>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
                 <Tabs value={locationTab} onValueChange={setLocationTab} className="w-full sm:w-auto">
-                  <TabsList className="grid grid-cols-3 w-full sm:w-auto sm:inline-flex">
+                  <TabsList className="grid grid-cols-4 w-full sm:w-auto sm:inline-flex">
                     <TabsTrigger value="current" className="text-xs sm:text-sm">
                       <MapPin className="h-3 w-3 sm:mr-1" />
                       <span className="hidden sm:inline">Current</span>
@@ -394,6 +398,10 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                     <TabsTrigger value="journeys" className="text-xs sm:text-sm">
                       <Route className="h-3 w-3 sm:mr-1" />
                       <span className="hidden sm:inline">Journeys</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="cities" className="text-xs sm:text-sm">
+                      <Navigation className="h-3 w-3 sm:mr-1" />
+                      <span className="hidden sm:inline">Cities</span>
                     </TabsTrigger>
                     <TabsTrigger value="history" className="text-xs sm:text-sm">
                       <Clock className="h-3 w-3 sm:mr-1" />
@@ -445,6 +453,36 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                   locations={locationHistory}
                   isLoading={locationHistoryLoading}
                 />
+              )}
+              {locationTab === 'cities' && (
+                <>
+                  {visitedCitiesLoading ? (
+                    <div className="h-[400px] flex items-center justify-center">
+                      <span className="text-muted-foreground">Loading visited cities...</span>
+                    </div>
+                  ) : visitedCities.length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
+                        <span>{visitedCities.length} unique {visitedCities.length === 1 ? 'city' : 'cities'} visited</span>
+                        {visitedCitiesData?.totalLocations && (
+                          <span>{visitedCitiesData.totalLocations.toLocaleString()} total location records</span>
+                        )}
+                      </div>
+                      <VisitedCitiesMap
+                        cities={visitedCities}
+                        mapboxToken={mapboxToken}
+                        className="h-[400px] rounded-lg overflow-hidden border"
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-[400px] flex items-center justify-center text-muted-foreground">
+                      <div className="text-center">
+                        <Navigation className="h-8 w-8 mx-auto mb-2" />
+                        <p>No visited cities recorded yet</p>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
               {locationTab === 'journeys' && (
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
