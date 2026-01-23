@@ -521,6 +521,14 @@ export class ApiConstruct extends Construct {
       authorizer: this.authorizer,
     });
 
+    // Wi-Fi credentials endpoint (device owner only - enforced in Lambda)
+    this.api.addRoutes({
+      path: '/v1/devices/{serial_number}/wifi',
+      methods: [apigateway.HttpMethod.PUT],
+      integration: configIntegration,
+      authorizer: this.authorizer,
+    });
+
     this.api.addRoutes({
       path: '/v1/fleets/{fleet_uid}/config',
       methods: [apigateway.HttpMethod.PUT],

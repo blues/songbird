@@ -23,6 +23,9 @@ React-based fleet management dashboard for the Songbird sales demo platform.
 - GitHub Actions CI/CD for automated deployments
 - **Notecard swapping**: Swap Notecard hardware while preserving device identity and history (serial number-based routing)
 - **Public device sharing**: Share device views via public URL without requiring authentication
+- **My Device view**: Dedicated "My Device" page for users with a claimed device, accessible from the navigation
+- **Cities visited**: View a list of cities visited by a device with visit counts and timestamps
+- **Device Wi-Fi configuration**: Device owners can set Wi-Fi credentials that sync to the Notecard
 
 ## Technology Stack
 
@@ -226,12 +229,20 @@ The main dashboard shows:
   - 🔄 Mode changes (Demo → Transit, etc.)
 - Device list with status indicators
 
+### My Device (`/my-device`)
+
+Dedicated view for users who have a claimed device:
+- Automatically redirects to the user's assigned device detail page
+- Accessible from the main navigation for users with a claimed device
+- Shows the same full device detail view with telemetry, location, commands, and configuration
+
 ### Devices List
 
 Dedicated devices view with:
 - Fleet filter dropdown to filter by fleet
 - Search filter to find devices by name, serial number, or location
 - Device cards showing status, location, and quick actions
+- Default sort by "last seen" to show most recently active devices first
 
 ### Fleet Map (`/map`)
 
@@ -280,6 +291,8 @@ Individual device view includes:
 - Power monitoring charts (Mojo voltage, temperature, mAh)
 - Command panel (ping, locate, play melody)
 - Configuration panel (mode, thresholds, audio settings) with temperature display in user's preferred unit
+- **Wi-Fi Configuration** (device owner only): Set Wi-Fi credentials for devices with Cell+WiFi Notecards
+- **Cities Visited**: View a list of all cities the device has visited with timestamps and visit counts
 - Device information
 
 ## Operating Modes
@@ -446,6 +459,8 @@ The dashboard communicates with the Songbird API via:
 - `GET /v1/devices/{serial_number}/health` - Get device health history
 - `GET /v1/devices/{serial_number}/config` - Get device config
 - `PUT /v1/devices/{serial_number}/config` - Update device config
+- `PUT /v1/devices/{serial_number}/wifi` - Set device Wi-Fi credentials (device owner only)
+- `GET /v1/devices/{serial_number}/visited-cities` - Get cities visited by device
 - `GET /v1/devices/unassigned` - Get devices not assigned to any user
 
 ### Journeys & Location History

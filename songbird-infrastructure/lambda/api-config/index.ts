@@ -4,6 +4,7 @@
  * Manages device configuration via Notehub environment variables:
  * - GET /devices/{serial_number}/config - Get current config
  * - PUT /devices/{serial_number}/config - Update config
+ * - PUT /devices/{serial_number}/wifi - Set device Wi-Fi credentials
  * - PUT /fleets/{fleet_uid}/config - Update fleet-wide config
  */
 
@@ -105,6 +106,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     const serialNumber = event.pathParameters?.serial_number;
     const fleetUid = event.pathParameters?.fleet_uid;
+    const path = event.path || (event.requestContext as any)?.http?.path || '';
+    const isWifiEndpoint = path.endsWith('/wifi');
 
     if ((method === 'GET' || method === 'PUT') && serialNumber) {
       // Resolve serial number to device_uid
@@ -119,6 +122,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
       if (method === 'GET') {
         return await getDeviceConfig(deviceUid, serialNumber, corsHeaders);
+      } else if (method === 'PUT' && isWifiEndpoint) {
+        return await setDeviceWifi(deviceUid, serialNumber, event.body, corsHeaders);
       } else {
         return await updateDeviceConfig(deviceUid, serialNumber, event.body, corsHeaders);
       }
@@ -330,6 +335,93 @@ async function updateFleetConfig(
     };
   } catch (error) {
     console.error('Error updating fleet config:', error);
+    return {
+      statusCode: 502,
+      headers,
+      body: JSON.stringify({ error: 'Failed to communicate with Notehub' }),
+    };
+  }
+}
+
+/**
+ * Set device Wi-Fi credentials via the _wifi environment variable
+ * Format: ["SSID","PASSWORD"]
+ */
+async function setDeviceWifi(
+  deviceUid: string,
+  serialNumber: string,
+  body: string | null,
+  headers: Record<string, string>
+): Promise<APIGatewayProxyResult> {
+  if (!body) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Request body required' }),
+    };
+  }
+
+  const { ssid, password } = JSON.parse(body);
+
+  // Validate inputs
+  if (!ssid || typeof ssid !== 'string' || ssid.trim() === '') {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'SSID is required' }),
+    };
+  }
+
+  if (password === undefined || password === null) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Password is required (can be empty string for open networks)' }),
+    };
+  }
+
+  // Format the _wifi value as per Notehub documentation: ["SSID","PASSWORD"]
+  const wifiValue = `["${ssid}","${password}"]`;
+
+  try {
+    const notehubToken = await getNotehubToken();
+    const response = await fetch(
+      `https://api.notefile.net/v1/projects/${NOTEHUB_PROJECT_UID}/devices/${deviceUid}/environment_variables`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${notehubToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ environment_variables: { _wifi: wifiValue } }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Notehub API error:', errorText);
+
+      return {
+        statusCode: 502,
+        headers,
+        body: JSON.stringify({ error: 'Failed to set Wi-Fi credentials in Notehub' }),
+      };
+    }
+
+    // Don't log password
+    console.log(`Wi-Fi credentials set for device ${serialNumber} (SSID: ${ssid})`);
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        success: true,
+        serial_number: serialNumber,
+        message: 'Wi-Fi credentials set. Changes will take effect on next device sync.',
+      }),
+    };
+  } catch (error) {
+    console.error('Error setting Wi-Fi credentials:', error);
     return {
       statusCode: 502,
       headers,

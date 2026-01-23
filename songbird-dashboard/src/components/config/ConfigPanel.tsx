@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Lock, Satellite } from 'lucide-react';
+import { Lock, Satellite, Wifi, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -11,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useDeviceConfig, useUpdateDeviceConfig } from '@/hooks/useConfig';
+import { useDeviceConfig, useUpdateDeviceConfig, useSetDeviceWifi } from '@/hooks/useConfig';
 import { useIsAdmin } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { usePreferences } from '@/contexts/PreferencesContext';
@@ -30,12 +31,16 @@ interface ConfigPanelProps {
 export function ConfigPanel({ serialNumber, assignedTo, onClose }: ConfigPanelProps) {
   const { data: configData, isLoading } = useDeviceConfig(serialNumber);
   const updateConfig = useUpdateDeviceConfig();
+  const setWifi = useSetDeviceWifi();
   const { isAdmin } = useIsAdmin();
   const { data: userProfile } = useUserProfile();
   const { preferences } = usePreferences();
 
   // Check if user can edit: Admin OR device is assigned to them
   const canEdit = isAdmin || (userProfile?.email && assignedTo === userProfile.email);
+
+  // Check if current user is the device owner (for Wi-Fi section - only owners, not admins viewing others' devices)
+  const isDeviceOwner = userProfile?.email && assignedTo === userProfile.email;
 
   // Temperature unit preference
   const useFahrenheit = preferences.temp_unit === 'fahrenheit';
@@ -52,6 +57,12 @@ export function ConfigPanel({ serialNumber, assignedTo, onClose }: ConfigPanelPr
 
   const [localConfig, setLocalConfig] = useState<Partial<DeviceConfig>>({});
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Wi-Fi configuration state
+  const [wifiSsid, setWifiSsid] = useState('');
+  const [wifiPassword, setWifiPassword] = useState('');
+  const [showWifiPassword, setShowWifiPassword] = useState(false);
+  const [wifiSuccess, setWifiSuccess] = useState(false);
 
   // Initialize local config when data loads
   useEffect(() => {
@@ -430,6 +441,92 @@ export function ConfigPanel({ serialNumber, assignedTo, onClose }: ConfigPanelPr
                 Changes will take effect on next device sync
               </p>
             )}
+          </div>
+        )}
+
+        {/* Wi-Fi Configuration - Only visible to device owner */}
+        {isDeviceOwner && (
+          <div className="space-y-4 border-t pt-4">
+            <h4 className="text-sm font-medium flex items-center gap-2">
+              <Wifi className="h-4 w-4" />
+              Wi-Fi Configuration
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              Configure Wi-Fi credentials for this device.
+            </p>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-sm text-muted-foreground">Network Name (SSID)</label>
+                <Input
+                  type="text"
+                  placeholder="Enter Wi-Fi network name"
+                  value={wifiSsid}
+                  onChange={(e) => {
+                    setWifiSsid(e.target.value);
+                    setWifiSuccess(false);
+                  }}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm text-muted-foreground">Password</label>
+                <div className="relative">
+                  <Input
+                    type={showWifiPassword ? 'text' : 'password'}
+                    placeholder="Enter Wi-Fi password"
+                    value={wifiPassword}
+                    onChange={(e) => {
+                      setWifiPassword(e.target.value);
+                      setWifiSuccess(false);
+                    }}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowWifiPassword(!showWifiPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showWifiPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <Button
+                onClick={() => {
+                  setWifi.mutate(
+                    { serialNumber, ssid: wifiSsid, password: wifiPassword },
+                    {
+                      onSuccess: () => {
+                        setWifiSsid('');
+                        setWifiPassword('');
+                        setWifiSuccess(true);
+                      },
+                    }
+                  );
+                }}
+                disabled={!wifiSsid.trim() || setWifi.isPending}
+                variant="secondary"
+                className="w-full"
+              >
+                {setWifi.isPending ? 'Setting Wi-Fi...' : 'Set Wi-Fi Credentials'}
+              </Button>
+
+              {wifiSuccess && (
+                <p className="text-xs text-green-600 text-center">
+                  Wi-Fi credentials set. Changes will take effect on next device sync.
+                </p>
+              )}
+              {setWifi.isError && (
+                <p className="text-xs text-red-600 text-center">
+                  Failed to set Wi-Fi credentials. Please try again.
+                </p>
+              )}
+            </div>
           </div>
         )}
       </CardContent>

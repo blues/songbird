@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getDeviceConfig, updateDeviceConfig, updateFleetConfig } from '@/api/config';
+import { getDeviceConfig, updateDeviceConfig, updateFleetConfig, setDeviceWifi } from '@/api/config';
 import type { DeviceConfig } from '@/types';
 
 /**
@@ -56,5 +56,22 @@ export function useUpdateFleetConfig() {
       // Invalidate all config queries since fleet config affects all devices
       queryClient.invalidateQueries({ queryKey: ['config'] });
     },
+  });
+}
+
+/**
+ * Hook to set device Wi-Fi credentials
+ */
+export function useSetDeviceWifi() {
+  return useMutation({
+    mutationFn: ({
+      serialNumber,
+      ssid,
+      password,
+    }: {
+      serialNumber: string;
+      ssid: string;
+      password: string;
+    }) => setDeviceWifi(serialNumber, ssid, password),
   });
 }

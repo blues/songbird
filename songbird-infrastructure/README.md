@@ -66,12 +66,14 @@ songbird-infrastructure/
 │   ├── api-telemetry/           # Telemetry queries API
 │   ├── api-journeys/            # Journeys and location history API
 │   ├── api-commands/            # Commands API
-│   ├── api-config/              # Configuration API
+│   ├── api-config/              # Configuration API (+ Wi-Fi credentials)
 │   ├── api-alerts/              # Alerts API
 │   ├── api-activity/            # Activity feed API
 │   ├── api-settings/            # User settings/preferences API
 │   ├── api-users/               # User management API (Admin)
-│   └── api-notehub/             # Notehub status API
+│   ├── api-notehub/             # Notehub status API
+│   ├── api-public-device/       # Public device sharing API
+│   └── api-visited-cities/      # Cities visited aggregation API
 ├── cdk.json                     # CDK configuration
 ├── package.json
 └── tsconfig.json
@@ -289,7 +291,13 @@ The journey detail endpoint returns power consumption data when Mojo power monit
 |--------|------|-------------|
 | GET | `/v1/devices/{serial_number}/config` | Get device configuration |
 | PUT | `/v1/devices/{serial_number}/config` | Update device configuration |
+| PUT | `/v1/devices/{serial_number}/wifi` | Set device Wi-Fi credentials (sets `_wifi` env var) |
 | PUT | `/v1/fleets/{fleet_uid}/config` | Update fleet configuration |
+
+#### Visited Cities
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/v1/devices/{serial_number}/visited-cities` | Get cities visited by device with counts and timestamps |
 
 #### Alerts
 | Method | Path | Description |
@@ -349,6 +357,7 @@ Lambda function logs are available in CloudWatch Logs:
 - `/aws/lambda/songbird-api-users` - User management (Admin)
 - `/aws/lambda/songbird-api-notehub` - Notehub status
 - `/aws/lambda/songbird-api-public-device` - Public device access (audit logged)
+- `/aws/lambda/songbird-api-visited-cities` - Cities visited aggregation
 
 ### DynamoDB Tables
 

@@ -31,3 +31,15 @@ export async function updateFleetConfig(
 ): Promise<ConfigResponse> {
   return apiPut<ConfigResponse>(`/v1/fleets/${fleetUid}/config`, config);
 }
+
+/**
+ * Set device Wi-Fi credentials
+ * Sets the _wifi environment variable on the device
+ */
+export async function setDeviceWifi(
+  serialNumber: string,
+  ssid: string,
+  password: string
+): Promise<{ success: boolean; message: string }> {
+  return apiPut(`/v1/devices/${serialNumber}/wifi`, { ssid, password });
+}
