@@ -90,7 +90,7 @@ Add a new "Wi-Fi Configuration" section at the bottom of the config panel that:
 #### 1. Update Config Lambda to Handle `_wifi`
 **File:** `songbird-infrastructure/lambda/api-config/index.ts`
 
-Option A: **Special handling for ****`_wifi`**** key**
+Option A: **Special handling for \****`_wifi`**\*\* key**
 - Add `_wifi` to accepted keys (not in CONFIG_SCHEMA since it has special format)
 - In `updateDeviceConfig`, check for `_wifi` key and pass it through directly to Notehub
 - Format: `["SSID","PASSWORD"]`

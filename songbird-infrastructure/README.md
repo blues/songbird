@@ -59,6 +59,7 @@ songbird-infrastructure/
 │   ├── storage-construct.ts     # DynamoDB tables
 │   ├── auth-construct.ts        # Cognito User Pool
 │   ├── api-construct.ts         # API Gateway + Lambda
+│   ├── analytics-construct.ts   # Aurora Serverless + Analytics Lambdas
 │   └── dashboard-construct.ts   # S3 + CloudFront
 ├── lambda/
 │   ├── api-ingest/              # Event ingest from Notehub HTTP route
@@ -73,7 +74,21 @@ songbird-infrastructure/
 │   ├── api-users/               # User management API (Admin)
 │   ├── api-notehub/             # Notehub status API
 │   ├── api-public-device/       # Public device sharing API
-│   └── api-visited-cities/      # Cities visited aggregation API
+│   ├── api-visited-cities/      # Cities visited aggregation API
+│   ├── api-firmware/            # Firmware management API (Admin)
+│   ├── analytics/               # Analytics subsystem Lambdas
+│   │   ├── backfill.ts          # Backfill historical data to Aurora
+│   │   ├── chat-history.ts      # Get chat session history
+│   │   ├── chat-query.ts        # Process natural language queries
+│   │   ├── delete-session.ts    # Delete chat session
+│   │   ├── get-session.ts       # Get single chat session
+│   │   ├── init-schema.ts       # Initialize Aurora schema
+│   │   ├── list-sessions.ts     # List all chat sessions
+│   │   ├── rerun-query.ts       # Re-run previous query
+│   │   └── sync-to-aurora.ts    # Sync DynamoDB data to Aurora
+│   ├── cognito-post-confirmation/  # Cognito post-confirmation trigger
+│   └── shared/                  # Shared utilities
+│       └── device-lookup.ts     # Serial number to device UID resolution
 ├── cdk.json                     # CDK configuration
 ├── package.json
 └── tsconfig.json
@@ -326,6 +341,22 @@ The journey detail endpoint returns power consumption data when Mojo power monit
 | PUT | `/v1/users/{userId}/groups` | Update user group memberships |
 | PUT | `/v1/users/{userId}/device` | Assign device to user (one device per user) |
 
+#### Firmware (Admin only)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/v1/firmware` | List available firmware versions from Notehub |
+| POST | `/v1/firmware/deploy` | Deploy firmware to device(s) |
+
+#### Analytics (Feature flag controlled)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/v1/analytics/sessions` | List chat sessions for current user |
+| POST | `/v1/analytics/sessions` | Create new chat session |
+| GET | `/v1/analytics/sessions/{sessionId}` | Get session with message history |
+| DELETE | `/v1/analytics/sessions/{sessionId}` | Delete a chat session |
+| POST | `/v1/analytics/query` | Send natural language query (returns SQL + results) |
+| POST | `/v1/analytics/rerun` | Re-run a previous query |
+
 Dashboard API endpoints require a valid Cognito JWT token in the `Authorization` header.
 
 ## Useful Commands
@@ -358,6 +389,8 @@ Lambda function logs are available in CloudWatch Logs:
 - `/aws/lambda/songbird-api-notehub` - Notehub status
 - `/aws/lambda/songbird-api-public-device` - Public device access (audit logged)
 - `/aws/lambda/songbird-api-visited-cities` - Cities visited aggregation
+- `/aws/lambda/songbird-api-firmware` - Firmware management (Admin)
+- `/aws/lambda/songbird-analytics-*` - Analytics subsystem (query, sessions, sync)
 
 ### DynamoDB Tables
 

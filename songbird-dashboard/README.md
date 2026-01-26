@@ -26,6 +26,7 @@ React-based fleet management dashboard for the Songbird sales demo platform.
 - **My Device view**: Dedicated "My Device" page for users with a claimed device, accessible from the navigation
 - **Cities visited**: View a list of cities visited by a device with visit counts and timestamps
 - **Device Wi-Fi configuration**: Device owners can set Wi-Fi credentials that sync to the Notecard
+- **Natural language analytics**: Query device data using natural language with AI-powered visualization (feature flag controlled)
 
 ## Technology Stack
 
@@ -51,44 +52,65 @@ songbird-dashboard/
 │   └── config.json.example   # Example configuration
 ├── src/
 │   ├── api/                  # API client and endpoints
-│   │   ├── client.ts
-│   │   ├── commands.ts
-│   │   ├── config.ts
-│   │   ├── devices.ts
-│   │   ├── journeys.ts
-│   │   └── telemetry.ts
+│   │   ├── activity.ts       # Activity feed API
+│   │   ├── alerts.ts         # Alert management
+│   │   ├── analytics.ts      # Analytics queries
+│   │   ├── client.ts         # API client setup
+│   │   ├── commands.ts       # Device commands
+│   │   ├── config.ts         # Fleet configuration
+│   │   ├── devices.ts        # Device CRUD
+│   │   ├── firmware.ts       # Firmware management
+│   │   ├── journeys.ts       # Journey/track data
+│   │   ├── notehub.ts        # Notehub integration
+│   │   ├── settings.ts       # User settings
+│   │   ├── telemetry.ts      # Telemetry data
+│   │   ├── users.ts          # User management
+│   │   └── visitedCities.ts  # Cities visited tracking
 │   ├── components/
-│   │   ├── charts/           # Telemetry charts
+│   │   ├── analytics/        # Analytics chat and visualization
+│   │   ├── charts/           # Telemetry charts (GaugeCard, PowerChart, TelemetryChart)
 │   │   ├── commands/         # Command panel
 │   │   ├── config/           # Configuration panel
-│   │   ├── devices/          # Device cards and lists
+│   │   ├── devices/          # Device cards, lists, status
 │   │   ├── journeys/         # Journey map, selector, location history
-│   │   ├── layout/           # Header, sidebar, layout
-│   │   ├── maps/             # Fleet map, location trail
-│   │   ├── profile/          # User profile components
+│   │   ├── layout/           # Header, sidebar, mobile nav
+│   │   ├── maps/             # Fleet map, location trail, visited cities map
+│   │   ├── profile/          # User profile dialog
+│   │   ├── settings/         # User management, fleet defaults, firmware
 │   │   └── ui/               # Base UI components (shadcn/ui)
+│   ├── contexts/             # React contexts
+│   │   └── PreferencesContext.tsx
 │   ├── hooks/                # React Query hooks
+│   │   ├── useActivity.ts
 │   │   ├── useAlerts.ts
+│   │   ├── useAnalytics.ts
+│   │   ├── useAuth.ts
 │   │   ├── useCommands.ts
 │   │   ├── useConfig.ts
 │   │   ├── useDevices.ts
+│   │   ├── useFeatureFlags.ts
+│   │   ├── useFirmware.ts
 │   │   ├── useJourneys.ts
+│   │   ├── useMyDevice.ts
 │   │   ├── useSettings.ts
 │   │   ├── useTelemetry.ts
 │   │   ├── useUserProfile.ts
-│   │   └── useUsers.ts
+│   │   ├── useUsers.ts
+│   │   └── useVisitedCities.ts
 │   ├── lib/                  # Utility libraries
 │   ├── pages/                # Page components
 │   │   ├── Alerts.tsx
+│   │   ├── Analytics.tsx     # Natural language analytics
 │   │   ├── Commands.tsx
 │   │   ├── Dashboard.tsx
 │   │   ├── DeviceDetail.tsx
+│   │   ├── Devices.tsx       # Fleet/devices list
+│   │   ├── Map.tsx           # Full-screen fleet map
+│   │   ├── PublicDeviceView.tsx  # Public device sharing
 │   │   └── Settings.tsx
-│   ├── contexts/             # React contexts
-│   │   └── PreferencesContext.tsx
-│   ├── hooks/                # React hooks
-│   │   ├── useFeatureFlags.ts    # PostHog feature flags
 │   ├── types/                # TypeScript interfaces
+│   │   ├── analytics.ts
+│   │   └── index.ts
 │   ├── utils/                # Formatters and helpers
 │   ├── App.tsx               # Main app with routing
 │   ├── main.tsx              # Entry point
@@ -359,6 +381,15 @@ Related alerts are also generated and appear in the Alerts page:
 - `GPS Power Save` - Created when GPS is disabled for power saving
 - `Unable to obtain GPS location` - Created when the device reports it cannot acquire satellites
 
+### Analytics (`/analytics`)
+
+Natural language analytics interface (feature flag controlled):
+- Chat-based interface for querying device data
+- AI-powered query interpretation and SQL generation
+- Dynamic chart visualization (bar, line, pie, area, scatter)
+- Conversation history with session management
+- Suggested questions for common queries
+
 ### Commands
 
 Fleet-wide command management:
@@ -496,6 +527,18 @@ The dashboard communicates with the Songbird API via:
 - `GET /v1/users/groups` - List available groups
 - `PUT /v1/users/{userId}/groups` - Update user group memberships
 - `PUT /v1/users/{userId}/device` - Assign device to user
+
+### Firmware (Admin only)
+- `GET /v1/firmware` - List available firmware versions from Notehub
+- `POST /v1/firmware/deploy` - Deploy firmware to device(s)
+
+### Analytics (Feature flag controlled)
+- `GET /v1/analytics/sessions` - List chat sessions
+- `POST /v1/analytics/sessions` - Create new chat session
+- `GET /v1/analytics/sessions/{sessionId}` - Get session with messages
+- `DELETE /v1/analytics/sessions/{sessionId}` - Delete a chat session
+- `POST /v1/analytics/query` - Send natural language query
+- `POST /v1/analytics/rerun` - Re-run a previous query
 
 All API calls include the Cognito JWT token for authorization.
 

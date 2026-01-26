@@ -107,8 +107,8 @@ songbird/
 │   │   ├── songbird-stack.ts
 │   │   ├── storage-construct.ts
 │   │   ├── auth-construct.ts
-│   │   ├── iot-construct.ts
 │   │   ├── api-construct.ts
+│   │   ├── analytics-construct.ts
 │   │   └── dashboard-construct.ts
 │   ├── lambda/              # Lambda functions
 │   └── README.md
