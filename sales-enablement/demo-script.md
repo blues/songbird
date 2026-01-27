@@ -12,7 +12,7 @@
 - [ ] Audio volume set to audible level (50-100%)
 
 ### Software
-- [ ] Songbird dashboard open: `https://[your-dashboard-url]`
+- [ ] Songbird dashboard open: `https://songbird.live`
 - [ ] Notehub open in separate tab: `https://notehub.io`
 - [ ] Logged in to both with appropriate permissions
 - [ ] Device visible on Fleet Map
@@ -140,7 +140,7 @@
 
 > "See that? I just shook the device. The Notecard detected motion with its built-in accelerometer, woke up the GPS, captured the position along with velocity and bearing, and sent it to the cloud. The main processor never woke up."
 
-**Show ****`_track.qo`**** event in Notehub:**
+**Show \****`_track.qo`**\*\* event in Notehub:**
 1. Go to device Events in Notehub
 2. Find the `_track.qo` event
 3. Expand to show: lat, lon, velocity, bearing, distance
