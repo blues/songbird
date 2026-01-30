@@ -106,7 +106,6 @@ export function JourneyMap({ points, mapboxToken, className, matchedRoute, match
 
   const mapRef = useRef<MapRef>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [hasTriggeredMatch, setHasTriggeredMatch] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -308,28 +307,52 @@ export function JourneyMap({ points, mapboxToken, className, matchedRoute, match
       setAnimationProgress(0);
       setIsPlaying(false);
       setSelectedPointIndex(null);
-      setHasTriggeredMatch(false);
 
       prevPointsRef.current = points;
     }
   }, [points]);
 
   // Auto-trigger map matching when journey loads or when new points are added
-  // Re-match if point count has grown since last match (for in-progress journeys)
-  const needsRematch = matchedRoute && matchedPointsCount !== undefined && points.length > matchedPointsCount;
+  // Track the points count when we triggered the last match
+  const matchTriggeredAtRef = useRef<number>(0);
+
   useEffect(() => {
+    // Should we trigger a match?
+    const noMatchYet = !matchedRoute;
+    const morePointsThanLastTrigger = points.length > matchTriggeredAtRef.current;
+
+    // Need re-match if:
+    // 1. matchedPointsCount exists and we have more points now, OR
+    // 2. matchedPointsCount is undefined (old data) - always re-match once to populate it
+    const needsRematch = matchedRoute && (
+      (matchedPointsCount !== undefined && points.length > matchedPointsCount) ||
+      (matchedPointsCount === undefined)
+    );
+
+    console.log('[JourneyMap] Match check:', {
+      pointsLength: points.length,
+      matchedPointsCount,
+      matchTriggeredAt: matchTriggeredAtRef.current,
+      noMatchYet,
+      needsRematch,
+      morePointsThanLastTrigger,
+      isMatching,
+      hasOnMatchRoute: !!onMatchRoute,
+    });
+
     const shouldMatch =
       points.length >= 2 &&
       !isMatching &&
-      !hasTriggeredMatch &&
       onMatchRoute &&
-      (!matchedRoute || needsRematch);
+      morePointsThanLastTrigger &&
+      (noMatchYet || needsRematch);
 
     if (shouldMatch) {
-      setHasTriggeredMatch(true);
+      console.log('[JourneyMap] Triggering match for', points.length, 'points');
+      matchTriggeredAtRef.current = points.length;
       onMatchRoute();
     }
-  }, [points.length, matchedRoute, matchedPointsCount, needsRematch, isMatching, hasTriggeredMatch, onMatchRoute]);
+  }, [points.length, matchedRoute, matchedPointsCount, isMatching, onMatchRoute]);
 
   // Animation loop for playback - uses real GPS velocity
   useEffect(() => {

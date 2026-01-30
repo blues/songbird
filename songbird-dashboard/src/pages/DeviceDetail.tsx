@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, Clock, Activity, MapPin, Satellite, Radio, Lock, Route, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -81,14 +81,30 @@ interface DeviceDetailProps {
 
 export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const { serialNumber } = useParams<{ serialNumber: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { preferences } = usePreferences();
   const tempUnit = preferences.temp_unit === 'fahrenheit' ? 'F' : 'C';
+
+  // Read journey ID from URL query param
+  const journeyIdFromUrl = searchParams.get('journey');
+  const initialJourneyId = journeyIdFromUrl ? parseInt(journeyIdFromUrl, 10) : null;
 
   const [showConfig, setShowConfig] = useState(false);
   const [timeRange, setTimeRange] = useState<number | null>(null);
   const [chartTab, setChartTab] = useState('telemetry');
-  const [locationTab, setLocationTab] = useState('current');
-  const [selectedJourneyId, setSelectedJourneyId] = useState<number | null>(null);
+  const [locationTab, setLocationTab] = useState(journeyIdFromUrl ? 'journeys' : 'current');
+  const [selectedJourneyId, setSelectedJourneyId] = useState<number | null>(initialJourneyId);
+
+  // Update URL when journey selection changes
+  const handleJourneySelect = (journeyId: number | null) => {
+    setSelectedJourneyId(journeyId);
+    if (journeyId) {
+      setSearchParams({ journey: journeyId.toString() });
+    } else {
+      searchParams.delete('journey');
+      setSearchParams(searchParams);
+    }
+  };
 
   // Set default time range from preferences once loaded
   useEffect(() => {
@@ -108,6 +124,20 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const selectedJourney = selectedJourneyId
     ? journeys.find(j => j.journey_id === selectedJourneyId)
     : null;
+
+  // Clear invalid journey ID from URL (journey doesn't exist for this device)
+  useEffect(() => {
+    if (
+      !journeysLoading &&
+      journeys.length > 0 &&
+      selectedJourneyId &&
+      !selectedJourney
+    ) {
+      // Journey ID in URL doesn't exist, clear it
+      handleJourneySelect(null);
+      setLocationTab('current');
+    }
+  }, [journeysLoading, journeys, selectedJourneyId, selectedJourney]);
 
   // Calculate time range needed to cover the journey (if viewing one)
   const journeyTimeRangeHours = selectedJourney
@@ -491,14 +521,14 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                     <JourneySelector
                       journeys={journeys}
                       selectedJourneyId={selectedJourneyId}
-                      onSelect={setSelectedJourneyId}
+                      onSelect={handleJourneySelect}
                       isLoading={journeysLoading}
                       canDelete={!!canDeleteJourneys}
                       onDelete={(journeyId) => {
                         deleteJourneyMutation.mutate({ serialNumber: serialNumber!, journeyId });
                         // Clear selection if we deleted the selected journey
                         if (selectedJourneyId === journeyId) {
-                          setSelectedJourneyId(null);
+                          handleJourneySelect(null);
                         }
                       }}
                       isDeleting={deleteJourneyMutation.isPending}

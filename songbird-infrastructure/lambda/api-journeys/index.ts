@@ -268,6 +268,7 @@ async function getJourneyDetail(
     total_distance: journeyItem.total_distance || 0,
     status: journeyItem.status,
     matched_route: journeyItem.matched_route, // GeoJSON LineString if map-matched
+    matched_points_count: journeyItem.matched_points_count, // Points count when route was matched
   };
 
   // Sort points by timestamp (GSI doesn't guarantee order within same journey_id)
