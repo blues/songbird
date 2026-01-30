@@ -265,6 +265,7 @@ export interface Journey {
   total_distance: number; // meters
   status: 'active' | 'completed';
   matched_route?: GeoJSONLineString; // Road-snapped route from Mapbox Map Matching
+  matched_points_count?: number; // Number of points when matched_route was computed
 }
 
 /**

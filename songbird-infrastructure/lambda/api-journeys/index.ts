@@ -424,18 +424,19 @@ async function matchJourney(
     const matchedRoute = data.matchings[0].geometry;
     const confidence = data.matchings[0].confidence;
 
-    // Store the matched route in DynamoDB
+    // Store the matched route in DynamoDB (include point count for cache invalidation)
     const updateCommand = new UpdateCommand({
       TableName: JOURNEYS_TABLE,
       Key: {
         device_uid: ownerDeviceUid,
         journey_id: journeyId,
       },
-      UpdateExpression: 'SET matched_route = :route, match_confidence = :confidence, matched_at = :time',
+      UpdateExpression: 'SET matched_route = :route, match_confidence = :confidence, matched_at = :time, matched_points_count = :count',
       ExpressionAttributeValues: {
         ':route': matchedRoute,
         ':confidence': confidence,
         ':time': Date.now(),
+        ':count': points.length,
       },
     });
 

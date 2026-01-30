@@ -517,6 +517,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                           mapboxToken={mapboxToken}
                           className="h-[500px] border rounded-lg overflow-hidden"
                           matchedRoute={journeyDetailData?.journey?.matched_route}
+                          matchedPointsCount={journeyDetailData?.journey?.matched_points_count}
                           onMatchRoute={() => mapMatchMutation.mutate()}
                           isMatching={mapMatchMutation.isPending}
                           power={journeyDetailData?.power}

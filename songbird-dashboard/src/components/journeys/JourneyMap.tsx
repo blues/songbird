@@ -21,6 +21,7 @@ interface JourneyMapProps {
   mapboxToken: string;
   className?: string;
   matchedRoute?: GeoJSONLineString;
+  matchedPointsCount?: number; // Number of points when matched_route was computed
   onMatchRoute?: () => void;
   isMatching?: boolean;
   power?: JourneyPower;
@@ -98,7 +99,7 @@ function getPositionAtDistance(
   return { lon: last[0], lat: last[1] };
 }
 
-export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMatchRoute, isMatching, power }: JourneyMapProps) {
+export function JourneyMap({ points, mapboxToken, className, matchedRoute, matchedPointsCount, onMatchRoute, isMatching, power }: JourneyMapProps) {
   const { preferences } = usePreferences();
   const mapStyle = MAP_STYLES[preferences.map_style] || MAP_STYLES.street;
   const [showMatchedRoute, setShowMatchedRoute] = useState(true);
@@ -313,19 +314,22 @@ export function JourneyMap({ points, mapboxToken, className, matchedRoute, onMat
     }
   }, [points]);
 
-  // Auto-trigger map matching when journey loads
+  // Auto-trigger map matching when journey loads or when new points are added
+  // Re-match if point count has grown since last match (for in-progress journeys)
+  const needsRematch = matchedRoute && matchedPointsCount !== undefined && points.length > matchedPointsCount;
   useEffect(() => {
-    if (
+    const shouldMatch =
       points.length >= 2 &&
-      !matchedRoute &&
       !isMatching &&
       !hasTriggeredMatch &&
-      onMatchRoute
-    ) {
+      onMatchRoute &&
+      (!matchedRoute || needsRematch);
+
+    if (shouldMatch) {
       setHasTriggeredMatch(true);
       onMatchRoute();
     }
-  }, [points.length, matchedRoute, isMatching, hasTriggeredMatch, onMatchRoute]);
+  }, [points.length, matchedRoute, matchedPointsCount, needsRematch, isMatching, hasTriggeredMatch, onMatchRoute]);
 
   // Animation loop for playback - uses real GPS velocity
   useEffect(() => {
