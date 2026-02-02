@@ -326,6 +326,7 @@ typedef enum {
     CMD_PLAY_MELODY,
     CMD_TEST_AUDIO,
     CMD_SET_VOLUME,
+    CMD_UNLOCK,
     CMD_UNKNOWN
 } CommandType;
 
@@ -346,6 +347,9 @@ typedef struct {
         struct {
             uint8_t volume;
         } setVolume;
+        struct {
+            uint8_t lockType;   // 0=transit, 1=demo, 2=all
+        } unlock;
     } params;
 } Command;
 

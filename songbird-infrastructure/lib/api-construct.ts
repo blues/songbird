@@ -132,6 +132,7 @@ export class ApiConstruct extends Construct {
       memorySize: 256,
       environment: {
         COMMANDS_TABLE: commandsTable.tableName,
+        DEVICES_TABLE: props.devicesTable.tableName,
         NOTEHUB_PROJECT_UID: props.notehubProjectUid,
         NOTEHUB_SECRET_ARN: notehubSecret.secretArn,
         DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
@@ -142,6 +143,7 @@ export class ApiConstruct extends Construct {
     commandsTable.grantReadWriteData(commandsFunction);
     notehubSecret.grantRead(commandsFunction);
     props.deviceAliasesTable.grantReadData(commandsFunction);
+    props.devicesTable.grantReadData(commandsFunction);
 
     // Config API
     const configFunction = new NodejsFunction(this, 'ConfigFunction', {

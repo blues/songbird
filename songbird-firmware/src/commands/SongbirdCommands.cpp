@@ -9,6 +9,7 @@
 #include "SongbirdCommands.h"
 #include "SongbirdAudio.h"
 #include "SongbirdSync.h"
+#include "SongbirdState.h"
 
 // =============================================================================
 // Command Type Names
@@ -20,6 +21,7 @@ static const char* const COMMAND_NAMES[] = {
     "play_melody",
     "test_audio",
     "set_volume",
+    "unlock",
     "unknown"
 };
 
@@ -84,6 +86,10 @@ bool commandsExecute(const Command* cmd, const SongbirdConfig* config, CommandAc
 
         case CMD_SET_VOLUME:
             commandsHandleSetVolume(cmd, config, ack);
+            break;
+
+        case CMD_UNLOCK:
+            commandsHandleUnlock(cmd, config, ack);
             break;
 
         default:
@@ -256,6 +262,49 @@ void commandsHandleSetVolume(const Command* cmd, const SongbirdConfig* config, C
 
     // Play confirmation beep at new volume
     audioQueueEvent(AUDIO_EVENT_PING);
+}
+
+void commandsHandleUnlock(const Command* cmd, const SongbirdConfig* config, CommandAck* ack) {
+    (void)config;  // Unused
+
+    uint8_t lockType = cmd->params.unlock.lockType;
+    bool clearedTransit = false;
+    bool clearedDemo = false;
+
+    // Lock type: 0=transit, 1=demo, 2=all
+    if (lockType == 0 || lockType == 2) {
+        if (stateIsTransitLocked()) {
+            stateSetTransitLock(false, MODE_DEMO);  // Previous mode doesn't matter when unlocking
+            clearedTransit = true;
+        }
+    }
+
+    if (lockType == 1 || lockType == 2) {
+        if (stateIsDemoLocked()) {
+            stateSetDemoLock(false, MODE_DEMO);
+            clearedDemo = true;
+        }
+    }
+
+    // Update lock LED
+    stateUpdateLockLED();
+
+    if (clearedTransit || clearedDemo) {
+        // Play confirmation sound
+        audioQueueEvent(AUDIO_EVENT_PING);
+
+        ack->status = CMD_STATUS_OK;
+        if (clearedTransit && clearedDemo) {
+            strncpy(ack->message, "Cleared transit and demo locks", sizeof(ack->message) - 1);
+        } else if (clearedTransit) {
+            strncpy(ack->message, "Cleared transit lock", sizeof(ack->message) - 1);
+        } else {
+            strncpy(ack->message, "Cleared demo lock", sizeof(ack->message) - 1);
+        }
+    } else {
+        ack->status = CMD_STATUS_IGNORED;
+        strncpy(ack->message, "No lock was active", sizeof(ack->message) - 1);
+    }
 }
 
 // =============================================================================

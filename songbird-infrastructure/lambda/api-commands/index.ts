@@ -56,7 +56,59 @@ async function getNotehubToken(): Promise<string> {
 }
 
 // Supported commands
-const VALID_COMMANDS = ['ping', 'locate', 'play_melody', 'test_audio', 'set_volume'];
+const VALID_COMMANDS = ['ping', 'locate', 'play_melody', 'test_audio', 'set_volume', 'unlock'];
+
+// Commands that require admin or device owner permissions
+const RESTRICTED_COMMANDS = ['unlock'];
+
+const DEVICES_TABLE = process.env.DEVICES_TABLE!;
+
+/**
+ * Check if the user is an admin (in 'Admin' Cognito group)
+ */
+function isAdmin(event: APIGatewayProxyEvent): boolean {
+  try {
+    const claims = (event.requestContext as any)?.authorizer?.jwt?.claims;
+    if (!claims) return false;
+
+    const groups = claims['cognito:groups'];
+    if (Array.isArray(groups)) {
+      return groups.includes('Admin');
+    }
+    if (typeof groups === 'string') {
+      return groups === 'Admin' || groups.includes('Admin');
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get the user's email from the JWT claims
+ */
+function getUserEmail(event: APIGatewayProxyEvent): string | undefined {
+  try {
+    const claims = (event.requestContext as any)?.authorizer?.jwt?.claims;
+    return claims?.email;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Check if the user owns the device (is assigned to it)
+ */
+async function isDeviceOwner(deviceUid: string, userEmail: string): Promise<boolean> {
+  const command = new GetCommand({
+    TableName: DEVICES_TABLE,
+    Key: { device_uid: deviceUid },
+    ProjectionExpression: 'assigned_to',
+  });
+
+  const result = await docClient.send(command);
+  return result.Item?.assigned_to === userEmail;
+}
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   console.log('Request:', JSON.stringify(event));
@@ -118,7 +170,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     if (method === 'POST') {
       // Send command to the CURRENT device_uid (the active Notecard)
-      return await sendCommand(resolved.device_uid, resolved.serial_number, event.body, corsHeaders);
+      return await sendCommand(resolved.device_uid, resolved.serial_number, event, corsHeaders);
     }
 
     if (method === 'GET') {
@@ -144,10 +196,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 async function sendCommand(
   deviceUid: string,
   serialNumber: string,
-  body: string | null,
+  event: APIGatewayProxyEvent,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
-  if (!body) {
+  if (!event.body) {
     return {
       statusCode: 400,
       headers,
@@ -155,7 +207,7 @@ async function sendCommand(
     };
   }
 
-  const request = JSON.parse(body);
+  const request = JSON.parse(event.body);
   const { cmd, params } = request;
 
   // Validate command
@@ -168,6 +220,23 @@ async function sendCommand(
         valid_commands: VALID_COMMANDS,
       }),
     };
+  }
+
+  // Check authorization for restricted commands
+  if (RESTRICTED_COMMANDS.includes(cmd)) {
+    const admin = isAdmin(event);
+    const userEmail = getUserEmail(event);
+    const owner = userEmail ? await isDeviceOwner(deviceUid, userEmail) : false;
+
+    if (!admin && !owner) {
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({
+          error: 'Unauthorized: Only admins and device owners can send this command',
+        }),
+      };
+    }
   }
 
   // Generate command ID

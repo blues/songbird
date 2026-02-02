@@ -92,6 +92,18 @@ export async function sendSetVolume(
   return sendCommand(serialNumber, 'set_volume', { volume });
 }
 
+export type UnlockType = 'transit' | 'demo' | 'all';
+
+/**
+ * Send an unlock command to clear transit or demo lock
+ */
+export async function sendUnlock(
+  serialNumber: string,
+  lockType: UnlockType = 'all'
+): Promise<CommandResponse> {
+  return sendCommand(serialNumber, 'unlock', { lock_type: lockType });
+}
+
 /**
  * Delete a command from history
  */

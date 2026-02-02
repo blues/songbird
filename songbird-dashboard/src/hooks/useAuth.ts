@@ -125,6 +125,29 @@ export function useCurrentUserEmail() {
 }
 
 /**
+ * Hook to check if the current user can unlock a device.
+ * Returns true if user is an admin OR is the device owner (assigned_to matches).
+ */
+export function useCanUnlockDevice(assignedTo?: string) {
+  const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
+  const { email, isLoading: isEmailLoading } = useCurrentUserEmail();
+
+  const isLoading = isAdminLoading || isEmailLoading;
+
+  // Admin can unlock any device
+  if (isAdmin) {
+    return { canUnlock: true, isLoading };
+  }
+
+  // Device owner can unlock their own device
+  if (email && assignedTo && email === assignedTo) {
+    return { canUnlock: true, isLoading };
+  }
+
+  return { canUnlock: false, isLoading };
+}
+
+/**
  * Hook to identify the current user to PostHog for analytics.
  * Should be called once when the user is authenticated.
  */

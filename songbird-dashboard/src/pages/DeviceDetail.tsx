@@ -715,6 +715,9 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
               serialNumber={device.serial_number}
               audioEnabled={device.audio_enabled !== false}
               lastCommand={lastCommand}
+              transitLocked={device.transit_locked}
+              demoLocked={device.demo_locked}
+              assignedTo={device.assigned_to}
             />
           )}
 

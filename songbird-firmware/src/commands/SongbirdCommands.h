@@ -107,6 +107,17 @@ void commandsHandleTestAudio(const Command* cmd, const SongbirdConfig* config, C
  */
 void commandsHandleSetVolume(const Command* cmd, const SongbirdConfig* config, CommandAck* ack);
 
+/**
+ * @brief Handle unlock command
+ *
+ * Remotely clears transit or demo lock.
+ *
+ * @param cmd Command with lock_type parameter (0=transit, 1=demo, 2=all)
+ * @param config Current configuration
+ * @param ack Acknowledgment to fill
+ */
+void commandsHandleUnlock(const Command* cmd, const SongbirdConfig* config, CommandAck* ack);
+
 // =============================================================================
 // Melody Name Lookup
 // =============================================================================

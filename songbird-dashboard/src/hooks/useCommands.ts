@@ -11,8 +11,10 @@ import {
   sendPlayMelody,
   sendTestAudio,
   sendSetVolume,
+  sendUnlock,
   deleteCommand,
 } from '@/api/commands';
+import type { UnlockType } from '@/api/commands';
 
 /**
  * Hook to fetch all commands across devices (optionally filtered by device)
@@ -121,6 +123,29 @@ export function useSendSetVolume() {
     onSuccess: (_, { serialNumber }) => {
       queryClient.invalidateQueries({ queryKey: ['commands', serialNumber] });
       queryClient.invalidateQueries({ queryKey: ['allCommands'] });
+    },
+  });
+}
+
+/**
+ * Hook to send an unlock command to clear transit or demo lock
+ */
+export function useSendUnlock() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      serialNumber,
+      lockType = 'all',
+    }: {
+      serialNumber: string;
+      lockType?: UnlockType;
+    }) => sendUnlock(serialNumber, lockType),
+    onSuccess: (_, { serialNumber }) => {
+      queryClient.invalidateQueries({ queryKey: ['commands', serialNumber] });
+      queryClient.invalidateQueries({ queryKey: ['allCommands'] });
+      // Also refresh device data as lock state may have changed
+      queryClient.invalidateQueries({ queryKey: ['device', serialNumber] });
     },
   });
 }

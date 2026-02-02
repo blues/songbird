@@ -483,6 +483,7 @@ bool notecardSendCommandAck(const CommandAck* ack) {
         case CMD_PLAY_MELODY: cmdStr = "play_melody"; break;
         case CMD_TEST_AUDIO: cmdStr = "test_audio"; break;
         case CMD_SET_VOLUME: cmdStr = "set_volume"; break;
+        case CMD_UNLOCK: cmdStr = "unlock"; break;
         default: break;
     }
     JAddStringToObject(body, "cmd", cmdStr);
@@ -617,6 +618,21 @@ bool notecardGetCommand(Command* cmd) {
             J* params = JGetObject(body, "params");
             if (params) {
                 cmd->params.setVolume.volume = JGetInt(params, "volume");
+            }
+        } else if (strcmp(cmdStr, "unlock") == 0) {
+            cmd->type = CMD_UNLOCK;
+            J* params = JGetObject(body, "params");
+            cmd->params.unlock.lockType = 2;  // Default to "all"
+            if (params) {
+                const char* lockTypeStr = JGetString(params, "lock_type");
+                if (lockTypeStr) {
+                    if (strcmp(lockTypeStr, "transit") == 0) {
+                        cmd->params.unlock.lockType = 0;
+                    } else if (strcmp(lockTypeStr, "demo") == 0) {
+                        cmd->params.unlock.lockType = 1;
+                    }
+                    // "all" or anything else stays at 2
+                }
             }
         }
     }

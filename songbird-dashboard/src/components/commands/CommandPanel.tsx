@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, MapPin, Music, Volume2 } from 'lucide-react';
+import { Bell, MapPin, Music, Volume2, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -10,14 +10,30 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { useSendPing, useSendLocate, useSendPlayMelody } from '@/hooks/useCommands';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { useSendPing, useSendLocate, useSendPlayMelody, useSendUnlock } from '@/hooks/useCommands';
+import { useCanUnlockDevice } from '@/hooks/useAuth';
 import { formatRelativeTime } from '@/utils/formatters';
 import type { Command } from '@/types';
+import type { UnlockType } from '@/api/commands';
 
 interface CommandPanelProps {
   serialNumber: string;
   audioEnabled: boolean;
   lastCommand?: Command;
+  transitLocked?: boolean;
+  demoLocked?: boolean;
+  assignedTo?: string;
 }
 
 const melodies = [
@@ -32,18 +48,27 @@ export function CommandPanel({
   serialNumber,
   audioEnabled,
   lastCommand,
+  transitLocked,
+  demoLocked,
+  assignedTo,
 }: CommandPanelProps) {
   const [selectedMelody, setSelectedMelody] = useState('connected');
   const [locateDuration, setLocateDuration] = useState(30);
+  const [unlockType, setUnlockType] = useState<UnlockType>('all');
 
   const pingMutation = useSendPing();
   const locateMutation = useSendLocate();
   const melodyMutation = useSendPlayMelody();
+  const unlockMutation = useSendUnlock();
+  const { canUnlock } = useCanUnlockDevice(assignedTo);
+
+  const isLocked = transitLocked || demoLocked;
 
   const isLoading =
     pingMutation.isPending ||
     locateMutation.isPending ||
-    melodyMutation.isPending;
+    melodyMutation.isPending ||
+    unlockMutation.isPending;
 
   const handlePing = () => {
     pingMutation.mutate(serialNumber);
@@ -55,6 +80,10 @@ export function CommandPanel({
 
   const handlePlayMelody = () => {
     melodyMutation.mutate({ serialNumber, melody: selectedMelody });
+  };
+
+  const handleUnlock = () => {
+    unlockMutation.mutate({ serialNumber, lockType: unlockType });
   };
 
   return (
@@ -134,6 +163,72 @@ export function CommandPanel({
             </Button>
           </div>
         </div>
+
+        {/* Lock Override - Only visible when device is locked AND user has permission */}
+        {isLocked && canUnlock && (
+          <div className="space-y-2 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Device Lock Override</p>
+                <p className="text-xs text-muted-foreground">
+                  Currently locked:{' '}
+                  {transitLocked && demoLocked
+                    ? 'Transit & Demo'
+                    : transitLocked
+                    ? 'Transit'
+                    : 'Demo'}
+                </p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isLoading}
+                    className="text-orange-600 border-orange-600 hover:bg-orange-50"
+                  >
+                    <Unlock className="h-4 w-4 mr-2" />
+                    Override Lock
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Override Device Lock</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will remotely unlock the device, allowing mode changes.
+                      The device will play a confirmation sound when unlocked.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="py-4">
+                    <label className="text-sm font-medium">Lock type to clear:</label>
+                    <Select
+                      value={unlockType}
+                      onValueChange={(v) => setUnlockType(v as UnlockType)}
+                    >
+                      <SelectTrigger className="mt-2">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Both locks</SelectItem>
+                        <SelectItem value="transit">Transit lock only</SelectItem>
+                        <SelectItem value="demo">Demo lock only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleUnlock}
+                      className="bg-orange-600 hover:bg-orange-700"
+                    >
+                      Confirm Unlock
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </div>
+        )}
 
         {/* Audio Status */}
         {!audioEnabled && (

@@ -22,7 +22,7 @@ export type AlertType =
   | 'motion';
 
 // Command types
-export type CommandType = 'ping' | 'locate' | 'play_melody' | 'test_audio' | 'set_volume';
+export type CommandType = 'ping' | 'locate' | 'play_melody' | 'test_audio' | 'set_volume' | 'unlock';
 
 // Command status
 export type CommandStatus = 'queued' | 'sent' | 'ok' | 'error' | 'ignored';
