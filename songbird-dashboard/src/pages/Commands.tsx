@@ -12,6 +12,7 @@ import {
   MapPin,
   Music,
   Trash2,
+  Unlock,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,7 @@ const commandTypeLabels: Record<CommandType, string> = {
   play_melody: 'Play Melody',
   test_audio: 'Test Audio',
   set_volume: 'Set Volume',
+  unlock: 'Unlock',
 };
 
 const commandTypeIcons: Record<CommandType, React.ReactNode> = {
@@ -51,6 +53,7 @@ const commandTypeIcons: Record<CommandType, React.ReactNode> = {
   play_melody: <Music className="h-4 w-4" />,
   test_audio: <Music className="h-4 w-4" />,
   set_volume: <Music className="h-4 w-4" />,
+  unlock: <Unlock className="h-4 w-4" />,
 };
 
 function StatusBadge({ status }: { status: CommandStatus }) {
