@@ -34,7 +34,7 @@ If a device gets into a bad state (stuck in wrong lock mode, shipped to wrong lo
 
 ### 1. Firmware Changes (`songbird-firmware/`)
 
-**File: ****`src/commands/command_handler.cpp`**
+**File: \****`src/commands/command_handler.cpp`**
 
 Add handler for new `unlock` command:
 
@@ -58,7 +58,7 @@ void handleUnlockCommand(const J* params) {
 }
 ```
 
-**File: ****`src/core/mode_manager.cpp`**
+**File: \****`src/core/mode_manager.cpp`**
 
 Add functions to clear lock states:
 - `clearTransitLock()` - Clear transit lock flag, allow mode changes
@@ -66,7 +66,7 @@ Add functions to clear lock states:
 
 ### 2. Infrastructure Changes (`songbird-infrastructure/`)
 
-**File: ****`lambda/commands/index.ts`**
+**File: \****`lambda/commands/index.ts`**
 
 Add `unlock` to allowed command types with authorization check:
 
@@ -95,7 +95,7 @@ const commandPayload = {
 
 ### 3. Dashboard Changes (`songbird-dashboard/`)
 
-**File: ****`src/api/commands.ts`**
+**File: \****`src/api/commands.ts`**
 
 Add unlock command function:
 
@@ -108,14 +108,14 @@ export async function sendUnlockCommand(
 }
 ```
 
-**File: ****`src/components/DeviceCommands.tsx`** (or similar)
+**File: \****`src/components/DeviceCommands.tsx`** (or similar)
 
 Add UI for unlock command:
 - Button in device actions menu (only visible to admins + device owners)
 - Confirmation dialog explaining the action
 - Dropdown to select lock type (Transit, Demo, or Both)
 
-**File: ****`src/hooks/useDevicePermissions.ts`** (new or existing)
+**File: \****`src/hooks/useDevicePermissions.ts`** (new or existing)
 
 Add permission check:
 
