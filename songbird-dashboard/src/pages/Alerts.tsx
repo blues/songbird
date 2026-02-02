@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Check, Clock, MapPin } from 'lucide-react';
+import { AlertTriangle, Check, CheckCheck, Clock, MapPin } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useAlerts, useAcknowledgeAlert } from '@/hooks/useAlerts';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { useAlerts, useAcknowledgeAlert, useBulkAcknowledgeAlerts } from '@/hooks/useAlerts';
 import { useCanSendCommands } from '@/hooks/useAuth';
 import { formatRelativeTime } from '@/utils/formatters';
 import type { Alert } from '@/types';
@@ -138,9 +149,15 @@ export function Alerts() {
   });
 
   const acknowledgeMutation = useAcknowledgeAlert();
+  const bulkAcknowledgeMutation = useBulkAcknowledgeAlerts();
 
   const handleAcknowledge = (alertId: string) => {
     acknowledgeMutation.mutate({ alertId });
+  };
+
+  const handleAcknowledgeAll = () => {
+    const activeAlertIds = activeAlerts.map(alert => alert.alert_id);
+    bulkAcknowledgeMutation.mutate({ alertIds: activeAlertIds });
   };
 
   const handleDeviceClick = (serialNumber: string) => {
@@ -151,6 +168,7 @@ export function Alerts() {
   const alerts = typeFilter === 'all'
     ? allAlerts
     : allAlerts.filter(alert => alert.type === typeFilter);
+  const activeAlerts = alerts.filter(alert => alert.acknowledged === 'false' || alert.acknowledged === false);
   const activeCount = data?.active_count || 0;
 
   if (error) {
@@ -196,6 +214,35 @@ export function Alerts() {
           >
             {showAcknowledged ? 'Show Active Only' : 'Show All Alerts'}
           </Button>
+
+          {canAcknowledgeAlerts && activeAlerts.length > 0 && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="default"
+                  disabled={bulkAcknowledgeMutation.isPending}
+                >
+                  <CheckCheck className="h-4 w-4 mr-2" />
+                  Acknowledge All ({activeAlerts.length})
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Acknowledge All Alerts</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will acknowledge {activeAlerts.length} active alert{activeAlerts.length !== 1 ? 's' : ''}.
+                    This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleAcknowledgeAll}>
+                    Acknowledge All
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
       </div>
 

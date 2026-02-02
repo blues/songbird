@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAlerts, getAlert, acknowledgeAlert } from '@/api/alerts';
+import { getAlerts, getAlert, acknowledgeAlert, acknowledgeAllAlerts } from '@/api/alerts';
 
 /**
  * Hook to fetch all alerts
@@ -63,6 +63,22 @@ export function useAcknowledgeAlert() {
   return useMutation({
     mutationFn: ({ alertId, acknowledgedBy }: { alertId: string; acknowledgedBy?: string }) =>
       acknowledgeAlert(alertId, acknowledgedBy),
+    onSuccess: () => {
+      // Invalidate all alert queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
+    },
+  });
+}
+
+/**
+ * Hook to acknowledge multiple alerts at once
+ */
+export function useBulkAcknowledgeAlerts() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ alertIds, acknowledgedBy }: { alertIds: string[]; acknowledgedBy?: string }) =>
+      acknowledgeAllAlerts(alertIds, acknowledgedBy),
     onSuccess: () => {
       // Invalidate all alert queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ['alerts'] });

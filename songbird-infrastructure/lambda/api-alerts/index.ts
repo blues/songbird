@@ -5,6 +5,7 @@
  * - GET /alerts - List all alerts (with optional filters)
  * - GET /alerts/{alert_id} - Get single alert
  * - POST /alerts/{alert_id}/acknowledge - Acknowledge an alert
+ * - POST /alerts/acknowledge-all - Bulk acknowledge alerts
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -14,6 +15,7 @@ import {
   QueryCommand,
   GetCommand,
   UpdateCommand,
+  BatchWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
@@ -60,6 +62,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     if (method === 'OPTIONS') {
       return { statusCode: 200, headers: corsHeaders, body: '' };
+    }
+
+    // POST /alerts/acknowledge-all
+    if (method === 'POST' && path.endsWith('/acknowledge-all')) {
+      return await bulkAcknowledgeAlerts(event, corsHeaders);
     }
 
     // POST /alerts/{alert_id}/acknowledge
@@ -242,5 +249,72 @@ async function acknowledgeAlert(
     statusCode: 200,
     headers,
     body: JSON.stringify(result.Attributes),
+  };
+}
+
+async function bulkAcknowledgeAlerts(
+  event: APIGatewayProxyEvent,
+  headers: Record<string, string>
+): Promise<APIGatewayProxyResult> {
+  const now = Date.now();
+
+  // Parse body for alert IDs and acknowledgment details
+  let alertIds: string[] = [];
+  let acknowledgedBy = 'system';
+
+  if (event.body) {
+    try {
+      const body = JSON.parse(event.body);
+      alertIds = body.alert_ids || [];
+      acknowledgedBy = body.acknowledged_by || 'system';
+    } catch {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid request body' }),
+      };
+    }
+  }
+
+  if (!alertIds.length) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'alert_ids array is required' }),
+    };
+  }
+
+  // Update each alert individually (DynamoDB doesn't support batch updates)
+  const results = await Promise.allSettled(
+    alertIds.map(async (alertId) => {
+      const command = new UpdateCommand({
+        TableName: ALERTS_TABLE,
+        Key: { alert_id: alertId },
+        UpdateExpression: 'SET acknowledged = :ack, acknowledged_at = :ack_at, acknowledged_by = :ack_by',
+        ConditionExpression: 'acknowledged = :not_ack',
+        ExpressionAttributeValues: {
+          ':ack': 'true',
+          ':ack_at': now,
+          ':ack_by': acknowledgedBy,
+          ':not_ack': 'false',
+        },
+        ReturnValues: 'ALL_NEW',
+      });
+
+      return docClient.send(command);
+    })
+  );
+
+  const acknowledged = results.filter(r => r.status === 'fulfilled').length;
+  const failed = results.filter(r => r.status === 'rejected').length;
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      acknowledged,
+      failed,
+      total: alertIds.length,
+    }),
   };
 }

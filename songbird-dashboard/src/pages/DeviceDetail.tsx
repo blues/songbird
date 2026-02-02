@@ -1,10 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, Clock, Activity, MapPin, Satellite, Radio, Lock, Route, Navigation } from 'lucide-react';
+import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, CheckCheck, Clock, Activity, MapPin, Satellite, Radio, Lock, Route, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { DeviceStatus } from '@/components/devices/DeviceStatus';
 import { LocationTrail } from '@/components/maps/LocationTrail';
 import { TelemetryChart } from '@/components/charts/TelemetryChart';
@@ -19,7 +30,7 @@ import { useJourneys, useJourneyDetail, useLocationHistoryFull, useLatestJourney
 import { useVisitedCities } from '@/hooks/useVisitedCities';
 import { VisitedCitiesMap } from '@/components/maps/VisitedCitiesMap';
 import { useCommands } from '@/hooks/useCommands';
-import { useDeviceAlerts, useAcknowledgeAlert } from '@/hooks/useAlerts';
+import { useDeviceAlerts, useAcknowledgeAlert, useBulkAcknowledgeAlerts } from '@/hooks/useAlerts';
 import { useIsAdmin, useCanSendCommands } from '@/hooks/useAuth';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { usePreferences } from '@/contexts/PreferencesContext';
@@ -167,6 +178,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const { data: commandsData } = useCommands(serialNumber!);
   const { data: alertsData } = useDeviceAlerts(serialNumber!);
   const acknowledgeMutation = useAcknowledgeAlert();
+  const bulkAcknowledgeMutation = useBulkAcknowledgeAlerts();
 
   // Journey and location history hooks
   const { data: journeyDetailData, isLoading: journeyDetailLoading } = useJourneyDetail(serialNumber!, selectedJourneyId);
@@ -723,7 +735,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
 
           {/* Alerts Section */}
           <Card className="mt-6">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5" />
                 Alerts
@@ -731,6 +743,40 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                   <Badge variant="destructive">{activeAlerts.length} Active</Badge>
                 )}
               </CardTitle>
+              {canSendCommands && activeAlerts.length > 1 && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={bulkAcknowledgeMutation.isPending}
+                    >
+                      <CheckCheck className="h-4 w-4 mr-1" />
+                      Ack All
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Acknowledge All Alerts</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will acknowledge {activeAlerts.length} active alert{activeAlerts.length !== 1 ? 's' : ''} for this device.
+                        This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => {
+                          const alertIds = activeAlerts.map((a: Alert) => a.alert_id);
+                          bulkAcknowledgeMutation.mutate({ alertIds });
+                        }}
+                      >
+                        Acknowledge All
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </CardHeader>
             <CardContent>
               {alerts.length === 0 ? (

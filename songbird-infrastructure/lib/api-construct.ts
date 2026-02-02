@@ -565,6 +565,13 @@ export class ApiConstruct extends Construct {
       authorizer: this.authorizer,
     });
 
+    this.api.addRoutes({
+      path: '/v1/alerts/acknowledge-all',
+      methods: [apigateway.HttpMethod.POST],
+      integration: alertsIntegration,
+      authorizer: this.authorizer,
+    });
+
     // Activity feed endpoint
     const activityIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
       'ActivityIntegration',

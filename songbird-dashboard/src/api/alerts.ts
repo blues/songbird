@@ -46,3 +46,22 @@ export async function acknowledgeAlert(
     acknowledged_by: acknowledgedBy,
   });
 }
+
+interface BulkAcknowledgeResponse {
+  acknowledged: number;
+  failed: number;
+  total: number;
+}
+
+/**
+ * Acknowledge multiple alerts at once
+ */
+export async function acknowledgeAllAlerts(
+  alertIds: string[],
+  acknowledgedBy?: string
+): Promise<BulkAcknowledgeResponse> {
+  return apiPost<BulkAcknowledgeResponse>('/v1/alerts/acknowledge-all', {
+    alert_ids: alertIds,
+    acknowledged_by: acknowledgedBy,
+  });
+}
