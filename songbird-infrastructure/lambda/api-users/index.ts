@@ -15,6 +15,7 @@ import {
   AdminGetUserCommand,
   AdminUpdateUserAttributesCommand,
   AdminDeleteUserCommand,
+  AdminConfirmSignUpCommand,
   ListGroupsCommand,
   type AttributeType,
   type GroupType,
@@ -503,6 +504,33 @@ export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer): P
         statusCode: 200,
         headers,
         body: JSON.stringify({ devices }),
+      };
+    }
+
+    // POST /v1/users/{userId}/confirm - Confirm an unconfirmed user
+    if (method === 'POST' && path.match(/^\/v1\/users\/[^/]+\/confirm$/)) {
+      const userId = event.pathParameters?.userId;
+      if (!userId) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'User ID required' }),
+        };
+      }
+
+      // Confirm the user in Cognito
+      await cognitoClient.send(new AdminConfirmSignUpCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: userId,
+      }));
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          message: 'User confirmed successfully',
+          username: userId,
+        }),
       };
     }
 

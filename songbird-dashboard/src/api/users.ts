@@ -72,3 +72,7 @@ export async function getUnassignedDevices(): Promise<UnassignedDevice[]> {
 export async function deleteUser(userId: string): Promise<void> {
   await apiDelete(`/v1/users/${userId}`);
 }
+
+export async function confirmUser(userId: string): Promise<void> {
+  await apiPost(`/v1/users/${userId}/confirm`);
+}

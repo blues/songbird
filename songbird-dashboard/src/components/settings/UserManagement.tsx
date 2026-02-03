@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react';
-import { Users, UserPlus, Mail, Shield, Cpu, RefreshCw, Pencil, Trash2 } from 'lucide-react';
+import { Users, UserPlus, Mail, Shield, Cpu, RefreshCw, Pencil, Trash2, UserCheck } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useUsers, useDeleteUser } from '@/hooks/useUsers';
+import { useUsers, useDeleteUser, useConfirmUser } from '@/hooks/useUsers';
 import { useCurrentUserEmail } from '@/hooks/useAuth';
 import { useDevices } from '@/hooks/useDevices';
 import { InviteUserDialog } from './InviteUserDialog';
@@ -54,10 +54,12 @@ export function UserManagement() {
   const { data: devicesData } = useDevices();
   const { email: currentUserEmail } = useCurrentUserEmail();
   const deleteMutation = useDeleteUser();
+  const confirmMutation = useConfirmUser();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [assignDeviceUser, setAssignDeviceUser] = useState<UserInfo | null>(null);
   const [editGroupsUser, setEditGroupsUser] = useState<UserInfo | null>(null);
   const [deleteUserTarget, setDeleteUserTarget] = useState<UserInfo | null>(null);
+  const [confirmUserTarget, setConfirmUserTarget] = useState<UserInfo | null>(null);
 
   // Create a map of device_uid -> serial_number for quick lookup
   const deviceSerialMap = new Map(
@@ -72,6 +74,21 @@ export function UserManagement() {
         },
       });
     }
+  };
+
+  const handleConfirmUser = () => {
+    if (confirmUserTarget) {
+      confirmMutation.mutate(confirmUserTarget.username, {
+        onSuccess: () => {
+          setConfirmUserTarget(null);
+        },
+      });
+    }
+  };
+
+  // Check if a user can be confirmed (only UNCONFIRMED users)
+  const canConfirmUser = (user: UserInfo) => {
+    return user.status === 'UNCONFIRMED';
   };
 
   // Check if a user can be deleted (can't delete yourself)
@@ -146,7 +163,7 @@ export function UserManagement() {
               <div>
                 <div className="text-sm font-medium">Pending</div>
                 <div className="text-2xl font-bold">
-                  {users?.filter(u => u.status === 'FORCE_CHANGE_PASSWORD').length || 0}
+                  {users?.filter(u => u.status === 'FORCE_CHANGE_PASSWORD' || u.status === 'UNCONFIRMED').length || 0}
                 </div>
               </div>
             </div>
@@ -239,16 +256,29 @@ export function UserManagement() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      {canDeleteUser(user) && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeleteUserTarget(user)}
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {canConfirmUser(user) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setConfirmUserTarget(user)}
+                            className="h-8 w-8 text-muted-foreground hover:text-green-600"
+                            title="Confirm user"
+                          >
+                            <UserCheck className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canDeleteUser(user) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDeleteUserTarget(user)}
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -306,6 +336,28 @@ export function UserManagement() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirm User Dialog */}
+      <AlertDialog open={!!confirmUserTarget} onOpenChange={(open: boolean) => !open && setConfirmUserTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Confirm {confirmUserTarget?.name || confirmUserTarget?.email}? This will activate their account
+              and allow them to sign in.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={confirmMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmUser}
+              disabled={confirmMutation.isPending}
+            >
+              {confirmMutation.isPending ? 'Confirming...' : 'Confirm'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

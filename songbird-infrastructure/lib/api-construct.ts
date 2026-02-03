@@ -260,6 +260,7 @@ export class ApiConstruct extends Construct {
         'cognito-idp:AdminRemoveUserFromGroup',
         'cognito-idp:AdminListGroupsForUser',
         'cognito-idp:AdminDeleteUser',
+        'cognito-idp:AdminConfirmSignUp',
         'cognito-idp:ListGroups',
       ],
       resources: [props.userPool.userPoolArn],
@@ -650,6 +651,14 @@ export class ApiConstruct extends Construct {
     this.api.addRoutes({
       path: '/v1/users/{userId}/device',
       methods: [apigateway.HttpMethod.PUT],
+      integration: usersIntegration,
+      authorizer: this.authorizer,
+    });
+
+    // Confirm unconfirmed user (Admin only)
+    this.api.addRoutes({
+      path: '/v1/users/{userId}/confirm',
+      methods: [apigateway.HttpMethod.POST],
       integration: usersIntegration,
       authorizer: this.authorizer,
     });
