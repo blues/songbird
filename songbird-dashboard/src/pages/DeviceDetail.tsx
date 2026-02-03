@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, CheckCheck, Clock, Activity, MapPin, Satellite, Radio, Lock, Route, Navigation } from 'lucide-react';
+import { ArrowLeft, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, CheckCheck, Clock, Activity, MapPin, Satellite, Radio, Lock, Route, Navigation, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -347,14 +347,30 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
           </div>
         </div>
 
-        <Button
-          variant="outline"
-          onClick={() => setShowConfig(!showConfig)}
-          className="flex-shrink-0 w-full sm:w-auto"
-        >
-          <Settings className="h-4 w-4 mr-2" />
-          Config
-        </Button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button
+            variant="outline"
+            onClick={() => setShowConfig(!showConfig)}
+            className="flex-shrink-0 flex-1 sm:flex-none"
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            Config
+          </Button>
+          <Button
+            variant="outline"
+            asChild
+            className="flex-shrink-0 flex-1 sm:flex-none"
+          >
+            <a
+              href={`https://notehub.io/project/app:b5b8fc4a-d8ca-4bd8-84ad-39563006635d/devices/${device.device_uid}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              View in Notehub
+            </a>
+          </Button>
+        </div>
       </div>
 
       {/* Config Panel - Mobile (shown at top) */}
