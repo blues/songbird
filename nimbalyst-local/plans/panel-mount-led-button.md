@@ -51,7 +51,7 @@ The current Songbird device uses the internal user button on the Notecarrier CX 
 | --- | --- | --- |
 | **Red** | LED+ | LED positive (anode) |
 | **Black** | LED- | LED negative (cathode/ground) |
-| **Yellow** | C1 (Common) | Switch common terminal → PB9 (D6) |
+| **Green** | C1 (Common) | Switch common terminal → PB9 (D6) |
 | **White** | NO1 (Normally Open) | Open until pressed → GND |
 | **Blue** | NC1 (Normally Closed) | **NOT CONNECTED** |
 
@@ -92,7 +92,7 @@ The current Songbird device uses the internal user button on the Notecarrier CX 
     │  ┌─────┐         ┌─────┐   │
     │  │ LED │         │SWITCH│  │
     │  │     │         │      │  │
-    │  │ (+) │         │ COM  │──┼──► YELLOW wire ──► PB9 (D6)
+    │  │ (+) │         │ COM  │──┼──► GREEN wire ──► PB9 (D6)
     │  │  │  │         │      │  │
     │  │  │  │         │ NO   │──┼──► WHITE wire ──► GND
     │  │  │  │         │      │  │
@@ -125,7 +125,7 @@ For active-low button detection with internal pull-up:
             │  (~40kΩ)    │
             └──────┬──────┘
                    │
-    PB9  ◄─────────┼───────── YELLOW (Common/C1)
+    PB9  ◄─────────┼───────── GREEN (Common/C1)
     (D6)       │
                    │
               ┌────┴────┐
@@ -142,7 +142,7 @@ For active-low button detection with internal pull-up:
 
 **Alternative wiring** (if using external pull-up):
 - Connect WHITE (NO) to GND
-- Connect YELLOW (Common) to GPIO with external 10kΩ pull-up to 3.3V
+- Connect GREEN (Common) to GPIO with external 10kΩ pull-up to 3.3V
 
 ### LED Wiring (Direct 3.3V Drive)
 

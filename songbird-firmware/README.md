@@ -412,7 +412,7 @@ The device uses two button inputs and one LED output:
 
 | Wire Color | Function | Connection |
 | --- | --- | --- |
-| Yellow | Switch Common (C1) | PB9 (D6) |
+| Green | Switch Common (C1) | PB9 (D6) |
 | White | Normally Open (NO1) | GND |
 | Blue | Normally Closed (NC1) | Not connected |
 | Red | LED+ (Anode) | PB13 (D10) via 100Ω resistor |

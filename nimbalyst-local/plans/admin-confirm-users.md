@@ -32,7 +32,7 @@ This feature adds a UI control in the User Management section allowing Admins to
 
 ### Backend Changes
 
-**Lambda: `songbird-infrastructure/lambda/users/`**
+**Lambda: ****`songbird-infrastructure/lambda/users/`**
 
 1. Add `confirmUser` handler that calls Cognito `AdminConfirmSignUp` API
 2. Ensure the API returns user confirmation status in `listUsers` response
@@ -40,7 +40,7 @@ This feature adds a UI control in the User Management section allowing Admins to
 
 ### Frontend Changes
 
-**Dashboard: `songbird-dashboard/src/`**
+**Dashboard: ****`songbird-dashboard/src/`**
 
 1. Update User type to include confirmation status
 2. Add "Confirm" button in user table for unconfirmed users
