@@ -12,9 +12,9 @@ React-based fleet management dashboard for the Songbird sales demo platform.
 - Location history with source filtering
 - Remote device configuration
 - Cloud-to-device command sending
-- Alert management with acknowledgment workflows
+- Alert management with acknowledgment workflows, including bulk acknowledgement
 - Cognito-based authentication with role-based access
-- User management (Admin only): invite users, assign groups, assign devices
+- User management (Admin only): invite users, assign groups, assign devices, confirm invited users
 - User profile management with editable display name
 - User preferences (temperature units, time format, distance units, map style, default time range)
 - Journey playback with Mapbox road-snapping for smooth route visualization
@@ -26,6 +26,8 @@ React-based fleet management dashboard for the Songbird sales demo platform.
 - **My Device view**: Dedicated "My Device" page for users with a claimed device, accessible from the navigation
 - **Cities visited**: View a list of cities visited by a device with visit counts and timestamps
 - **Device Wi-Fi configuration**: Device owners can set Wi-Fi credentials that sync to the Notecard
+- **Notehub integration**: Direct link to view device in Notehub console from device detail page
+- **Lock override**: Admin-only ability to remotely clear transit or demo lock via command
 - **Natural language analytics**: Query device data using natural language with AI-powered visualization (feature flag controlled)
 
 ## Technology Stack
@@ -349,7 +351,7 @@ This approach reduces data transfer (battery is sampled by the Notecard, not sen
 
 ### Transit Lock
 
-Devices can be physically locked into transit mode by double-clicking the user button on the device. When transit lock is active:
+Devices can be physically locked into transit mode by single-clicking the user button on the device. When transit lock is active:
 
 - The mode badge displays an **amber background** with a **lock icon**
 - The device operates in transit mode with full GPS tracking
@@ -510,6 +512,7 @@ The dashboard communicates with the Songbird API via:
 ### Alerts
 - `GET /v1/alerts` - List all alerts (with optional `serial_number` filter)
 - `POST /v1/alerts/{alert_id}/acknowledge` - Acknowledge an alert
+- `POST /v1/alerts/bulk-acknowledge` - Acknowledge multiple alerts at once
 
 ### Settings & Activity
 - `GET /v1/settings` - Get user settings/preferences
@@ -524,6 +527,7 @@ The dashboard communicates with the Songbird API via:
 - `GET /v1/users` - List all users
 - `GET /v1/users/{userId}` - Get user details
 - `POST /v1/users` - Invite new user
+- `POST /v1/users/{userId}/confirm` - Confirm/activate an invited user
 - `GET /v1/users/groups` - List available groups
 - `PUT /v1/users/{userId}/groups` - Update user group memberships
 - `PUT /v1/users/{userId}/device` - Assign device to user

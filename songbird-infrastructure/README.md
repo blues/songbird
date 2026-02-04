@@ -297,9 +297,11 @@ The journey detail endpoint returns power consumption data when Mojo power monit
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/v1/devices/{serial_number}/commands` | Get command history for device |
-| POST | `/v1/devices/{serial_number}/commands` | Send command to device |
+| POST | `/v1/devices/{serial_number}/commands` | Send command to device (ping, locate, play_melody, lock_override) |
 | GET | `/v1/commands` | Get all commands across devices (optional `serial_number` query param) |
 | DELETE | `/v1/commands/{command_id}` | Delete a command (requires `serial_number` query param) |
+
+**Note**: The `lock_override` command is Admin-only and remotely clears transit or demo lock on a device.
 
 #### Configuration
 | Method | Path | Description |
@@ -319,6 +321,7 @@ The journey detail endpoint returns power consumption data when Mojo power monit
 |--------|------|-------------|
 | GET | `/v1/alerts` | List all alerts (with optional `serial_number` filter) |
 | POST | `/v1/alerts/{alert_id}/acknowledge` | Acknowledge an alert |
+| POST | `/v1/alerts/bulk-acknowledge` | Acknowledge multiple alerts at once |
 
 #### Settings & Activity
 | Method | Path | Description |
@@ -337,6 +340,7 @@ The journey detail endpoint returns power consumption data when Mojo power monit
 | GET | `/v1/users` | List all users |
 | GET | `/v1/users/{userId}` | Get user details |
 | POST | `/v1/users` | Invite new user (creates Cognito user, sends invite email) |
+| POST | `/v1/users/{userId}/confirm` | Confirm/activate an invited user |
 | GET | `/v1/users/groups` | List available Cognito groups |
 | PUT | `/v1/users/{userId}/groups` | Update user group memberships |
 | PUT | `/v1/users/{userId}/device` | Assign device to user (one device per user) |

@@ -61,6 +61,8 @@ src/
 - **Operating Modes**: demo, transit, storage, sleep (different power/sync profiles)
 - **Transit Lock**: Single-click button to lock device in transit mode for shipping
 - **Demo Lock**: Double-click button to lock device in demo mode for presentations
+- **Lock Override**: Admin-only command to remotely clear transit or demo lock
+- **External Panel-Mount Button**: LED pushbutton with visual feedback (LED on when locked)
 - **ATTN-based Sleep**: Low-power operation using Notecard ATTN pin
 - **Inbound Commands**: Received via `command.qi` notefile
 - **Outbound Notefiles**: `track.qo`, `_track.qo`, `_geolocate.qo`, `alert.qo`, `command_ack.qo`, `health.qo`
@@ -73,18 +75,28 @@ lib/
 ├── songbird-stack.ts       # Main CDK stack
 ├── storage-construct.ts    # DynamoDB tables
 ├── auth-construct.ts       # Cognito user pools & groups
-├── iot-construct.ts        # Ingest endpoint + SNS alerts
 ├── api-construct.ts        # HTTP API + Lambda functions
+├── analytics-construct.ts  # PostHog integration
 └── dashboard-construct.ts  # S3 + CloudFront for SPA
 
 lambda/
-├── ingest/                 # Processes events from Notehub
-├── devices/                # Device CRUD operations
-├── telemetry/              # Fetch telemetry data
-├── commands/               # Send commands to devices
-├── alerts/                 # Alert management
-├── users/                  # User management
-└── config/                 # Fleet configuration
+├── api-ingest/             # Processes events from Notehub
+├── api-devices/            # Device CRUD operations
+├── api-telemetry/          # Fetch telemetry data
+├── api-commands/           # Send commands to devices
+├── api-alerts/             # Alert management (incl. bulk acknowledgement)
+├── api-users/              # User management (incl. confirmation)
+├── api-config/             # Fleet configuration
+├── api-activity/           # Activity feed
+├── api-settings/           # User settings
+├── api-firmware/           # Firmware management
+├── api-journeys/           # Journey management
+├── api-notehub/            # Notehub API proxy
+├── api-public-device/      # Public device sharing
+├── api-visited-cities/     # Cities visited tracking
+├── analytics/              # Analytics event processing
+├── cognito-post-confirmation/  # Cognito triggers
+└── shared/                 # Shared utilities
 ```
 
 **Tech Stack:**
@@ -135,11 +147,16 @@ src/
 - **Fleet Map**: Full-screen map with clustering, filtering, search
 - **Device Detail**: Real-time telemetry, location history, journey playback
 - **Journey Playback**: Animated GPS track visualization with road-snapping (Mapbox Map Matching API)
-- **Alert Management**: Temperature threshold alerts with acknowledge/resolve workflow
-- **Command & Control**: Send commands (ping, locate, play_melody) to devices
-- **User Management**: Admin can create users, assign to groups, manage permissions
+- **Alert Management**: Temperature threshold alerts with acknowledge/resolve workflow, bulk acknowledgement
+- **Command & Control**: Send commands (ping, locate, play_melody, lock_override) to devices
+- **User Management**: Admin can create users, assign to groups, manage permissions, confirm invited users
 - **Device Assignment**: Assign devices to users for accountability
+- **My Device**: Dedicated page for users to view their personally assigned device
+- **Cities Visited**: Track and display cities visited by a device with visit counts
+- **Wi-Fi Credentials**: Device owners can set Wi-Fi credentials that sync to the Notecard
 - **Fleet Configuration**: Set default environment variables synced to Notehub
+- **Notehub Integration**: Direct link to view device in Notehub console
+- **Public Device Sharing**: Share device views via public URL without authentication
 - **Responsive Design**: Mobile-friendly layouts
 
 ## Development Workflow

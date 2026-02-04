@@ -77,13 +77,20 @@ Songbird is a portable, battery-powered asset tracker and environmental monitor 
 | **User Management** | Role-based access with Admin, Sales, Field Engineering, Viewer groups |
 | **Device Assignment** | Assign devices to users for accountability tracking |
 | **Fleet Defaults** | Configure default settings per fleet, synced to Notehub environment variables |
-| **Transit Lock** | Double-click button to lock device in transit mode for shipping |
+| **Transit Lock** | Single-click button to lock device in transit mode for shipping |
 | **Journey Tracking** | Record and playback GPS journeys with velocity and bearing data |
 | **Location History** | View all location events with filtering by source (GPS, Cell, Wi-Fi) |
 | **CI/CD Deployment** | Automated dashboard deployment via GitHub Actions |
 | **Notecard Swapping** | Swap Notecard hardware while preserving device identity and all historical data |
 | **Analytics & Feature Flags** | PostHog integration for usage analytics and remote feature control |
 | **Public Device Sharing** | Share device views via public URL without authentication (audit logged) |
+| **Bulk Alert Acknowledgement** | Acknowledge multiple alerts at once from the Alerts page |
+| **Lock Override** | Admin-only ability to remotely override device transit/demo locks |
+| **My Device** | Dedicated page for users to view their personally assigned device |
+| **Cities Visited** | Track and display cities visited by a device with visit counts |
+| **Wi-Fi Credentials** | Device owners can set Wi-Fi credentials that sync to the Notecard |
+| **Notehub Integration** | Direct link to view device in Notehub console from device detail page |
+| **User Confirmation** | Admins can confirm/activate newly invited users |
 
 ## Project Structure
 
@@ -295,6 +302,7 @@ When a new Notecard sends data with an existing serial number:
 | `play_melody` | Play specific melody |
 | `test_audio` | Play test tone |
 | `set_volume` | Adjust audio volume |
+| `lock_override` | Admin-only: remotely clear transit or demo lock |
 
 ## Notefiles
 
