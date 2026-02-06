@@ -34,6 +34,8 @@ export function useUpdateDeviceConfig() {
     }) => updateDeviceConfig(serialNumber, config),
     onSuccess: (_, { serialNumber }) => {
       queryClient.invalidateQueries({ queryKey: ['config', serialNumber] });
+      queryClient.invalidateQueries({ queryKey: ['devices'] });
+      queryClient.invalidateQueries({ queryKey: ['device', serialNumber] });
     },
   });
 }

@@ -14,6 +14,7 @@ import {
   Radio,
   Lock,
   Merge,
+  ArrowRight,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -359,6 +360,12 @@ export function Devices() {
                       {formatMode(device.mode)}
                     </Badge>
                   )}
+                  {device.pending_mode && device.pending_mode !== device.mode && (
+                    <Badge variant="outline" className="ml-1 text-xs gap-1 border-blue-300 bg-blue-50 text-blue-700 animate-pulse">
+                      <ArrowRight className="h-2.5 w-2.5" />
+                      {formatMode(device.pending_mode)}
+                    </Badge>
+                  )}
                 </div>
 
                 {/* Stats row */}
@@ -524,6 +531,12 @@ export function Devices() {
                               >
                                 {(device.transit_locked || device.demo_locked) && <Lock className="h-2.5 w-2.5" />}
                                 {formatMode(device.mode)}
+                              </Badge>
+                            )}
+                            {device.pending_mode && device.pending_mode !== device.mode && (
+                              <Badge variant="outline" className="ml-1 text-xs gap-1 border-blue-300 bg-blue-50 text-blue-700 animate-pulse">
+                                <ArrowRight className="h-2.5 w-2.5" />
+                                {formatMode(device.pending_mode)}
                               </Badge>
                             )}
                           </div>

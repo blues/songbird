@@ -1040,6 +1040,24 @@ async function updateDeviceMetadata(event: SongbirdEvent): Promise<void> {
 
   await docClient.send(command);
   console.log(`Updated device metadata for ${event.device_uid}`);
+
+  // Clear pending_mode if the device's reported mode matches it
+  if (event.body.mode) {
+    try {
+      await docClient.send(new UpdateCommand({
+        TableName: DEVICES_TABLE,
+        Key: { device_uid: event.device_uid },
+        UpdateExpression: 'REMOVE pending_mode',
+        ConditionExpression: 'pending_mode = :reported_mode',
+        ExpressionAttributeValues: { ':reported_mode': event.body.mode },
+      }));
+      console.log(`Cleared pending_mode for ${event.device_uid} (matched ${event.body.mode})`);
+    } catch (err: any) {
+      if (err.name !== 'ConditionalCheckFailedException') {
+        console.error('Error clearing pending_mode:', err);
+      }
+    }
+  }
 }
 
 async function processCommandAck(event: SongbirdEvent): Promise<void> {

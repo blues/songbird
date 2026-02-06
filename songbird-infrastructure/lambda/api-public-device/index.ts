@@ -162,6 +162,7 @@ function transformDevice(item: any): any {
     status: item.status,
     last_seen: item.last_seen ? new Date(item.last_seen).toISOString() : undefined,
     mode: item.current_mode,
+    pending_mode: item.pending_mode || null,
     transit_locked: item.transit_locked || false,
     demo_locked: item.demo_locked || false,
     usb_powered: item.usb_powered || false,

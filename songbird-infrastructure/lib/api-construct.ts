@@ -158,12 +158,14 @@ export class ApiConstruct extends Construct {
         NOTEHUB_PROJECT_UID: props.notehubProjectUid,
         NOTEHUB_SECRET_ARN: notehubSecret.secretArn,
         DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
+        DEVICES_TABLE: props.devicesTable.tableName,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
     });
     notehubSecret.grantRead(configFunction);
     props.deviceAliasesTable.grantReadData(configFunction);
+    props.devicesTable.grantWriteData(configFunction);
 
     // Alerts API
     const alertsFunction = new NodejsFunction(this, 'AlertsFunction', {

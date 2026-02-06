@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Lock, Satellite, Wifi, Eye, EyeOff } from 'lucide-react';
+import { Lock, Satellite, Wifi, Eye, EyeOff, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -16,6 +16,7 @@ import { useDeviceConfig, useUpdateDeviceConfig, useSetDeviceWifi } from '@/hook
 import { useIsAdmin } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { usePreferences } from '@/contexts/PreferencesContext';
+import { formatMode } from '@/utils/formatters';
 import type { DeviceConfig, OperatingMode, MotionSensitivity } from '@/types';
 
 // Temperature conversion helpers
@@ -25,10 +26,12 @@ const fahrenheitToCelsius = (f: number) => Math.round(((f - 32) * 5) / 9);
 interface ConfigPanelProps {
   serialNumber: string;
   assignedTo?: string; // Email of the user the device is assigned to
+  pendingMode?: string | null;
+  currentMode?: string;
   onClose?: () => void;
 }
 
-export function ConfigPanel({ serialNumber, assignedTo, onClose }: ConfigPanelProps) {
+export function ConfigPanel({ serialNumber, assignedTo, pendingMode, currentMode, onClose }: ConfigPanelProps) {
   const { data: configData, isLoading } = useDeviceConfig(serialNumber);
   const updateConfig = useUpdateDeviceConfig();
   const setWifi = useSetDeviceWifi();
@@ -145,6 +148,12 @@ export function ConfigPanel({ serialNumber, assignedTo, onClose }: ConfigPanelPr
               <SelectItem value="sleep">Sleep (motion wake only)</SelectItem>
             </SelectContent>
           </Select>
+          {pendingMode && pendingMode !== currentMode && (
+            <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-700">
+              <Info className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>Mode change to "{formatMode(pendingMode as OperatingMode)}" is pending — waiting for device to sync</span>
+            </div>
+          )}
         </div>
 
         {/* Custom Intervals */}

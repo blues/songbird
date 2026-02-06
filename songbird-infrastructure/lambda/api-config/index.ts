@@ -11,7 +11,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 
 const secretsClient = new SecretsManagerClient({});
 const dynamoClient = new DynamoDBClient({});
@@ -20,6 +20,7 @@ const docClient = DynamoDBDocumentClient.from(dynamoClient);
 const NOTEHUB_PROJECT_UID = process.env.NOTEHUB_PROJECT_UID!;
 const NOTEHUB_SECRET_ARN = process.env.NOTEHUB_SECRET_ARN!;
 const DEVICE_ALIASES_TABLE = process.env.DEVICE_ALIASES_TABLE || 'songbird-device-aliases';
+const DEVICES_TABLE = process.env.DEVICES_TABLE!;
 
 /**
  * Resolve serial number to device_uid using the aliases table
@@ -251,6 +252,21 @@ async function updateDeviceConfig(
         headers,
         body: JSON.stringify({ error: 'Failed to update config in Notehub' }),
       };
+    }
+
+    // If mode was changed, write pending_mode to Devices table
+    if (updates.mode) {
+      try {
+        await docClient.send(new UpdateCommand({
+          TableName: DEVICES_TABLE,
+          Key: { device_uid: deviceUid },
+          UpdateExpression: 'SET pending_mode = :pm',
+          ExpressionAttributeValues: { ':pm': updates.mode },
+        }));
+        console.log(`Set pending_mode=${updates.mode} for device ${deviceUid}`);
+      } catch (err) {
+        console.error('Failed to set pending_mode (non-fatal):', err);
+      }
     }
 
     return {

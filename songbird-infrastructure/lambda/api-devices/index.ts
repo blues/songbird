@@ -293,6 +293,7 @@ function transformDevice(item: any): any {
     // Convert millisecond timestamp to ISO string for frontend
     last_seen: item.last_seen ? new Date(item.last_seen).toISOString() : undefined,
     mode: item.current_mode,
+    pending_mode: item.pending_mode || null,
     transit_locked: item.transit_locked || false,
     demo_locked: item.demo_locked || false,
     gps_power_saving: item.gps_power_saving || false,

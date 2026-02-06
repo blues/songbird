@@ -45,6 +45,7 @@ export interface Device {
   status: DeviceStatus;
   last_seen?: string;
   mode: OperatingMode;
+  pending_mode?: OperatingMode | null;
   transit_locked?: boolean;
   demo_locked?: boolean;
   gps_power_saving?: boolean;
