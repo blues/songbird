@@ -38,6 +38,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useHostFirmware, useDfuStatus, useCancelFirmwareUpdate } from '@/hooks/useFirmware';
+import { useDevices } from '@/hooks/useDevices';
 import { FirmwareUpdateDialog } from './FirmwareUpdateDialog';
 import { formatRelativeTime } from '@/utils/formatters';
 import type { HostFirmware, DeviceDfuStatus } from '@/types';
@@ -139,7 +140,14 @@ export function FirmwareManagement() {
     isFetching: fetchingStatus,
   } = useDfuStatus();
 
+  const { data: devices } = useDevices();
+
   const cancelUpdate = useCancelFirmwareUpdate();
+
+  // Build a lookup map from device_uid to device info
+  const deviceByUid = new Map(
+    (devices?.devices || []).map((d) => [d.device_uid, d])
+  );
 
   const handleDeploy = (fw: HostFirmware) => {
     setSelectedFirmware(fw);
@@ -384,6 +392,7 @@ export function FirmwareManagement() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Device</TableHead>
+                    <TableHead>Assigned To</TableHead>
                     <TableHead>Current Version</TableHead>
                     <TableHead>Target Version</TableHead>
                     <TableHead>Status</TableHead>
@@ -394,12 +403,17 @@ export function FirmwareManagement() {
                 <TableBody>
                   {dfuStatus.devices.map((device: DeviceDfuStatus) => {
                     const latestUpdate = device.updates?.[device.updates.length - 1];
-                    const deviceName = device.serial_number || device.device_uid;
+                    const matchedDevice = deviceByUid.get(device.device_uid);
+                    const deviceName = device.serial_number || matchedDevice?.serial_number || device.device_uid;
+                    const assignedUser = matchedDevice?.assigned_to_name;
                     const canCancel = isStatusCancellable(device.status);
                     return (
                       <TableRow key={device.device_uid}>
                         <TableCell className="font-medium">
                           {deviceName}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {assignedUser || '-'}
                         </TableCell>
                         <TableCell className="font-mono text-sm">
                           {extractVersion(device.current_version)}
