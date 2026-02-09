@@ -86,6 +86,7 @@ songbird-infrastructure/
 │   │   ├── list-sessions.ts     # List all chat sessions
 │   │   ├── rerun-query.ts       # Re-run previous query
 │   │   └── sync-to-aurora.ts    # Sync DynamoDB data to Aurora
+│   ├── alert-email/             # Email notifications for low battery alerts
 │   ├── cognito-post-confirmation/  # Cognito post-confirmation trigger
 │   └── shared/                  # Shared utilities
 │       └── device-lookup.ts     # Serial number to device UID resolution
@@ -227,7 +228,38 @@ Create an HTTP route in Notehub to send events to the API Gateway ingest endpoin
 
 **Testing the Route**: After creating the route, you can test it by clicking the route and selecting **Test Route**. Send a sample event and verify it returns a 200 status.
 
-### 3. Create Initial Cognito Users
+### 3. Verify SES Email Identity
+
+The stack creates an SES email identity for `brandon@blues.com` to send alert emails. You must verify this email address before alerts can be sent:
+
+**Option 1: Check Email for Verification Link**
+After deployment, AWS SES will send a verification email to `brandon@blues.com`. Click the verification link in that email.
+
+**Option 2: Manually Trigger Verification**
+```bash
+aws ses verify-email-identity \
+  --email-address brandon@blues.com \
+  --region us-east-1
+```
+
+**Check Verification Status:**
+```bash
+aws ses get-identity-verification-attributes \
+  --identities brandon@blues.com \
+  --region us-east-1
+```
+
+The `VerificationStatus` should be `Success`.
+
+**Important**: If you're in the SES sandbox (default for new AWS accounts), you can only send emails to verified addresses. To send to any email address:
+1. Go to AWS Console → SES → Account dashboard
+2. Click "Request production access"
+3. Fill out the form describing your use case
+4. Wait for approval (usually 24-48 hours)
+
+See [`lambda/alert-email/README.md`](./lambda/alert-email/README.md) for more details on the email notification system.
+
+### 4. Create Initial Cognito Users
 
 Create admin users for the dashboard:
 

@@ -85,20 +85,20 @@ When `updateDeviceConfig()` successfully writes to Notehub and the config includ
 In `updateDeviceMetadata()`, when `event.body.mode` is present:
 
 1. Conditionally remove `pending_mode` only when the device's reported mode matches the pending mode. This requires a DynamoDB condition expression:
-   ```
+```
    SET #mode = :mode ...
    REMOVE pending_mode
    ConditionExpression: pending_mode = :mode OR attribute_not_exists(pending_mode)
-   ```
+```
    However, since `updateDeviceMetadata` is a single unconditional update, we can't fail the whole update on a condition. Instead, use a two-step approach:
-   - In the main update, always set `current_mode` as today (no change).
-   - After the main update, issue a separate conditional update to clear `pending_mode` only if it matches the reported mode:
-     ```
+  - In the main update, always set `current_mode` as today (no change).
+  - After the main update, issue a separate conditional update to clear `pending_mode` only if it matches the reported mode:
+```
      UpdateExpression: "REMOVE pending_mode"
      ConditionExpression: "pending_mode = :reported_mode"
      ExpressionAttributeValues: { ":reported_mode": event.body.mode }
-     ```
-   - Wrap in try/catch and ignore `ConditionalCheckFailedException` (means pending mode doesn't match yet — the device hasn't applied the desired change).
+```
+  - Wrap in try/catch and ignore `ConditionalCheckFailedException` (means pending mode doesn't match yet — the device hasn't applied the desired change).
 
    This ensures the pending indicator stays visible until the device actually confirms the target mode, which is important when a user changes the mode multiple times quickly or when the device reports an intermediate mode.
 

@@ -6,7 +6,14 @@
 
 import * as cdk from 'aws-cdk-lib';
 import * as sns from 'aws-cdk-lib/aws-sns';
+import * as snsSubscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as ses from 'aws-cdk-lib/aws-ses';
+import * as iam from 'aws-cdk-lib/aws-iam';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
+import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as path from 'path';
 import { StorageConstruct } from './storage-construct';
 import { ApiConstruct } from './api-construct';
 import { DashboardConstruct } from './dashboard-construct';
@@ -101,6 +108,62 @@ export class SongbirdStack extends cdk.Stack {
     });
 
     // ==========================================================================
+    // SES Email Identity (for alert emails)
+    // ==========================================================================
+    // Note: Email identity 'brandon@blues.com' must be verified in SES
+    // The identity already exists and is managed outside of CDK
+    // We just reference it here for documentation purposes
+
+    // ==========================================================================
+    // Alert Email Lambda
+    // ==========================================================================
+    const alertEmailLambda = new NodejsFunction(this, 'AlertEmailFunction', {
+      functionName: 'songbird-alert-email',
+      description: 'Sends email notifications for low battery alerts to device owners',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/alert-email/index.ts'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        DEVICES_TABLE: storage.devicesTable.tableName,
+        ALERTS_TABLE: storage.alertsTable.tableName,
+        SENDER_EMAIL: 'brandon@blues.com',
+        DASHBOARD_URL: 'https://songbird.live',
+      },
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        externalModules: ['@aws-sdk/*'],
+      },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+
+    // Grant permissions to the alert email Lambda
+    storage.devicesTable.grantReadData(alertEmailLambda);
+    storage.alertsTable.grantReadWriteData(alertEmailLambda);
+
+    // Grant permission to send emails via SES
+    alertEmailLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+      resources: ['*'],
+      conditions: {
+        StringEquals: {
+          'ses:FromAddress': 'brandon@blues.com',
+        },
+      },
+    }));
+
+    // Subscribe the email Lambda to the SNS alert topic
+    alertTopic.addSubscription(new snsSubscriptions.LambdaSubscription(alertEmailLambda, {
+      filterPolicy: {
+        alert_type: sns.SubscriptionFilter.stringFilter({
+          allowlist: ['low_battery'],
+        }),
+      },
+    }));
+
+    // ==========================================================================
     // Outputs
     // ==========================================================================
     new cdk.CfnOutput(this, 'ApiUrl', {
@@ -155,6 +218,18 @@ export class SongbirdStack extends cdk.Stack {
       value: analytics.chatHistoryTable.tableName,
       description: 'Analytics chat history table name',
       exportName: 'SongbirdChatHistoryTable',
+    });
+
+    new cdk.CfnOutput(this, 'AlertEmailIdentity', {
+      value: 'brandon@blues.com',
+      description: 'SES email identity for alerts (must be verified)',
+      exportName: 'SongbirdAlertEmailIdentity',
+    });
+
+    new cdk.CfnOutput(this, 'AlertEmailLambdaArn', {
+      value: alertEmailLambda.functionArn,
+      description: 'Alert email Lambda function ARN',
+      exportName: 'SongbirdAlertEmailLambdaArn',
     });
   }
 }
