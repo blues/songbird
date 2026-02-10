@@ -184,29 +184,19 @@ async function getDevice(deviceUid: string): Promise<Device | null> {
 
 /**
  * Check if a recent alert of the given type exists for this device
+ * Checks for the existence of the claim record
  */
 async function isRecentAlert(deviceUid: string, alertType: string): Promise<boolean> {
-  const cutoffTime = Date.now() - DEDUP_WINDOW_MS;
-
   try {
-    const result = await docClient.send(new QueryCommand({
+    // Check if the claim record exists (same ID format as tryClaimAlert)
+    const alertId = `email_claim_${deviceUid}_${alertType}`;
+
+    const result = await docClient.send(new GetCommand({
       TableName: ALERTS_TABLE,
-      IndexName: 'device-index',
-      KeyConditionExpression: 'device_uid = :device_uid AND created_at > :cutoff',
-      FilterExpression: '#type = :alert_type AND email_sent = :true',
-      ExpressionAttributeNames: {
-        '#type': 'type',
-      },
-      ExpressionAttributeValues: {
-        ':device_uid': deviceUid,
-        ':alert_type': alertType,
-        ':cutoff': cutoffTime,
-        ':true': true,
-      },
-      Limit: 1,
+      Key: { alert_id: alertId },
     }));
 
-    return (result.Items?.length || 0) > 0;
+    return result.Item !== undefined;
   } catch (error) {
     console.error('Error checking for recent alerts:', error);
     // If we can't check, err on the side of sending the email
@@ -396,8 +386,9 @@ async function sendBatteryRecoveryEmail(
 async function tryClaimAlert(deviceUid: string, alertType: string): Promise<boolean> {
   const now = Date.now();
   const ttl = Math.floor(now / 1000) + TTL_SECONDS;
-  // Use timestamp-based ID for consistent claiming within same millisecond
-  const alertId = `email_${deviceUid}_${alertType}_${now}`;
+  // Use FIXED alert ID based on device and type only (no timestamp)
+  // This ensures all concurrent invocations try to write the SAME record
+  const alertId = `email_claim_${deviceUid}_${alertType}`;
 
   try {
     await docClient.send(new PutCommand({
@@ -465,20 +456,14 @@ async function recordEmailSent(deviceUid: string, alertType: string): Promise<vo
  */
 async function clearEmailSentRecord(deviceUid: string, alertType: string): Promise<void> {
   try {
-    // Find the most recent email sent record
-    const recentAlert = await getRecentAlert(deviceUid, alertType);
+    // Use the same fixed alert ID format as tryClaimAlert
+    const alertId = `email_claim_${deviceUid}_${alertType}`;
 
-    if (!recentAlert) {
-      console.log(`No email tracking record found for ${alertType} on device ${deviceUid}`);
-      return;
-    }
-
-    // Delete the tracking record
+    // Delete the claim record
     await docClient.send(new DeleteCommand({
       TableName: ALERTS_TABLE,
       Key: {
-        alert_id: recentAlert.alert_id,
-        created_at: recentAlert.created_at,
+        alert_id: alertId,
       },
     }));
 
