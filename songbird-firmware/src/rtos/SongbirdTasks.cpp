@@ -623,6 +623,14 @@ void SensorTask(void* pvParameters) {
         SongbirdConfig config;
         tasksGetConfig(&config);
 
+        // Check if sensors should be read in current mode
+        uint32_t interval = envGetSensorIntervalMs(&config);
+        if (interval == 0) {
+            // Sleep mode - sensors disabled, just wait
+            vTaskDelay(pdMS_TO_TICKS(60000));  // 1 minute wait in sleep mode
+            continue;
+        }
+
         // Read sensors
         bool readSuccess = false;
         if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
@@ -711,14 +719,8 @@ void SensorTask(void* pvParameters) {
             syncQueueNote(&noteItem);
         }
 
-        // Wait for next interval
-        uint32_t interval = envGetSensorIntervalMs(&config);
-        if (interval > 0) {
-            vTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(interval));
-        } else {
-            // Sleep mode - just wait
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
+        // Wait for next interval (interval guaranteed > 0 here due to check above)
+        vTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(interval));
     }
 }
 
