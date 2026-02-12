@@ -372,12 +372,12 @@ In transit mode, the dashboard displays GPS status indicators to help users unde
 | Indicator | Description |
 | --- | --- |
 | **GPS Off** (gray badge) | GPS is disabled for power saving (no signal acquired within timeout) |
-| **No Satellite** (orange badge) | Device is actively trying to acquire GPS but cannot see satellites |
+| **No GPS** (orange badge) | Device is actively trying to acquire GPS but cannot see satellites |
 
 These indicators appear next to the device mode badge on the device detail page. They help users understand why GPS location data may not be updating:
 
 - **GPS Off**: The device disabled GPS to save battery after failing to acquire a signal. GPS will retry after the configured interval.
-- **No Satellite**: The Notecard is actively searching but cannot acquire satellites (device may be indoors or in a poor signal area).
+- **No GPS**: The Notecard is actively searching but cannot acquire satellites (device may be indoors or in a poor signal area).
 
 Related alerts are also generated and appear in the Alerts page:
 - `GPS Power Save` - Created when GPS is disabled for power saving

@@ -341,7 +341,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
             {device.gps_no_sat && device.mode === 'transit' && (
               <Badge variant="outline" className="gap-1 bg-orange-50 border-orange-200 text-orange-700">
                 <Satellite className="h-3 w-3" />
-                No Satellite
+                No GPS
               </Badge>
             )}
             {device.last_seen && (
