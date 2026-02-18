@@ -161,14 +161,14 @@ export class ObservabilityConstruct extends Construct {
           protocol: ecs.Protocol.TCP,
           name: 'grpc',
         },
+        {
+          containerPort: 4318,
+          protocol: ecs.Protocol.TCP,
+          name: 'otlp-http',
+        },
       ],
-      healthCheck: {
-        command: ['CMD-SHELL', 'curl -f http://localhost:6006/healthz || exit 1'],
-        interval: cdk.Duration.seconds(30),
-        timeout: cdk.Duration.seconds(5),
-        retries: 3,
-        startPeriod: cdk.Duration.seconds(60),
-      },
+      // Removed container health check - relying on ALB target group health checks instead
+      // Phoenix container may not have curl/wget, and ALB checks are sufficient
     });
 
     // Mount EFS volume
@@ -264,21 +264,19 @@ export class ObservabilityConstruct extends Construct {
       this.phoenixEndpoint = `http://${this.loadBalancer.loadBalancerDnsName}`;
     }
 
-    // HTTP listener for OTLP traces (port 4317)
-    // Note: Using HTTP (not HTTPS) for simplicity since no domain/certificate is configured
-    // OTLP works fine over HTTP - no need for gRPC protocol version
+    // HTTP listener for OTLP traces (port 4318)
+    // Using HTTP protocol on port 4318 (standard OTLP/HTTP port)
+    // Port 4317 is for gRPC which requires HTTPS on ALB
     const otlpListener = this.loadBalancer.addListener('OtlpListener', {
-      port: 4317,
+      port: 4318,
       protocol: elbv2.ApplicationProtocol.HTTP,
       open: true,
     });
 
     otlpListener.addTargets('PhoenixOTLP', {
-      port: 4317,
+      port: 4318,
       protocol: elbv2.ApplicationProtocol.HTTP,
       targets: [this.service],
-      // Removed protocolVersion GRPC - HTTP listener doesn't support it
-      // OTLP over HTTP works without gRPC protocol version
       healthCheck: {
         // Check the UI port (6006) health endpoint instead of OTLP port
         // OTLP port doesn't have a health check endpoint
@@ -321,8 +319,9 @@ export class ObservabilityConstruct extends Construct {
     // Exports
     // ==========================================================================
     // phoenixEndpoint already set above based on domain availability
-    // Using HTTP for OTLP (not gRPC) since ALB HTTP listener doesn't support gRPC protocol version
-    this.otlpEndpoint = `http://${this.loadBalancer.loadBalancerDnsName}:4317`;
+    // Using HTTP OTLP on port 4318 (standard OTLP/HTTP port)
+    // Port 4317 is for gRPC which requires HTTPS on ALB
+    this.otlpEndpoint = `http://${this.loadBalancer.loadBalancerDnsName}:4318/v1/traces`;
 
     // ==========================================================================
     // Outputs

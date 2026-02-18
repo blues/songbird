@@ -65,14 +65,27 @@ export class SongbirdStack extends cdk.Stack {
     });
 
     // ==========================================================================
+    // Route53 Hosted Zone for songbird.live
+    // ==========================================================================
+    const hostedZone = new route53.PublicHostedZone(this, 'HostedZone', {
+      zoneName: 'songbird.live',
+      comment: 'Hosted zone for Songbird demo platform',
+    });
+
+    // Output nameservers for updating at your domain registrar
+    new cdk.CfnOutput(this, 'NameServers', {
+      value: cdk.Fn.join(', ', hostedZone.hostedZoneNameServers!),
+      description: 'Nameservers to configure at your domain registrar',
+      exportName: 'SongbirdNameServers',
+    });
+
+    // ==========================================================================
     // Observability Layer (Arize Phoenix on ECS Fargate)
     // ==========================================================================
-    // Note: DNS/certificate setup skipped for now - will use ALB DNS directly
-    // To enable custom domain, create Route53 hosted zone and pass it here
     const observability = new ObservabilityConstruct(this, 'Observability', {
       vpc: analytics.vpc,
-      // domainName: 'phoenix.songbird.live',  // Uncomment when hosted zone exists
-      // hostedZone: route53.HostedZone.fromLookup(this, 'HostedZone', { domainName: 'songbird.live' }),
+      domainName: 'phoenix.songbird.live',
+      hostedZone: hostedZone,
     });
 
     // Configure analytics Lambda to send traces to Phoenix
