@@ -1,0 +1,74 @@
+/*
+ * JSONata transformation for Songbird to HarborScale integration
+ *
+ * Transforms all Songbird Notefiles into HarborScale's batch ingest format:
+ * [
+ *   {"ship_id": "device_serial", "cargo_id": "metric_name", "value": number}
+ * ]
+ *
+ * Supported Notefiles:
+ * - track.qo: Environmental telemetry (temp, humidity, pressure, motion)
+ * - _track.qo: GPS tracking data (velocity, bearing, distance, DOP)
+ * - _log.qo: Power monitoring (voltage, milliamp hours)
+ * - _health.qo: Health events (voltage, battery status)
+ * - alert.qo: Alert events (temperature thresholds)
+ * - _geolocate.qo: Triangulation location data
+ */
+
+/* Helper function to create a cargo entry */
+(
+  $cargo := function($cargo_id, $value) {
+    $exists($value) and $value != null ? {
+      "ship_id": sn,
+      "cargo_id": $cargo_id,
+      "value": $value
+    }
+  };
+
+  $metrics := file = 'track.qo' ? [
+    $cargo("temperature", body.temp),
+    $cargo("humidity", body.humidity),
+    $cargo("pressure", body.pressure),
+    $cargo("motion", body.motion = true ? 1 : (body.motion = false ? 0 : body.motion)),
+    $cargo("gps_power_saving", body.gps_power_saving = true ? 1 : 0),
+    $cargo("transit_locked", body.transit_locked = true ? 1 : 0),
+    $cargo("demo_locked", body.demo_locked = true ? 1 : 0),
+    $exists(best_lat) ? $cargo("latitude", best_lat),
+    $exists(best_lon) ? $cargo("longitude", best_lon)
+  ] : file = '_track.qo' ? [
+    $cargo("velocity", body.velocity),
+    $cargo("bearing", body.bearing),
+    $cargo("distance", body.distance),
+    $cargo("dop", body.dop),
+    $cargo("journey_id", body.journey),
+    $cargo("journey_point", body.jcount),
+    $cargo("tracking_seconds", body.seconds),
+    $exists(best_lat) ? $cargo("latitude", best_lat),
+    $exists(best_lon) ? $cargo("longitude", best_lon),
+    $cargo("gps_no_sat", status = 'no-sat' ? 1 : 0)
+  ] : file = '_log.qo' and body.voltage_mode != 'usb' ? [
+    $cargo("mojo_voltage", body.voltage),
+    $cargo("milliamp_hours", body.milliamp_hours),
+    $cargo("mojo_temperature", body.temperature)
+  ] : file = '_health.qo' ? [
+    $cargo("health_voltage", body.voltage),
+    $cargo("health_milliamp_hours", body.milliamp_hours),
+    $cargo("usb_powered", body.voltage_mode = 'usb' ? 1 : 0),
+    $exists(tri_lat) ? $cargo("tri_latitude", tri_lat),
+    $exists(tri_lon) ? $cargo("tri_longitude", tri_lon),
+    $exists(tower_lat) ? $cargo("tower_latitude", tower_lat),
+    $exists(tower_lon) ? $cargo("tower_longitude", tower_lon)
+  ] : file = 'alert.qo' ? [
+    $cargo("alert_" & body.type, 1),
+    $cargo("alert_value", body.value),
+    $cargo("alert_threshold", body.threshold)
+  ] : file = '_geolocate.qo' ? [
+    $exists(tri_lat) ? $cargo("tri_latitude", tri_lat),
+    $exists(tri_lon) ? $cargo("tri_longitude", tri_lon),
+    $cargo("tri_points", tri_points)
+  ] : file = '_session.qo' ? [
+    $cargo("usb_powered", power_usb = true ? 1 : (body.power_usb = true ? 1 : 0))
+  ] : [];
+
+  $metrics[$exists($)]
+)

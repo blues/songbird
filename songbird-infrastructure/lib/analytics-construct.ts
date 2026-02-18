@@ -34,6 +34,7 @@ export class AnalyticsConstruct extends Construct {
   public readonly getSessionLambda: lambda.Function;
   public readonly deleteSessionLambda: lambda.Function;
   public readonly rerunQueryLambda: lambda.Function;
+  public readonly vpc: ec2.Vpc;
 
   constructor(scope: Construct, id: string, props: AnalyticsConstructProps) {
     super(scope, id);
@@ -41,7 +42,7 @@ export class AnalyticsConstruct extends Construct {
     // ==========================================================================
     // VPC for Aurora Serverless v2
     // ==========================================================================
-    const vpc = new ec2.Vpc(this, 'AnalyticsVpc', {
+    this.vpc = new ec2.Vpc(this, 'AnalyticsVpc', {
       maxAzs: 2,
       natGateways: 1,
       subnetConfiguration: [
@@ -70,7 +71,7 @@ export class AnalyticsConstruct extends Construct {
       engine: rds.DatabaseClusterEngine.auroraPostgres({
         version: rds.AuroraPostgresEngineVersion.VER_16_4,
       }),
-      vpc,
+      vpc: this.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       writer: rds.ClusterInstance.serverlessV2('writer', {
         autoMinorVersionUpgrade: true,
@@ -159,7 +160,7 @@ export class AnalyticsConstruct extends Construct {
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
-      vpc,
+      vpc: this.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
     });
 
@@ -221,7 +222,7 @@ export class AnalyticsConstruct extends Construct {
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
-      vpc,
+      vpc: this.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
     });
 
@@ -333,7 +334,7 @@ export class AnalyticsConstruct extends Construct {
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
-      vpc,
+      vpc: this.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
     });
 
@@ -378,5 +379,13 @@ export class AnalyticsConstruct extends Construct {
       value: this.cluster.secret!.secretArn,
       description: 'Aurora credentials secret ARN',
     });
+  }
+
+  /**
+   * Configure Phoenix OTLP endpoint for tracing
+   */
+  public configurePhoenixTracing(otlpEndpoint: string): void {
+    this.chatQueryLambda.addEnvironment('PHOENIX_COLLECTOR_ENDPOINT', otlpEndpoint);
+    this.chatQueryLambda.addEnvironment('OTEL_SERVICE_NAME', 'songbird-analytics-chat-query');
   }
 }

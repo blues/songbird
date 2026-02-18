@@ -6,6 +6,10 @@
  * and generates insights and visualizations.
  */
 
+// Initialize Phoenix tracing before any other imports
+import { initializeTracing } from '../shared/tracing';
+initializeTracing('songbird-analytics-chat-query');
+
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { RDSDataClient, ExecuteStatementCommand } from '@aws-sdk/client-rds-data';

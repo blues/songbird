@@ -4,6 +4,7 @@
  * Provides Text-to-SQL analytics powered by AWS Bedrock (Claude) and Aurora Serverless v2.
  * Includes real-time DynamoDB → Aurora sync via streams.
  */
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as rds from 'aws-cdk-lib/aws-rds';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
@@ -24,5 +25,10 @@ export declare class AnalyticsConstruct extends Construct {
     readonly getSessionLambda: lambda.Function;
     readonly deleteSessionLambda: lambda.Function;
     readonly rerunQueryLambda: lambda.Function;
+    readonly vpc: ec2.Vpc;
     constructor(scope: Construct, id: string, props: AnalyticsConstructProps);
+    /**
+     * Configure Phoenix OTLP endpoint for tracing
+     */
+    configurePhoenixTracing(otlpEndpoint: string): void;
 }

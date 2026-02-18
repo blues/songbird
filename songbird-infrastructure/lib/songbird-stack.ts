@@ -14,11 +14,13 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as path from 'path';
+import * as route53 from 'aws-cdk-lib/aws-route53';
 import { StorageConstruct } from './storage-construct';
 import { ApiConstruct } from './api-construct';
 import { DashboardConstruct } from './dashboard-construct';
 import { AuthConstruct, PostConfirmationTrigger } from './auth-construct';
 import { AnalyticsConstruct } from './analytics-construct';
+import { ObservabilityConstruct } from './observability-construct';
 
 export interface SongbirdStackProps extends cdk.StackProps {
   notehubProjectUid: string;
@@ -61,6 +63,21 @@ export class SongbirdStack extends cdk.Stack {
       alertsTable: storage.alertsTable,
       journeysTable: storage.journeysTable,
     });
+
+    // ==========================================================================
+    // Observability Layer (Arize Phoenix on ECS Fargate)
+    // ==========================================================================
+    // Note: DNS/certificate setup skipped for now - will use ALB DNS directly
+    // To enable custom domain, create Route53 hosted zone and pass it here
+    const observability = new ObservabilityConstruct(this, 'Observability', {
+      vpc: analytics.vpc,
+      // domainName: 'phoenix.songbird.live',  // Uncomment when hosted zone exists
+      // hostedZone: route53.HostedZone.fromLookup(this, 'HostedZone', { domainName: 'songbird.live' }),
+    });
+
+    // Configure analytics Lambda to send traces to Phoenix
+    analytics.configurePhoenixTracing(observability.otlpEndpoint);
+    observability.allowTracingFrom(analytics.chatQueryLambda);
 
     // ==========================================================================
     // API Layer (API Gateway + Lambda)
