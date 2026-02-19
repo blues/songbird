@@ -6,6 +6,9 @@
  */
 
 import { register } from '@arizeai/phoenix-otel';
+import { trace, context, SpanStatusCode, Span } from '@opentelemetry/api';
+
+let tracer: ReturnType<typeof trace.getTracer> | null = null;
 
 /**
  * Initialize Phoenix OpenTelemetry tracing for a Lambda function.
@@ -28,9 +31,57 @@ export function initializeTracing(projectName: string): void {
       global: true,
     });
 
+    tracer = trace.getTracer(projectName);
     console.log(`Phoenix tracing initialized for ${projectName}`);
   } catch (error) {
     console.error('Failed to initialize Phoenix tracing:', error);
     // Don't throw - allow Lambda to continue without tracing
   }
+}
+
+/**
+ * Wrap an async function with an OpenTelemetry span for tracing.
+ * This is primarily used to trace LLM calls that aren't auto-instrumented.
+ *
+ * @param name - Name of the span (e.g., 'bedrock.invoke_model')
+ * @param fn - Async function to trace
+ * @param attributes - Optional attributes to attach to the span
+ * @returns The result of the function
+ */
+export async function traceAsyncFn<T>(
+  name: string,
+  fn: (span: Span) => Promise<T>,
+  attributes?: Record<string, string | number | boolean>
+): Promise<T> {
+  if (!tracer) {
+    // Tracing not initialized, just run the function
+    const mockSpan = trace.getTracer('noop').startSpan('noop');
+    const result = await fn(mockSpan);
+    mockSpan.end();
+    return result;
+  }
+
+  return tracer.startActiveSpan(name, async (span) => {
+    try {
+      // Add attributes if provided
+      if (attributes) {
+        for (const [key, value] of Object.entries(attributes)) {
+          span.setAttribute(key, value);
+        }
+      }
+
+      const result = await fn(span);
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (error) {
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      span.recordException(error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }

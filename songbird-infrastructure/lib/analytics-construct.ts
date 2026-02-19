@@ -387,5 +387,7 @@ export class AnalyticsConstruct extends Construct {
   public configurePhoenixTracing(otlpEndpoint: string): void {
     this.chatQueryLambda.addEnvironment('PHOENIX_COLLECTOR_ENDPOINT', otlpEndpoint);
     this.chatQueryLambda.addEnvironment('OTEL_SERVICE_NAME', 'songbird-analytics-chat-query');
+    // Force OTLP to use HTTP protocol instead of gRPC
+    this.chatQueryLambda.addEnvironment('OTEL_EXPORTER_OTLP_PROTOCOL', 'http/protobuf');
   }
 }

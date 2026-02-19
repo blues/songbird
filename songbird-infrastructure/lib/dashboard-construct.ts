@@ -10,6 +10,9 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as cloudfrontOrigins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
 import { Construct } from 'constructs';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -18,6 +21,8 @@ export interface DashboardConstructProps {
   apiUrl: string;
   userPoolId: string;
   userPoolClientId: string;
+  domainName?: string;
+  hostedZone?: route53.IHostedZone;
 }
 
 export class DashboardConstruct extends Construct {
@@ -27,6 +32,17 @@ export class DashboardConstruct extends Construct {
 
   constructor(scope: Construct, id: string, props: DashboardConstructProps) {
     super(scope, id);
+
+    // ==========================================================================
+    // ACM Certificate (if custom domain provided)
+    // ==========================================================================
+    let certificate: acm.ICertificate | undefined;
+    if (props.domainName && props.hostedZone) {
+      certificate = new acm.Certificate(this, 'Certificate', {
+        domainName: props.domainName,
+        validation: acm.CertificateValidation.fromDns(props.hostedZone),
+      });
+    }
 
     // ==========================================================================
     // S3 Bucket for Dashboard Assets
@@ -57,6 +73,8 @@ export class DashboardConstruct extends Construct {
     // This automatically creates an OAC and grants the necessary permissions
     this.distribution = new cloudfront.Distribution(this, 'Distribution', {
       comment: 'Songbird Dashboard',
+      certificate: certificate,
+      domainNames: props.domainName ? [props.domainName] : undefined,
 
       defaultBehavior: {
         origin: cloudfrontOrigins.S3BucketOrigin.withOriginAccessControl(this.bucket),
@@ -122,7 +140,22 @@ export class DashboardConstruct extends Construct {
     });
 
     // Store distribution URL
-    this.distributionUrl = `https://${this.distribution.distributionDomainName}`;
+    this.distributionUrl = props.domainName
+      ? `https://${props.domainName}`
+      : `https://${this.distribution.distributionDomainName}`;
+
+    // ==========================================================================
+    // Route53 A Record (if custom domain provided)
+    // ==========================================================================
+    if (props.domainName && props.hostedZone) {
+      new route53.ARecord(this, 'AliasRecord', {
+        zone: props.hostedZone,
+        recordName: props.domainName,
+        target: route53.RecordTarget.fromAlias(
+          new route53Targets.CloudFrontTarget(this.distribution)
+        ),
+      });
+    }
 
     // ==========================================================================
     // Configuration File for Dashboard

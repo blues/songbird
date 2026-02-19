@@ -6,11 +6,14 @@
  */
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import * as route53 from 'aws-cdk-lib/aws-route53';
 import { Construct } from 'constructs';
 export interface DashboardConstructProps {
     apiUrl: string;
     userPoolId: string;
     userPoolClientId: string;
+    domainName?: string;
+    hostedZone?: route53.IHostedZone;
 }
 export declare class DashboardConstruct extends Construct {
     readonly bucket: s3.Bucket;

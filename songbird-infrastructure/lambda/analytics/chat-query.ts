@@ -7,7 +7,7 @@
  */
 
 // Initialize Phoenix tracing before any other imports
-import { initializeTracing } from '../shared/tracing';
+import { initializeTracing, traceAsyncFn } from '../shared/tracing';
 initializeTracing('songbird-analytics-chat-query');
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
@@ -275,22 +275,47 @@ function validateSQL(sql: string): void {
 async function generateSQL(question: string): Promise<{ sql: string; visualizationType: string; explanation: string }> {
   const prompt = `${SCHEMA_CONTEXT}\n\n${FEW_SHOT_EXAMPLES}\n\n${TASK_PROMPT}\n\nUser Question: "${question}"`;
 
-  const response = await bedrock.send(new InvokeModelCommand({
-    modelId: BEDROCK_MODEL_ID,
-    body: JSON.stringify({
-      anthropic_version: 'bedrock-2023-05-31',
-      max_tokens: 4096,
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-    }),
-  }));
+  const { response, responseBody, content } = await traceAsyncFn(
+    'bedrock.generate_sql',
+    async (span) => {
+      span.setAttribute('llm.request.model', BEDROCK_MODEL_ID);
+      span.setAttribute('llm.request.max_tokens', 4096);
 
-  const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-  const content = responseBody.content[0].text;
+      // Log the user's original question
+      span.setAttribute('user.question', question);
+
+      // Log the full prompt being sent to the LLM
+      span.setAttribute('llm.input_messages', JSON.stringify([{ role: 'user', content: prompt }]));
+
+      const response = await bedrock.send(new InvokeModelCommand({
+        modelId: BEDROCK_MODEL_ID,
+        body: JSON.stringify({
+          anthropic_version: 'bedrock-2023-05-31',
+          max_tokens: 4096,
+          messages: [
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+        }),
+      }));
+
+      const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+      const content = responseBody.content[0].text;
+
+      // Log the LLM's full response
+      span.setAttribute('llm.output_messages', JSON.stringify([{ role: 'assistant', content }]));
+      span.setAttribute('llm.usage.input_tokens', responseBody.usage?.input_tokens || 0);
+      span.setAttribute('llm.usage.output_tokens', responseBody.usage?.output_tokens || 0);
+
+      return { response, responseBody, content };
+    },
+    {
+      'llm.vendor': 'aws-bedrock',
+      'llm.request.type': 'chat',
+    }
+  );
 
   // Extract JSON from markdown code blocks if present
   let jsonText = content;
@@ -379,17 +404,45 @@ Generate a 2-3 sentence insight summary highlighting:
 Keep it concise and user-friendly.
 `;
 
-  const response = await bedrock.send(new InvokeModelCommand({
-    modelId: BEDROCK_MODEL_ID,
-    body: JSON.stringify({
-      anthropic_version: 'bedrock-2023-05-31',
-      max_tokens: 500,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  }));
+  return await traceAsyncFn(
+    'bedrock.generate_insights',
+    async (span) => {
+      span.setAttribute('llm.request.model', BEDROCK_MODEL_ID);
+      span.setAttribute('llm.request.max_tokens', 500);
 
-  const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-  return responseBody.content[0].text;
+      // Log the user's original question and the SQL that was executed
+      span.setAttribute('user.question', question);
+      span.setAttribute('sql.query', sql);
+      span.setAttribute('sql.result_count', data.length);
+
+      // Log the full prompt being sent to the LLM
+      span.setAttribute('llm.input_messages', JSON.stringify([{ role: 'user', content: prompt }]));
+
+      const response = await bedrock.send(new InvokeModelCommand({
+        modelId: BEDROCK_MODEL_ID,
+        body: JSON.stringify({
+          anthropic_version: 'bedrock-2023-05-31',
+          max_tokens: 500,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      }));
+
+      const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+      const content = responseBody.content[0].text;
+
+      // Log the LLM's insights response
+      span.setAttribute('llm.output_messages', JSON.stringify([{ role: 'assistant', content }]));
+      span.setAttribute('insights.text', content);
+      span.setAttribute('llm.usage.input_tokens', responseBody.usage?.input_tokens || 0);
+      span.setAttribute('llm.usage.output_tokens', responseBody.usage?.output_tokens || 0);
+
+      return content;
+    },
+    {
+      'llm.vendor': 'aws-bedrock',
+      'llm.request.type': 'chat',
+    }
+  );
 }
 
 async function saveChatHistory(request: ChatRequest, result: QueryResult): Promise<void> {

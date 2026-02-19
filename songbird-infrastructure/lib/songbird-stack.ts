@@ -67,16 +67,10 @@ export class SongbirdStack extends cdk.Stack {
     // ==========================================================================
     // Route53 Hosted Zone for songbird.live
     // ==========================================================================
-    const hostedZone = new route53.PublicHostedZone(this, 'HostedZone', {
-      zoneName: 'songbird.live',
-      comment: 'Hosted zone for Songbird demo platform',
-    });
-
-    // Output nameservers for updating at your domain registrar
-    new cdk.CfnOutput(this, 'NameServers', {
-      value: cdk.Fn.join(', ', hostedZone.hostedZoneNameServers!),
-      description: 'Nameservers to configure at your domain registrar',
-      exportName: 'SongbirdNameServers',
+    // Look up the existing hosted zone instead of creating a new one
+    // This prevents creating duplicate zones on each deployment
+    const hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', {
+      domainName: 'songbird.live',
     });
 
     // ==========================================================================
@@ -135,6 +129,8 @@ export class SongbirdStack extends cdk.Stack {
       apiUrl: api.apiUrl,
       userPoolId: auth.userPool.userPoolId,
       userPoolClientId: auth.userPoolClient.userPoolClientId,
+      domainName: 'songbird.live',
+      hostedZone: hostedZone,
     });
 
     // ==========================================================================

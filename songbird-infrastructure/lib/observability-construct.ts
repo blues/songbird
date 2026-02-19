@@ -147,6 +147,7 @@ export class ObservabilityConstruct extends Construct {
       environment: {
         PHOENIX_PORT: '6006',
         PHOENIX_GRPC_PORT: '4317',
+        PHOENIX_HTTP_PORT: '4318',
         PHOENIX_WORKING_DIR: '/phoenix-data',
         PHOENIX_SQL_DATABASE_URL: 'sqlite:////phoenix-data/phoenix.db',
       },
@@ -321,7 +322,8 @@ export class ObservabilityConstruct extends Construct {
     // phoenixEndpoint already set above based on domain availability
     // Using HTTP OTLP on port 4318 (standard OTLP/HTTP port)
     // Port 4317 is for gRPC which requires HTTPS on ALB
-    this.otlpEndpoint = `http://${this.loadBalancer.loadBalancerDnsName}:4318/v1/traces`;
+    // NOTE: Don't include /v1/traces - OpenTelemetry SDK adds that automatically
+    this.otlpEndpoint = `http://${this.loadBalancer.loadBalancerDnsName}:4318`;
 
     // ==========================================================================
     // Outputs
