@@ -586,6 +586,11 @@ async function writeHealthEvent(event: SongbirdEvent): Promise<void> {
  * Create a low battery alert when device restarts due to insufficient power
  */
 async function createLowBatteryAlert(event: SongbirdEvent): Promise<void> {
+  // Skip if unacknowledged alert already exists
+  if (await hasUnacknowledgedAlert(event.device_uid, 'low_battery')) {
+    return;
+  }
+
   const now = Date.now();
   const ttl = Math.floor(now / 1000) + TTL_SECONDS;
   const alertId = `alert_${event.device_uid}_${now}_${Math.random().toString(36).substring(7)}`;
@@ -688,6 +693,11 @@ async function checkGpsPowerSaveAlert(event: SongbirdEvent): Promise<void> {
  * Create a GPS power save alert when device disables GPS due to no signal
  */
 async function createGpsPowerSaveAlert(event: SongbirdEvent): Promise<void> {
+  // Skip if unacknowledged alert already exists
+  if (await hasUnacknowledgedAlert(event.device_uid, 'gps_power_save')) {
+    return;
+  }
+
   const now = Date.now();
   const ttl = Math.floor(now / 1000) + TTL_SECONDS;
   const alertId = `alert_${event.device_uid}_${now}_${Math.random().toString(36).substring(7)}`;
@@ -786,6 +796,11 @@ async function checkNoSatAlert(event: SongbirdEvent): Promise<void> {
  * Create a no-sat alert when device cannot acquire satellite fix
  */
 async function createNoSatAlert(event: SongbirdEvent): Promise<void> {
+  // Skip if unacknowledged alert already exists
+  if (await hasUnacknowledgedAlert(event.device_uid, 'gps_no_sat')) {
+    return;
+  }
+
   const now = Date.now();
   const ttl = Math.floor(now / 1000) + TTL_SECONDS;
   const alertId = `alert_${event.device_uid}_${now}_${Math.random().toString(36).substring(7)}`;
@@ -1095,6 +1110,13 @@ async function processCommandAck(event: SongbirdEvent): Promise<void> {
 }
 
 async function storeAlert(event: SongbirdEvent): Promise<void> {
+  const alertType = event.body.type || 'unknown';
+
+  // Skip if unacknowledged alert already exists
+  if (await hasUnacknowledgedAlert(event.device_uid, alertType)) {
+    return;
+  }
+
   const now = Date.now();
   const ttl = Math.floor(now / 1000) + TTL_SECONDS;
 
@@ -1106,7 +1128,7 @@ async function storeAlert(event: SongbirdEvent): Promise<void> {
     device_uid: event.device_uid,
     serial_number: event.serial_number || 'unknown',
     fleet: event.fleet || 'default',
-    type: event.body.type || 'unknown',
+    type: alertType,
     value: event.body.value,
     threshold: event.body.threshold,
     message: event.body.message || '',
@@ -1538,4 +1560,42 @@ async function writeNotecardSwapEvent(
 
   await docClient.send(command);
   console.log(`Recorded Notecard swap for ${serialNumber}: ${oldDeviceUid} -> ${newDeviceUid}`);
+}
+
+/**
+ * Check if device has an unacknowledged alert of the specified type
+ * Used to prevent duplicate alerts from piling up
+ */
+async function hasUnacknowledgedAlert(deviceUid: string, alertType: string): Promise<boolean> {
+  const queryCommand = new QueryCommand({
+    TableName: ALERTS_TABLE,
+    IndexName: 'device-index',
+    KeyConditionExpression: 'device_uid = :device_uid',
+    FilterExpression: '#type = :alert_type AND acknowledged = :false',
+    ExpressionAttributeNames: {
+      '#type': 'type',
+    },
+    ExpressionAttributeValues: {
+      ':device_uid': deviceUid,
+      ':alert_type': alertType,
+      ':false': 'false',
+    },
+    Limit: 1,
+    ScanIndexForward: false, // Most recent first
+  });
+
+  try {
+    const result = await docClient.send(queryCommand);
+    const hasUnacked = (result.Items?.length || 0) > 0;
+
+    if (hasUnacked) {
+      console.log(`Skipping duplicate alert creation: device ${deviceUid} already has unacknowledged ${alertType} alert`);
+    }
+
+    return hasUnacked;
+  } catch (error) {
+    console.error(`Error checking for duplicate alert: ${error}`);
+    // On error, allow alert creation (fail open)
+    return false;
+  }
 }
