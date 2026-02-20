@@ -12,6 +12,9 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as events from 'aws-cdk-lib/aws-events';
+import * as targets from 'aws-cdk-lib/aws-events-targets';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { Construct } from 'constructs';
@@ -35,6 +38,7 @@ export class AnalyticsConstruct extends Construct {
   public readonly deleteSessionLambda: lambda.Function;
   public readonly rerunQueryLambda: lambda.Function;
   public readonly vpc: ec2.Vpc;
+  private syncLambda?: lambda.Function;
 
   constructor(scope: Construct, id: string, props: AnalyticsConstructProps) {
     super(scope, id);
@@ -145,7 +149,7 @@ export class AnalyticsConstruct extends Construct {
     // ==========================================================================
     // Lambda: DynamoDB → Aurora Sync
     // ==========================================================================
-    const syncLambda = new NodejsFunction(this, 'SyncLambda', {
+    this.syncLambda = new NodejsFunction(this, 'SyncLambda', {
       functionName: 'songbird-analytics-sync',
       description: 'Sync DynamoDB streams to Aurora',
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -164,38 +168,38 @@ export class AnalyticsConstruct extends Construct {
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
     });
 
-    this.cluster.grantDataApiAccess(syncLambda);
+    this.cluster.grantDataApiAccess(this.syncLambda);
 
     // Add DynamoDB stream sources
-    syncLambda.addEventSource(new DynamoEventSource(props.devicesTable, {
+    this.syncLambda.addEventSource(new DynamoEventSource(props.devicesTable, {
       startingPosition: lambda.StartingPosition.TRIM_HORIZON,
       batchSize: 100,
       bisectBatchOnError: true,
       retryAttempts: 3,
     }));
 
-    syncLambda.addEventSource(new DynamoEventSource(props.telemetryTable, {
+    this.syncLambda.addEventSource(new DynamoEventSource(props.telemetryTable, {
       startingPosition: lambda.StartingPosition.TRIM_HORIZON,
       batchSize: 100,
       bisectBatchOnError: true,
       retryAttempts: 3,
     }));
 
-    syncLambda.addEventSource(new DynamoEventSource(props.locationsTable, {
+    this.syncLambda.addEventSource(new DynamoEventSource(props.locationsTable, {
       startingPosition: lambda.StartingPosition.TRIM_HORIZON,
       batchSize: 100,
       bisectBatchOnError: true,
       retryAttempts: 3,
     }));
 
-    syncLambda.addEventSource(new DynamoEventSource(props.alertsTable, {
+    this.syncLambda.addEventSource(new DynamoEventSource(props.alertsTable, {
       startingPosition: lambda.StartingPosition.TRIM_HORIZON,
       batchSize: 100,
       bisectBatchOnError: true,
       retryAttempts: 3,
     }));
 
-    syncLambda.addEventSource(new DynamoEventSource(props.journeysTable, {
+    this.syncLambda.addEventSource(new DynamoEventSource(props.journeysTable, {
       startingPosition: lambda.StartingPosition.TRIM_HORIZON,
       batchSize: 100,
       bisectBatchOnError: true,
@@ -229,10 +233,15 @@ export class AnalyticsConstruct extends Construct {
     this.cluster.grantDataApiAccess(this.chatQueryLambda);
     this.chatHistoryTable.grantReadWriteData(this.chatQueryLambda);
 
-    // Grant Bedrock access
+    // Grant Bedrock access (includes Marketplace permissions for first-time model invocation)
     this.chatQueryLambda.addToRolePolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['bedrock:InvokeModel'],
+      resources: ['*'],
+    }));
+    this.chatQueryLambda.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['aws-marketplace:ViewSubscriptions', 'aws-marketplace:Subscribe'],
       resources: ['*'],
     }));
 
@@ -368,6 +377,269 @@ export class AnalyticsConstruct extends Construct {
     props.journeysTable.grantReadData(backfillLambda);
 
     // ==========================================================================
+    // Lambda: Daily Evaluation
+    // ==========================================================================
+    const dailyEvaluationLambda = new NodejsFunction(this, 'DailyEvaluationLambda', {
+      functionName: 'songbird-analytics-daily-evaluation',
+      description: 'Run daily evaluations on analytics queries',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/analytics/daily-evaluation.ts'),
+      timeout: cdk.Duration.minutes(5),
+      memorySize: 512,
+      environment: {
+        CHAT_HISTORY_TABLE: this.chatHistoryTable.tableName,
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+
+    this.chatHistoryTable.grantReadData(dailyEvaluationLambda);
+
+    // Grant Bedrock access for LLM-based evaluations
+    dailyEvaluationLambda.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:InvokeModel'],
+      resources: ['*'],
+    }));
+
+    // Schedule to run daily at 8am UTC
+    const evaluationRule = new events.Rule(this, 'DailyEvaluationRule', {
+      schedule: events.Schedule.cron({ hour: '8', minute: '0' }),
+      description: 'Trigger daily analytics evaluation',
+    });
+
+    evaluationRule.addTarget(new targets.LambdaFunction(dailyEvaluationLambda));
+
+    // ==========================================================================
+    // CloudWatch Metric Filters (extract metrics from evaluation Lambda logs)
+    // ==========================================================================
+    const evalLogGroup = dailyEvaluationLambda.logGroup;
+
+    const syntaxValidMetric = new logs.MetricFilter(this, 'SyntaxValidRateMetric', {
+      logGroup: evalLogGroup,
+      filterPattern: logs.FilterPattern.literal('{ $.metric = "EvaluationReport" }'),
+      metricNamespace: 'Songbird/Analytics',
+      metricName: 'SyntaxValidRate',
+      metricValue: '$.syntaxValidRate',
+      defaultValue: 0,
+    });
+
+    const executionSuccessMetric = new logs.MetricFilter(this, 'ExecutionSuccessRateMetric', {
+      logGroup: evalLogGroup,
+      filterPattern: logs.FilterPattern.literal('{ $.metric = "EvaluationReport" }'),
+      metricNamespace: 'Songbird/Analytics',
+      metricName: 'ExecutionSuccessRate',
+      metricValue: '$.executionSuccessRate',
+      defaultValue: 0,
+    });
+
+    const insightRelevanceMetric = new logs.MetricFilter(this, 'InsightRelevanceMetric', {
+      logGroup: evalLogGroup,
+      filterPattern: logs.FilterPattern.literal('{ $.metric = "EvaluationReport" }'),
+      metricNamespace: 'Songbird/Analytics',
+      metricName: 'AvgInsightRelevance',
+      metricValue: '$.avgInsightRelevance',
+      defaultValue: 0,
+    });
+
+    const hallucinationMetric = new logs.MetricFilter(this, 'HallucinationScoreMetric', {
+      logGroup: evalLogGroup,
+      filterPattern: logs.FilterPattern.literal('{ $.metric = "EvaluationReport" }'),
+      metricNamespace: 'Songbird/Analytics',
+      metricName: 'AvgHallucinationScore',
+      metricValue: '$.avgHallucinationScore',
+      defaultValue: 0,
+    });
+
+    const totalQueriesMetric = new logs.MetricFilter(this, 'TotalQueriesMetric', {
+      logGroup: evalLogGroup,
+      filterPattern: logs.FilterPattern.literal('{ $.metric = "EvaluationReport" }'),
+      metricNamespace: 'Songbird/Analytics',
+      metricName: 'TotalQueriesEvaluated',
+      metricValue: '$.totalQueries',
+      defaultValue: 0,
+    });
+
+    const llmEvaluatedMetric = new logs.MetricFilter(this, 'LLMEvaluatedMetric', {
+      logGroup: evalLogGroup,
+      filterPattern: logs.FilterPattern.literal('{ $.metric = "EvaluationReport" }'),
+      metricNamespace: 'Songbird/Analytics',
+      metricName: 'LLMEvaluatedCount',
+      metricValue: '$.llmEvaluatedCount',
+      defaultValue: 0,
+    });
+
+    // ==========================================================================
+    // CloudWatch Dashboard
+    // ==========================================================================
+    const dashboard = new cloudwatch.Dashboard(this, 'AnalyticsDashboard', {
+      dashboardName: 'Songbird-Analytics',
+      periodOverride: cloudwatch.PeriodOverride.AUTO,
+    });
+
+    // -- Row 1: Evaluation Quality Scores --
+    dashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Evaluation Quality Scores',
+        width: 12,
+        height: 6,
+        left: [
+          new cloudwatch.Metric({
+            namespace: 'Songbird/Analytics',
+            metricName: 'SyntaxValidRate',
+            statistic: 'Maximum',
+            label: 'SQL Syntax Valid Rate',
+            period: cdk.Duration.days(1),
+          }),
+          new cloudwatch.Metric({
+            namespace: 'Songbird/Analytics',
+            metricName: 'ExecutionSuccessRate',
+            statistic: 'Maximum',
+            label: 'Execution Success Rate',
+            period: cdk.Duration.days(1),
+          }),
+          new cloudwatch.Metric({
+            namespace: 'Songbird/Analytics',
+            metricName: 'AvgInsightRelevance',
+            statistic: 'Maximum',
+            label: 'Avg Insight Relevance',
+            period: cdk.Duration.days(1),
+          }),
+          new cloudwatch.Metric({
+            namespace: 'Songbird/Analytics',
+            metricName: 'AvgHallucinationScore',
+            statistic: 'Maximum',
+            label: 'Avg Hallucination Score (higher=better)',
+            period: cdk.Duration.days(1),
+          }),
+        ],
+        leftYAxis: { min: 0, max: 1, label: 'Score (0-1)' },
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Queries Evaluated',
+        width: 12,
+        height: 6,
+        left: [
+          new cloudwatch.Metric({
+            namespace: 'Songbird/Analytics',
+            metricName: 'TotalQueriesEvaluated',
+            statistic: 'Maximum',
+            label: 'Total Queries (24h)',
+            period: cdk.Duration.days(1),
+          }),
+          new cloudwatch.Metric({
+            namespace: 'Songbird/Analytics',
+            metricName: 'LLMEvaluatedCount',
+            statistic: 'Maximum',
+            label: 'LLM Evaluated',
+            period: cdk.Duration.days(1),
+          }),
+        ],
+        leftYAxis: { min: 0, label: 'Count' },
+      }),
+    );
+
+    // -- Row 2: Lambda Performance --
+    const chatQueryFn = this.chatQueryLambda;
+    const syncFn = this.syncLambda!;
+    const evalFn = dailyEvaluationLambda;
+
+    dashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Lambda Invocations',
+        width: 12,
+        height: 6,
+        left: [
+          chatQueryFn.metricInvocations({ label: 'Chat Query', period: cdk.Duration.hours(1) }),
+          syncFn.metricInvocations({ label: 'Sync to Aurora', period: cdk.Duration.hours(1) }),
+          evalFn.metricInvocations({ label: 'Daily Evaluation', period: cdk.Duration.hours(1) }),
+        ],
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Lambda Errors',
+        width: 12,
+        height: 6,
+        left: [
+          chatQueryFn.metricErrors({ label: 'Chat Query', period: cdk.Duration.hours(1) }),
+          syncFn.metricErrors({ label: 'Sync to Aurora', period: cdk.Duration.hours(1) }),
+          evalFn.metricErrors({ label: 'Daily Evaluation', period: cdk.Duration.hours(1) }),
+        ],
+        leftYAxis: { min: 0, label: 'Errors' },
+      }),
+    );
+
+    // -- Row 3: Lambda Duration + Aurora --
+    dashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Lambda Duration (p50 / p99)',
+        width: 12,
+        height: 6,
+        left: [
+          chatQueryFn.metricDuration({ statistic: 'p50', label: 'Chat Query p50', period: cdk.Duration.hours(1) }),
+          chatQueryFn.metricDuration({ statistic: 'p99', label: 'Chat Query p99', period: cdk.Duration.hours(1) }),
+          syncFn.metricDuration({ statistic: 'p50', label: 'Sync p50', period: cdk.Duration.hours(1) }),
+          syncFn.metricDuration({ statistic: 'p99', label: 'Sync p99', period: cdk.Duration.hours(1) }),
+        ],
+        leftYAxis: { min: 0, label: 'Duration (ms)' },
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Aurora Serverless Capacity (ACU)',
+        width: 12,
+        height: 6,
+        left: [
+          new cloudwatch.Metric({
+            namespace: 'AWS/RDS',
+            metricName: 'ServerlessDatabaseCapacity',
+            dimensionsMap: { DBClusterIdentifier: this.cluster.clusterIdentifier },
+            statistic: 'Average',
+            label: 'Avg ACU',
+            period: cdk.Duration.minutes(5),
+          }),
+          new cloudwatch.Metric({
+            namespace: 'AWS/RDS',
+            metricName: 'ServerlessDatabaseCapacity',
+            dimensionsMap: { DBClusterIdentifier: this.cluster.clusterIdentifier },
+            statistic: 'Maximum',
+            label: 'Max ACU',
+            period: cdk.Duration.minutes(5),
+          }),
+        ],
+        leftYAxis: { min: 0, label: 'ACU' },
+      }),
+    );
+
+    // -- Row 4: Aurora Connections + Chat Query Throttles --
+    dashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: 'Aurora Database Connections',
+        width: 12,
+        height: 6,
+        left: [
+          new cloudwatch.Metric({
+            namespace: 'AWS/RDS',
+            metricName: 'DatabaseConnections',
+            dimensionsMap: { DBClusterIdentifier: this.cluster.clusterIdentifier },
+            statistic: 'Average',
+            label: 'Connections',
+            period: cdk.Duration.minutes(5),
+          }),
+        ],
+        leftYAxis: { min: 0, label: 'Connections' },
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Lambda Throttles',
+        width: 12,
+        height: 6,
+        left: [
+          chatQueryFn.metricThrottles({ label: 'Chat Query', period: cdk.Duration.hours(1) }),
+          syncFn.metricThrottles({ label: 'Sync to Aurora', period: cdk.Duration.hours(1) }),
+        ],
+        leftYAxis: { min: 0, label: 'Throttles' },
+      }),
+    );
+
+    // ==========================================================================
     // Outputs
     // ==========================================================================
     new cdk.CfnOutput(this, 'ClusterEndpoint', {
@@ -379,15 +651,28 @@ export class AnalyticsConstruct extends Construct {
       value: this.cluster.secret!.secretArn,
       description: 'Aurora credentials secret ARN',
     });
+
+    new cdk.CfnOutput(this, 'AnalyticsDashboardUrl', {
+      value: `https://console.aws.amazon.com/cloudwatch/home?region=${cdk.Aws.REGION}#dashboards:name=Songbird-Analytics`,
+      description: 'CloudWatch Analytics Dashboard URL',
+    });
   }
 
   /**
    * Configure Phoenix OTLP endpoint for tracing
    */
-  public configurePhoenixTracing(otlpEndpoint: string): void {
-    this.chatQueryLambda.addEnvironment('PHOENIX_COLLECTOR_ENDPOINT', otlpEndpoint);
+  public configurePhoenixTracing(httpEndpoint: string): void {
+    this.chatQueryLambda.addEnvironment('PHOENIX_HTTP_ENDPOINT', httpEndpoint);
     this.chatQueryLambda.addEnvironment('OTEL_SERVICE_NAME', 'songbird-analytics-chat-query');
-    // Force OTLP to use HTTP protocol instead of gRPC
-    this.chatQueryLambda.addEnvironment('OTEL_EXPORTER_OTLP_PROTOCOL', 'http/protobuf');
   }
+
+  /**
+   * Configure Phoenix Prompt Hub for runtime prompt fetching.
+   * Sets PHOENIX_HOST (used by @arizeai/phoenix-client SDK) and PHOENIX_PROMPT_TAG.
+   */
+  public configurePhoenixPrompts(phoenixEndpoint: string, promptTag: string = 'production'): void {
+    this.chatQueryLambda.addEnvironment('PHOENIX_HOST', phoenixEndpoint);
+    this.chatQueryLambda.addEnvironment('PHOENIX_PROMPT_TAG', promptTag);
+  }
+
 }

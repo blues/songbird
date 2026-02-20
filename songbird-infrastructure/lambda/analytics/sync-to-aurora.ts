@@ -227,7 +227,6 @@ export const handler = async (event: DynamoDBStreamEvent): Promise<void> => {
     }
 
     console.log(`Successfully synced ${statements.length} records to Aurora`);
-
   } catch (error: any) {
     console.error('Sync error:', error);
     throw error;

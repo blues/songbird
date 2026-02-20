@@ -1,5 +1,6 @@
 import { User, Sparkles, Code, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
+import Markdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { QueryVisualization } from './QueryVisualization';
@@ -45,7 +46,7 @@ export function ChatMessage({ message, mapboxToken }: ChatMessageProps) {
         {/* Insights */}
         <Card className="p-4 bg-muted/50">
           <div className="prose prose-sm max-w-none dark:prose-invert">
-            <div dangerouslySetInnerHTML={{ __html: formatMarkdown(message.content) }} />
+            <Markdown>{message.content}</Markdown>
           </div>
           <p className="text-xs text-muted-foreground mt-3">
             {formatRelativeTime(new Date(message.timestamp))}
@@ -113,13 +114,4 @@ export function ChatMessage({ message, mapboxToken }: ChatMessageProps) {
       </div>
     </div>
   );
-}
-
-// Simple markdown formatter (basic implementation)
-function formatMarkdown(text: string): string {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`(.+?)`/g, '<code>$1</code>')
-    .replace(/\n/g, '<br />');
 }

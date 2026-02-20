@@ -33,10 +33,12 @@ export declare class ObservabilityConstruct extends Construct {
     readonly loadBalancer: elbv2.ApplicationLoadBalancer;
     readonly phoenixEndpoint: string;
     readonly otlpEndpoint: string;
+    readonly grpcEndpoint: string;
     readonly phoenixSecurityGroup: ec2.SecurityGroup;
+    readonly albSecurityGroup: ec2.SecurityGroup;
     constructor(scope: Construct, id: string, props: ObservabilityConstructProps);
     /**
-     * Allow a Lambda function to send traces to Phoenix
+     * Allow a Lambda function to send traces and access the Phoenix API via ALB
      */
     allowTracingFrom(lambda: ec2.IConnectable): void;
 }

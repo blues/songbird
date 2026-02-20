@@ -44,7 +44,9 @@ export class ObservabilityConstruct extends Construct {
   public readonly loadBalancer: elbv2.ApplicationLoadBalancer;
   public readonly phoenixEndpoint: string;
   public readonly otlpEndpoint: string;
+  public readonly grpcEndpoint: string;
   public readonly phoenixSecurityGroup: ec2.SecurityGroup;
+  public readonly albSecurityGroup: ec2.SecurityGroup;
 
   constructor(scope: Construct, id: string, props: ObservabilityConstructProps) {
     super(scope, id);
@@ -81,21 +83,21 @@ export class ObservabilityConstruct extends Construct {
       allowAllOutbound: true,
     });
 
-    const albSecurityGroup = new ec2.SecurityGroup(this, 'PhoenixALBSG', {
+    this.albSecurityGroup = new ec2.SecurityGroup(this, 'PhoenixALBSG', {
       vpc: props.vpc,
       description: 'Security group for Phoenix ALB',
       allowAllOutbound: true,
     });
 
     // Allow HTTPS from internet to ALB
-    albSecurityGroup.addIngressRule(
+    this.albSecurityGroup.addIngressRule(
       ec2.Peer.anyIpv4(),
       ec2.Port.tcp(443),
       'Allow HTTPS from internet'
     );
 
     // Allow gRPC from internet to ALB (for OTLP)
-    albSecurityGroup.addIngressRule(
+    this.albSecurityGroup.addIngressRule(
       ec2.Peer.anyIpv4(),
       ec2.Port.tcp(4317),
       'Allow gRPC from internet'
@@ -103,14 +105,14 @@ export class ObservabilityConstruct extends Construct {
 
     // Allow ALB to reach Phoenix UI
     this.phoenixSecurityGroup.addIngressRule(
-      albSecurityGroup,
+      this.albSecurityGroup,
       ec2.Port.tcp(6006),
       'Allow HTTP UI traffic from ALB'
     );
 
     // Allow ALB to reach OTLP endpoint
     this.phoenixSecurityGroup.addIngressRule(
-      albSecurityGroup,
+      this.albSecurityGroup,
       ec2.Port.tcp(4317),
       'Allow OTLP gRPC traffic from ALB'
     );
@@ -139,7 +141,7 @@ export class ObservabilityConstruct extends Construct {
 
     // Phoenix container
     const phoenixContainer = taskDefinition.addContainer('phoenix', {
-      image: ecs.ContainerImage.fromRegistry('arizephoenix/phoenix:version-8.0.0'),
+      image: ecs.ContainerImage.fromRegistry('arizephoenix/phoenix:version-13.0.3'),
       logging: ecs.LogDrivers.awsLogs({
         streamPrefix: 'phoenix',
         logRetention: logs.RetentionDays.TWO_WEEKS,
@@ -147,7 +149,6 @@ export class ObservabilityConstruct extends Construct {
       environment: {
         PHOENIX_PORT: '6006',
         PHOENIX_GRPC_PORT: '4317',
-        PHOENIX_HTTP_PORT: '4318',
         PHOENIX_WORKING_DIR: '/phoenix-data',
         PHOENIX_SQL_DATABASE_URL: 'sqlite:////phoenix-data/phoenix.db',
       },
@@ -161,11 +162,6 @@ export class ObservabilityConstruct extends Construct {
           containerPort: 4317,
           protocol: ecs.Protocol.TCP,
           name: 'grpc',
-        },
-        {
-          containerPort: 4318,
-          protocol: ecs.Protocol.TCP,
-          name: 'otlp-http',
         },
       ],
       // Removed container health check - relying on ALB target group health checks instead
@@ -202,7 +198,7 @@ export class ObservabilityConstruct extends Construct {
     this.loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'PhoenixALB', {
       vpc: props.vpc,
       internetFacing: true,
-      securityGroup: albSecurityGroup,
+      securityGroup: this.albSecurityGroup,
       loadBalancerName: 'songbird-phoenix',
     });
 
@@ -228,7 +224,7 @@ export class ObservabilityConstruct extends Construct {
       httpsListener.addTargets('PhoenixUI', {
         port: 6006,
         protocol: elbv2.ApplicationProtocol.HTTP,
-        targets: [this.service],
+        targets: [this.service.loadBalancerTarget({ containerName: 'phoenix', containerPort: 6006 })],
         healthCheck: {
           path: '/healthz',
           interval: cdk.Duration.seconds(30),
@@ -251,7 +247,7 @@ export class ObservabilityConstruct extends Construct {
       httpListener.addTargets('PhoenixUI', {
         port: 6006,
         protocol: elbv2.ApplicationProtocol.HTTP,
-        targets: [this.service],
+        targets: [this.service.loadBalancerTarget({ containerName: 'phoenix', containerPort: 6006 })],
         healthCheck: {
           path: '/healthz',
           interval: cdk.Duration.seconds(30),
@@ -265,24 +261,26 @@ export class ObservabilityConstruct extends Construct {
       this.phoenixEndpoint = `http://${this.loadBalancer.loadBalancerDnsName}`;
     }
 
-    // HTTP listener for OTLP traces (port 4318)
-    // Using HTTP protocol on port 4318 (standard OTLP/HTTP port)
-    // Port 4317 is for gRPC which requires HTTPS on ALB
-    const otlpListener = this.loadBalancer.addListener('OtlpListener', {
-      port: 4318,
+    // Phoenix v13+ serves OTLP HTTP on port 6006 (same as UI), so no separate
+    // port 4318 listener is needed. OTLP traces go through the HTTPS/443 listener.
+
+    // gRPC listener for OTLP traces (port 4317)
+    // Using HTTP protocol for gRPC over HTTP/2
+    const grpcListener = this.loadBalancer.addListener("GrpcListener", {
+      port: 4317,
       protocol: elbv2.ApplicationProtocol.HTTP,
       open: true,
     });
 
-    otlpListener.addTargets('PhoenixOTLP', {
-      port: 4318,
+    grpcListener.addTargets("PhoenixGRPC", {
+      port: 4317,
       protocol: elbv2.ApplicationProtocol.HTTP,
-      targets: [this.service],
+      // Note: AWS ALB gRPC support requires HTTPS listener, which needs TLS certs
+      // For simplicity, using plain HTTP without GRPC protocol version
+      targets: [this.service.loadBalancerTarget({ containerName: 'phoenix', containerPort: 4317 })],
       healthCheck: {
-        // Check the UI port (6006) health endpoint instead of OTLP port
-        // OTLP port doesn't have a health check endpoint
-        path: '/healthz',
-        port: '6006',
+        path: "/healthz",
+        port: "6006",
         interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(5),
         healthyThresholdCount: 2,
@@ -320,10 +318,10 @@ export class ObservabilityConstruct extends Construct {
     // Exports
     // ==========================================================================
     // phoenixEndpoint already set above based on domain availability
-    // Using HTTP OTLP on port 4318 (standard OTLP/HTTP port)
-    // Port 4317 is for gRPC which requires HTTPS on ALB
-    // NOTE: Don't include /v1/traces - OpenTelemetry SDK adds that automatically
-    this.otlpEndpoint = `http://${this.loadBalancer.loadBalancerDnsName}:4318`;
+    // Phoenix v13+ serves OTLP HTTP on the same port as the UI (6006)
+    // Route through HTTPS/443 listener which forwards to container port 6006
+    this.otlpEndpoint = `https://${props.domainName || this.loadBalancer.loadBalancerDnsName}/v1/traces`;
+    this.grpcEndpoint = `http://${this.loadBalancer.loadBalancerDnsName}:4317`;
 
     // ==========================================================================
     // Outputs
@@ -348,13 +346,15 @@ export class ObservabilityConstruct extends Construct {
   }
 
   /**
-   * Allow a Lambda function to send traces to Phoenix
+   * Allow a Lambda function to send traces and access the Phoenix API via ALB
    */
   public allowTracingFrom(lambda: ec2.IConnectable): void {
+    // Phoenix v13+ serves OTLP and REST API on the same port as UI (6006),
+    // accessible via HTTPS/443 on the ALB
     lambda.connections.allowTo(
-      this.service,
-      ec2.Port.tcp(4317),
-      'Allow Lambda to send OTLP traces to Phoenix'
+      this.albSecurityGroup,
+      ec2.Port.tcp(443),
+      'Allow Lambda to send OTLP traces and access Phoenix API via ALB HTTPS'
     );
   }
 }

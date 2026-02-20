@@ -111,6 +111,9 @@ async function isDeviceOwner(deviceUid: string, userEmail: string): Promise<bool
 }
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  const method = (event.requestContext as any)?.http?.method || event.httpMethod;
+  const path = (event.requestContext as any)?.http?.path || event.path;
+
   console.log('Request:', JSON.stringify(event));
 
   const corsHeaders = {
@@ -120,9 +123,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   };
 
   try {
-    // HTTP API v2 uses requestContext.http.method, REST API v1 uses httpMethod
-    const method = (event.requestContext as any)?.http?.method || event.httpMethod;
-    const path = (event.requestContext as any)?.http?.path || event.path;
 
     if (method === 'OPTIONS') {
       return { statusCode: 200, headers: corsHeaders, body: '' };
@@ -177,7 +177,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       // Get command history from ALL device_uids (merged across Notecard swaps)
       return await getCommandHistory(resolved.serial_number, resolved.all_device_uids, corsHeaders);
     }
-
     return {
       statusCode: 405,
       headers: corsHeaders,
