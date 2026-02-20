@@ -7,7 +7,8 @@
  */
 
 // Initialize Phoenix tracing before any other imports
-import { initializeTracing, traceAsyncFn } from '../shared/tracing';
+import { initializeTracing, traceAsyncFn, flushSpans } from '../shared/tracing';
+import { SpanKind } from '@opentelemetry/api';
 initializeTracing('songbird-analytics-chat-query');
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
@@ -15,6 +16,7 @@ import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedroc
 import { RDSDataClient, ExecuteStatementCommand } from '@aws-sdk/client-rds-data';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { getPromptTemplate, renderTemplate, toBedrockModelId, type PromptConfig } from '../shared/phoenix-prompts';
 
 const bedrock = new BedrockRuntimeClient({ region: 'us-east-1' });
 const rds = new RDSDataClient({});
@@ -27,8 +29,23 @@ const DATABASE_NAME = process.env.DATABASE_NAME!;
 const CHAT_HISTORY_TABLE = process.env.CHAT_HISTORY_TABLE!;
 const BEDROCK_MODEL_ID = process.env.BEDROCK_MODEL_ID!;
 
-// Schema context for Claude
-const SCHEMA_CONTEXT = `
+// Model pricing (USD per 1M tokens) - Updated January 2025
+// Source: https://aws.amazon.com/bedrock/pricing/
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  // Claude 3.5 Sonnet v2
+  'us.anthropic.claude-3-5-sonnet-20241022-v2:0': { input: 3.00, output: 15.00 },
+  // Claude 3.5 Sonnet v1
+  'anthropic.claude-3-5-sonnet-20240620-v1:0': { input: 3.00, output: 15.00 },
+  // Claude 3 Opus
+  'anthropic.claude-3-opus-20240229-v1:0': { input: 15.00, output: 75.00 },
+  // Claude 3 Sonnet
+  'anthropic.claude-3-sonnet-20240229-v1:0': { input: 3.00, output: 15.00 },
+  // Claude 3 Haiku
+  'anthropic.claude-3-haiku-20240307-v1:0': { input: 0.25, output: 1.25 },
+};
+
+// Fallback prompt constants (used when Phoenix Prompt Hub is unreachable)
+const FALLBACK_SCHEMA_CONTEXT = `
 You are a SQL expert helping users analyze their Songbird IoT device data.
 You will convert natural language questions into PostgreSQL queries.
 
@@ -98,8 +115,7 @@ You will convert natural language questions into PostgreSQL queries.
 The :deviceFilter placeholder will be automatically replaced with the user's accessible device serial numbers.
 `;
 
-// Few-shot examples matching user's use cases
-const FEW_SHOT_EXAMPLES = `
+const FALLBACK_FEW_SHOT_EXAMPLES = `
 **Example 1: Recent Locations**
 Q: "Give me the last ten unique locations where my devices have reported a location"
 SQL:
@@ -209,7 +225,7 @@ Visualization: table
 Explanation: Shows alert frequency by device and type.
 `;
 
-const TASK_PROMPT = `
+const FALLBACK_TASK_PROMPT = `
 Based on the user's question, generate:
 
 1. A PostgreSQL query following the schema and rules above
@@ -230,6 +246,26 @@ Return your response in this JSON format:
 - Use proper SQL syntax for PostgreSQL
 - Return valid JSON only
 `;
+
+// Composed fallback prompts (match the templates stored in Phoenix Prompt Hub)
+const FALLBACK_SQL_PROMPT = `${FALLBACK_SCHEMA_CONTEXT}\n\n${FALLBACK_FEW_SHOT_EXAMPLES}\n\n${FALLBACK_TASK_PROMPT}\n\nUser Question: "{{question}}"`;
+
+const FALLBACK_INSIGHTS_PROMPT = `You analyzed IoT device data for this question: "{{question}}"
+
+SQL Query executed:
+\`\`\`sql
+{{sql}}
+\`\`\`
+
+Query Results ({{data_count}} rows):
+{{data_preview}}
+
+Generate a 2-3 sentence insight summary highlighting:
+1. Key findings from the data
+2. Any notable patterns or anomalies
+3. Actionable recommendations if applicable
+
+Keep it concise and user-friendly.`;
 
 interface ChatRequest {
   question: string;
@@ -272,26 +308,51 @@ function validateSQL(sql: string): void {
   }
 }
 
+/**
+ * Calculate LLM cost based on token usage
+ */
+function calculateCost(modelId: string, inputTokens: number, outputTokens: number): { input: number; output: number; total: number } {
+  const pricing = MODEL_PRICING[modelId] || { input: 0, output: 0 };
+
+  // Convert from per-1M-tokens to actual cost
+  const inputCost = (inputTokens / 1_000_000) * pricing.input;
+  const outputCost = (outputTokens / 1_000_000) * pricing.output;
+  const totalCost = inputCost + outputCost;
+
+  return {
+    input: inputCost,
+    output: outputCost,
+    total: totalCost,
+  };
+}
+
 async function generateSQL(question: string): Promise<{ sql: string; visualizationType: string; explanation: string }> {
-  const prompt = `${SCHEMA_CONTEXT}\n\n${FEW_SHOT_EXAMPLES}\n\n${TASK_PROMPT}\n\nUser Question: "${question}"`;
+  // Fetch prompt config from Phoenix (falls back to hardcoded if unavailable)
+  const promptConfig = await getPromptTemplate('songbird-sql-generator', FALLBACK_SQL_PROMPT);
+  const prompt = renderTemplate(promptConfig.template, { question });
+  // Phoenix stores Anthropic API model IDs; map to Bedrock equivalents
+  const modelId = (promptConfig.modelName && toBedrockModelId(promptConfig.modelName)) || BEDROCK_MODEL_ID;
+  const maxTokens = promptConfig.maxTokens || 4096;
 
   const { response, responseBody, content } = await traceAsyncFn(
     'bedrock.generate_sql',
     async (span) => {
-      span.setAttribute('llm.request.model', BEDROCK_MODEL_ID);
-      span.setAttribute('llm.request.max_tokens', 4096);
+      span.setAttribute('llm.model_name', modelId);
+      span.setAttribute('llm.system', 'aws-bedrock');
+      span.setAttribute('llm.invocation_parameters', JSON.stringify({ max_tokens: maxTokens }));
 
       // Log the user's original question
-      span.setAttribute('user.question', question);
+      span.setAttribute('input.value', question);
 
-      // Log the full prompt being sent to the LLM
-      span.setAttribute('llm.input_messages', JSON.stringify([{ role: 'user', content: prompt }]));
+      // Log the full prompt (OpenInference flattened message format)
+      span.setAttribute('llm.input_messages.0.message.role', 'user');
+      span.setAttribute('llm.input_messages.0.message.content', prompt);
 
       const response = await bedrock.send(new InvokeModelCommand({
-        modelId: BEDROCK_MODEL_ID,
+        modelId,
         body: JSON.stringify({
           anthropic_version: 'bedrock-2023-05-31',
-          max_tokens: 4096,
+          max_tokens: maxTokens,
           messages: [
             {
               role: 'user',
@@ -304,16 +365,28 @@ async function generateSQL(question: string): Promise<{ sql: string; visualizati
       const responseBody = JSON.parse(new TextDecoder().decode(response.body));
       const content = responseBody.content[0].text;
 
-      // Log the LLM's full response
-      span.setAttribute('llm.output_messages', JSON.stringify([{ role: 'assistant', content }]));
-      span.setAttribute('llm.usage.input_tokens', responseBody.usage?.input_tokens || 0);
-      span.setAttribute('llm.usage.output_tokens', responseBody.usage?.output_tokens || 0);
+      // Log the LLM's response (OpenInference flattened message format)
+      span.setAttribute('llm.output_messages.0.message.role', 'assistant');
+      span.setAttribute('llm.output_messages.0.message.content', content);
+      span.setAttribute('output.value', content);
+
+      // Token counts (OpenInference semantic conventions)
+      const inputTokens = responseBody.usage?.input_tokens || 0;
+      const outputTokens = responseBody.usage?.output_tokens || 0;
+      span.setAttribute('llm.token_count.prompt', inputTokens);
+      span.setAttribute('llm.token_count.completion', outputTokens);
+      span.setAttribute('llm.token_count.total', inputTokens + outputTokens);
+
+      // Calculate and log costs
+      const cost = calculateCost(modelId, inputTokens, outputTokens);
+      span.setAttribute('llm.cost.input_usd', cost.input);
+      span.setAttribute('llm.cost.output_usd', cost.output);
+      span.setAttribute('llm.cost.total_usd', cost.total);
 
       return { response, responseBody, content };
     },
     {
-      'llm.vendor': 'aws-bedrock',
-      'llm.request.type': 'chat',
+      'openinference.span.kind': 'LLM',
     }
   );
 
@@ -384,45 +457,41 @@ async function executeQuery(sql: string, deviceSerialNumbers: string[]): Promise
 }
 
 async function generateInsights(question: string, sql: string, data: any[]): Promise<string> {
-  const prompt = `
-You analyzed IoT device data for this question: "${question}"
-
-SQL Query executed:
-\`\`\`sql
-${sql}
-\`\`\`
-
-Query Results (${data.length} rows):
-${JSON.stringify(data.slice(0, 10), null, 2)}
-${data.length > 10 ? `\n... and ${data.length - 10} more rows` : ''}
-
-Generate a 2-3 sentence insight summary highlighting:
-1. Key findings from the data
-2. Any notable patterns or anomalies
-3. Actionable recommendations if applicable
-
-Keep it concise and user-friendly.
-`;
+  // Fetch prompt config from Phoenix (falls back to hardcoded if unavailable)
+  const promptConfig = await getPromptTemplate('songbird-insights-generator', FALLBACK_INSIGHTS_PROMPT);
+  const dataPreview = JSON.stringify(data.slice(0, 10), null, 2) +
+    (data.length > 10 ? `\n... and ${data.length - 10} more rows` : '');
+  const prompt = renderTemplate(promptConfig.template, {
+    question,
+    sql,
+    data_preview: dataPreview,
+    data_count: String(data.length),
+  });
+  // Phoenix stores Anthropic API model IDs; map to Bedrock equivalents
+  const modelId = (promptConfig.modelName && toBedrockModelId(promptConfig.modelName)) || BEDROCK_MODEL_ID;
+  const maxTokens = promptConfig.maxTokens || 500;
 
   return await traceAsyncFn(
     'bedrock.generate_insights',
     async (span) => {
-      span.setAttribute('llm.request.model', BEDROCK_MODEL_ID);
-      span.setAttribute('llm.request.max_tokens', 500);
+      span.setAttribute('llm.model_name', modelId);
+      span.setAttribute('llm.system', 'aws-bedrock');
+      span.setAttribute('llm.invocation_parameters', JSON.stringify({ max_tokens: maxTokens }));
 
-      // Log the user's original question and the SQL that was executed
-      span.setAttribute('user.question', question);
+      // Log context (OpenInference input/output values)
+      span.setAttribute('input.value', question);
       span.setAttribute('sql.query', sql);
       span.setAttribute('sql.result_count', data.length);
 
-      // Log the full prompt being sent to the LLM
-      span.setAttribute('llm.input_messages', JSON.stringify([{ role: 'user', content: prompt }]));
+      // Log the full prompt (OpenInference flattened message format)
+      span.setAttribute('llm.input_messages.0.message.role', 'user');
+      span.setAttribute('llm.input_messages.0.message.content', prompt);
 
       const response = await bedrock.send(new InvokeModelCommand({
-        modelId: BEDROCK_MODEL_ID,
+        modelId,
         body: JSON.stringify({
           anthropic_version: 'bedrock-2023-05-31',
-          max_tokens: 500,
+          max_tokens: maxTokens,
           messages: [{ role: 'user', content: prompt }],
         }),
       }));
@@ -430,17 +499,28 @@ Keep it concise and user-friendly.
       const responseBody = JSON.parse(new TextDecoder().decode(response.body));
       const content = responseBody.content[0].text;
 
-      // Log the LLM's insights response
-      span.setAttribute('llm.output_messages', JSON.stringify([{ role: 'assistant', content }]));
-      span.setAttribute('insights.text', content);
-      span.setAttribute('llm.usage.input_tokens', responseBody.usage?.input_tokens || 0);
-      span.setAttribute('llm.usage.output_tokens', responseBody.usage?.output_tokens || 0);
+      // Log the LLM's response (OpenInference flattened message format)
+      span.setAttribute('llm.output_messages.0.message.role', 'assistant');
+      span.setAttribute('llm.output_messages.0.message.content', content);
+      span.setAttribute('output.value', content);
+
+      // Token counts (OpenInference semantic conventions)
+      const inputTokens = responseBody.usage?.input_tokens || 0;
+      const outputTokens = responseBody.usage?.output_tokens || 0;
+      span.setAttribute('llm.token_count.prompt', inputTokens);
+      span.setAttribute('llm.token_count.completion', outputTokens);
+      span.setAttribute('llm.token_count.total', inputTokens + outputTokens);
+
+      // Calculate and log costs
+      const cost = calculateCost(modelId, inputTokens, outputTokens);
+      span.setAttribute('llm.cost.input_usd', cost.input);
+      span.setAttribute('llm.cost.output_usd', cost.output);
+      span.setAttribute('llm.cost.total_usd', cost.total);
 
       return content;
     },
     {
-      'llm.vendor': 'aws-bedrock',
-      'llm.request.type': 'chat',
+      'openinference.span.kind': 'LLM',
     }
   );
 }
@@ -483,7 +563,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     // Get user's accessible devices (from Cognito claims or database)
     // If no devices specified, fetch all device serial numbers from Aurora
-    let deviceSerialNumbers = request.deviceSerialNumbers;
+    let deviceSerialNumbers = request.deviceSerialNumbers || [];
 
     if (!deviceSerialNumbers || deviceSerialNumbers.length === 0) {
       const devicesResult = await rds.send(new ExecuteStatementCommand({
@@ -515,29 +595,74 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     console.log('Processing question:', request.question);
     console.log('Device filter:', deviceSerialNumbers);
 
-    // Step 1: Generate SQL using Bedrock
-    const { sql, visualizationType, explanation } = await generateSQL(request.question);
+    // Wrap the entire pipeline in a CHAIN span so all steps are grouped in Phoenix
+    const result = await traceAsyncFn(
+      'chat_query',
+      async (chainSpan) => {
+        chainSpan.setAttribute('input.value', request.question);
+        chainSpan.setAttribute('user.email', request.userEmail);
+        chainSpan.setAttribute('session.id', request.sessionId);
+        chainSpan.setAttribute('device.count', deviceSerialNumbers.length);
 
-    // Step 2: Validate SQL
-    validateSQL(sql);
+        // Step 1: Generate SQL using Bedrock
+        const { sql, visualizationType, explanation } = await generateSQL(request.question);
 
-    // Step 3: Execute query
-    const data = await executeQuery(sql, deviceSerialNumbers);
+        // Step 2: Validate SQL
+        await traceAsyncFn(
+          'validate_sql',
+          async (span) => {
+            span.setAttribute('input.value', sql);
+            validateSQL(sql);
+            span.setAttribute('output.value', 'valid');
+          },
+          { 'openinference.span.kind': 'TOOL' },
+          SpanKind.INTERNAL
+        );
 
-    // Step 4: Generate insights
-    const insights = await generateInsights(request.question, sql, data);
+        // Step 3: Execute query
+        const data = await traceAsyncFn(
+          'execute_sql',
+          async (span) => {
+            span.setAttribute('input.value', sql);
+            span.setAttribute('sql.query', sql);
+            span.setAttribute('db.system', 'postgresql');
+            span.setAttribute('db.name', DATABASE_NAME);
+            const rows = await executeQuery(sql, deviceSerialNumbers);
+            span.setAttribute('output.value', `${rows.length} rows returned`);
+            span.setAttribute('sql.result_count', rows.length);
+            return rows;
+          },
+          { 'openinference.span.kind': 'TOOL' },
+          SpanKind.CLIENT
+        );
 
-    // Step 5: Build result
-    const result: QueryResult = {
-      sql,
-      visualizationType,
-      explanation,
-      data,
-      insights,
-    };
+        // Step 4: Generate insights
+        const insights = await generateInsights(request.question, sql, data);
 
-    // Step 6: Save to chat history
-    await saveChatHistory(request, result);
+        // Step 5: Build result
+        const queryResult: QueryResult = {
+          sql,
+          visualizationType,
+          explanation,
+          data,
+          insights,
+        };
+
+        chainSpan.setAttribute('output.value', insights);
+        chainSpan.setAttribute('sql.query', sql);
+        chainSpan.setAttribute('sql.result_count', data.length);
+
+        // Step 6: Save to chat history
+        await saveChatHistory(request, queryResult);
+
+        return queryResult;
+      },
+      { 'openinference.span.kind': 'CHAIN' },
+      SpanKind.SERVER
+    );
+
+    // Flush spans to Phoenix before Lambda freezes
+    await flushSpans();
 
     return {
       statusCode: 200,
@@ -550,6 +675,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
   } catch (error: any) {
     console.error('Chat query error:', error);
+
+    // Flush spans even on error
+    await flushSpans();
+
     return {
       statusCode: 500,
       headers: {

@@ -47,6 +47,9 @@ async function getAllDeviceUidsForSerial(serialNumber: string): Promise<string[]
 }
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  const method = (event.requestContext as any)?.http?.method || event.httpMethod;
+  const path = (event as any).rawPath || event.path || '';
+
   console.log('Request:', JSON.stringify(event));
 
   const corsHeaders = {
@@ -56,9 +59,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   };
 
   try {
-    const method = (event.requestContext as any)?.http?.method || event.httpMethod;
     const alertId = event.pathParameters?.alert_id;
-    const path = (event as any).rawPath || event.path || '';
 
     if (method === 'OPTIONS') {
       return { statusCode: 200, headers: corsHeaders, body: '' };

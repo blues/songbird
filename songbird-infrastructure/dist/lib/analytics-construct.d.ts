@@ -26,9 +26,15 @@ export declare class AnalyticsConstruct extends Construct {
     readonly deleteSessionLambda: lambda.Function;
     readonly rerunQueryLambda: lambda.Function;
     readonly vpc: ec2.Vpc;
+    private syncLambda?;
     constructor(scope: Construct, id: string, props: AnalyticsConstructProps);
     /**
      * Configure Phoenix OTLP endpoint for tracing
      */
-    configurePhoenixTracing(otlpEndpoint: string): void;
+    configurePhoenixTracing(httpEndpoint: string): void;
+    /**
+     * Configure Phoenix Prompt Hub for runtime prompt fetching.
+     * Sets PHOENIX_HOST (used by @arizeai/phoenix-client SDK) and PHOENIX_PROMPT_TAG.
+     */
+    configurePhoenixPrompts(phoenixEndpoint: string, promptTag?: string): void;
 }

@@ -82,9 +82,12 @@ export class SongbirdStack extends cdk.Stack {
       hostedZone: hostedZone,
     });
 
-    // Configure analytics Lambda to send traces to Phoenix
+    // Configure chat-query Lambda to send traces to Phoenix (LLM observability)
     analytics.configurePhoenixTracing(observability.otlpEndpoint);
     observability.allowTracingFrom(analytics.chatQueryLambda);
+
+    // Configure chat-query Lambda to fetch prompts from Phoenix Prompt Hub
+    analytics.configurePhoenixPrompts(observability.phoenixEndpoint);
 
     // ==========================================================================
     // API Layer (API Gateway + Lambda)
