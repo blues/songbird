@@ -159,6 +159,29 @@ CREATE TABLE IF NOT EXISTS analytics.journeys (
 CREATE INDEX IF NOT EXISTS idx_journeys_status ON analytics.journeys(status, start_time DESC);
 CREATE INDEX IF NOT EXISTS idx_journeys_device_time ON analytics.journeys(serial_number, start_time DESC);
 
+-- pgvector extension for RAG embeddings
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- RAG documents table (schema chunks, few-shot examples, domain knowledge)
+CREATE TABLE IF NOT EXISTS analytics.rag_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  doc_type VARCHAR(50) NOT NULL,
+  title VARCHAR(255),
+  content TEXT NOT NULL,
+  embedding vector(1024),
+  metadata JSONB,
+  pinned BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_rag_documents_embedding
+  ON analytics.rag_documents USING ivfflat (embedding vector_cosine_ops)
+  WITH (lists = 50);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rag_documents_title
+  ON analytics.rag_documents (title);
+
 -- Materialized view for device stats (for faster queries)
 CREATE MATERIALIZED VIEW IF NOT EXISTS analytics.device_stats AS
 SELECT

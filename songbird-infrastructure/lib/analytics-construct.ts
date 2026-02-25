@@ -37,6 +37,8 @@ export class AnalyticsConstruct extends Construct {
   public readonly getSessionLambda: lambda.Function;
   public readonly deleteSessionLambda: lambda.Function;
   public readonly rerunQueryLambda: lambda.Function;
+  public readonly ragDocumentsLambda: lambda.Function;
+  public readonly feedbackLambda: lambda.Function;
   public readonly vpc: ec2.Vpc;
   private syncLambda?: lambda.Function;
 
@@ -223,6 +225,7 @@ export class AnalyticsConstruct extends Construct {
         DATABASE_NAME: 'songbird_analytics',
         CHAT_HISTORY_TABLE: this.chatHistoryTable.tableName,
         BEDROCK_MODEL_ID: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+        DEVICES_TABLE: props.devicesTable.tableName,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
@@ -232,6 +235,7 @@ export class AnalyticsConstruct extends Construct {
 
     this.cluster.grantDataApiAccess(this.chatQueryLambda);
     this.chatHistoryTable.grantReadWriteData(this.chatQueryLambda);
+    props.devicesTable.grantReadData(this.chatQueryLambda);
 
     // Grant Bedrock access (includes Marketplace permissions for first-time model invocation)
     this.chatQueryLambda.addToRolePolicy(new iam.PolicyStatement({
@@ -348,6 +352,102 @@ export class AnalyticsConstruct extends Construct {
     });
 
     this.cluster.grantDataApiAccess(this.rerunQueryLambda);
+
+    // ==========================================================================
+    // Lambda: RAG Document Seeder (one-time / on-demand)
+    // ==========================================================================
+    const seedRagLambda = new NodejsFunction(this, 'SeedRagDocumentsLambda', {
+      functionName: 'songbird-analytics-seed-rag-documents',
+      description: 'Seed RAG corpus (schema chunks, examples, domain knowledge) into pgvector',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/analytics/seed-rag-documents.ts'),
+      timeout: cdk.Duration.minutes(10),
+      memorySize: 512,
+      environment: {
+        CLUSTER_ARN: this.cluster.clusterArn,
+        SECRET_ARN: this.cluster.secret!.secretArn,
+        DATABASE_NAME: 'songbird_analytics',
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+
+    this.cluster.grantDataApiAccess(seedRagLambda);
+
+    // Grant Bedrock access for Titan Embeddings
+    seedRagLambda.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:InvokeModel'],
+      resources: ['*'],
+    }));
+
+    // ==========================================================================
+    // Lambda: RAG Documents CRUD
+    // ==========================================================================
+    this.ragDocumentsLambda = new NodejsFunction(this, 'RagDocumentsLambda', {
+      functionName: 'songbird-analytics-rag-documents',
+      description: 'CRUD operations for RAG document corpus',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/analytics/rag-documents.ts'),
+      timeout: cdk.Duration.seconds(60),
+      memorySize: 512,
+      environment: {
+        CLUSTER_ARN: this.cluster.clusterArn,
+        SECRET_ARN: this.cluster.secret!.secretArn,
+        DATABASE_NAME: 'songbird_analytics',
+        SEED_LAMBDA_ARN: seedRagLambda.functionArn,
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+
+    this.cluster.grantDataApiAccess(this.ragDocumentsLambda);
+
+    // Bedrock access for embeddings
+    this.ragDocumentsLambda.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:InvokeModel'],
+      resources: ['*'],
+    }));
+
+    // Permission to invoke the seed Lambda async
+    this.ragDocumentsLambda.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['lambda:InvokeFunction'],
+      resources: [seedRagLambda.functionArn],
+    }));
+
+    // ==========================================================================
+    // Lambda: Feedback (record ratings + index positive Q→SQL pairs into RAG)
+    // ==========================================================================
+    this.feedbackLambda = new NodejsFunction(this, 'FeedbackLambda', {
+      functionName: 'songbird-analytics-feedback',
+      description: 'Record chat feedback and index positive Q→SQL pairs into RAG',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/analytics/feedback.ts'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 512,
+      environment: {
+        CHAT_HISTORY_TABLE: this.chatHistoryTable.tableName,
+        CLUSTER_ARN: this.cluster.clusterArn,
+        SECRET_ARN: this.cluster.secret!.secretArn,
+        DATABASE_NAME: 'songbird_analytics',
+      },
+      bundling: { minify: true, sourceMap: true },
+      logRetention: logs.RetentionDays.TWO_WEEKS,
+    });
+
+    this.chatHistoryTable.grantReadWriteData(this.feedbackLambda);
+    this.cluster.grantDataApiAccess(this.feedbackLambda);
+
+    this.feedbackLambda.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:InvokeModel'],
+      resources: ['*'],
+    }));
 
     // ==========================================================================
     // Lambda: Backfill (one-time historical data migration)

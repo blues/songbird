@@ -15,8 +15,9 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { RDSDataClient, ExecuteStatementCommand } from '@aws-sdk/client-rds-data';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { getPromptTemplate, renderTemplate, toBedrockModelId, type PromptConfig } from '../shared/phoenix-prompts';
+import { retrieveRelevantContext, formatRetrievedContext } from '../shared/rag-retrieval';
 
 const bedrock = new BedrockRuntimeClient({ region: 'us-east-1' });
 const rds = new RDSDataClient({});
@@ -28,6 +29,7 @@ const SECRET_ARN = process.env.SECRET_ARN!;
 const DATABASE_NAME = process.env.DATABASE_NAME!;
 const CHAT_HISTORY_TABLE = process.env.CHAT_HISTORY_TABLE!;
 const BEDROCK_MODEL_ID = process.env.BEDROCK_MODEL_ID!;
+const DEVICES_TABLE = process.env.DEVICES_TABLE || 'songbird-devices';
 
 // Model pricing (USD per 1M tokens) - Updated January 2025
 // Source: https://aws.amazon.com/bedrock/pricing/
@@ -44,211 +46,35 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   'anthropic.claude-3-haiku-20240307-v1:0': { input: 0.25, output: 1.25 },
 };
 
-// Fallback prompt constants (used when Phoenix Prompt Hub is unreachable)
-const FALLBACK_SCHEMA_CONTEXT = `
-You are a SQL expert helping users analyze their Songbird IoT device data.
-You will convert natural language questions into PostgreSQL queries.
+// Fallback prompt (used when Phoenix Prompt Hub is unreachable).
+// Schema details and examples are now in the RAG corpus and injected via
+// {{retrieved_context}} — only rules and structure live here.
+const FALLBACK_SQL_PROMPT = `You are a SQL expert helping users analyze their Songbird IoT device data stored in PostgreSQL (Aurora Serverless v2). Convert the user's natural language question into a valid PostgreSQL SELECT query.
 
-**Database Schema (PostgreSQL on Aurora Serverless v2):**
+{{retrieved_context}}
 
-1. **analytics.devices** - Device metadata
-   - serial_number VARCHAR(100) PRIMARY KEY
-   - device_uid VARCHAR(100)
-   - name VARCHAR(255)
-   - fleet_name VARCHAR(255)
-   - fleet_uid VARCHAR(100)
-   - status VARCHAR(50) - 'active', 'inactive', 'warning', 'error'
-   - last_seen BIGINT - Unix timestamp
-   - voltage DOUBLE PRECISION
-   - temperature DOUBLE PRECISION
-   - last_location_lat DOUBLE PRECISION
-   - last_location_lon DOUBLE PRECISION
+**Critical Query Rules:**
+1. ALL tables MUST be prefixed with the "analytics." schema: analytics.devices, analytics.telemetry, analytics.locations, analytics.alerts, analytics.journeys
+2. ALWAYS include "WHERE serial_number IN (:deviceFilter)" — this placeholder is replaced at runtime with the user's accessible devices
+3. {{assigned_device_rule}}
+4. Default time range: time > NOW() - INTERVAL '90 days' unless the user specifies otherwise
+5. CRITICAL timestamp conversion: last_seen in analytics.devices is in MILLISECONDS → use TO_TIMESTAMP(last_seen/1000). The columns created_at, start_time, end_time are in SECONDS → use TO_TIMESTAMP(column_name)
+6. LIMIT results to 1000 rows max
+7. ONLY use SELECT statements — no INSERT, UPDATE, DELETE, DROP, etc.
+8. Do NOT use $1/$2/... positional parameters
+9. Only use columns that exist in the schema — do not invent columns like battery_level, firmware_version, signal_strength, etc.
 
-2. **analytics.telemetry** - Time-series sensor data (partitioned by time)
-   - device_uid VARCHAR(100)
-   - serial_number VARCHAR(100)
-   - time TIMESTAMP WITH TIME ZONE
-   - temperature DOUBLE PRECISION - in Celsius
-   - humidity DOUBLE PRECISION - percentage
-   - pressure DOUBLE PRECISION - in kPa
-   - voltage DOUBLE PRECISION - in volts
-   - event_type VARCHAR(100)
-
-3. **analytics.locations** - GPS and location data (partitioned by time)
-   - device_uid VARCHAR(100)
-   - serial_number VARCHAR(100)
-   - time TIMESTAMP WITH TIME ZONE
-   - lat DOUBLE PRECISION
-   - lon DOUBLE PRECISION
-   - source VARCHAR(50) - 'gps', 'tower', 'wifi'
-   - journey_id BIGINT
-
-4. **analytics.alerts** - Device alerts
-   - alert_id VARCHAR(100) PRIMARY KEY
-   - device_uid VARCHAR(100)
-   - serial_number VARCHAR(100)
-   - alert_type VARCHAR(100)
-   - severity VARCHAR(50) - 'info', 'warning', 'critical'
-   - message TEXT
-   - acknowledged BOOLEAN
-   - created_at BIGINT - Unix timestamp
-
-5. **analytics.journeys** - GPS tracking journeys
-   - device_uid VARCHAR(100)
-   - serial_number VARCHAR(100)
-   - journey_id BIGINT
-   - start_time BIGINT - Unix timestamp
-   - end_time BIGINT - Unix timestamp
-   - status VARCHAR(50) - 'active', 'completed'
-   - distance_km DOUBLE PRECISION
-
-**Important Query Rules:**
-1. ALWAYS include "WHERE serial_number IN (:deviceFilter)" in queries
-2. Use "time > NOW() - INTERVAL '90 days'" for recent data unless user specifies otherwise
-3. For timestamps, convert Unix timestamps with "TO_TIMESTAMP(created_at)"
-4. Limit results to 1000 rows max
-5. Use proper aggregations (GROUP BY, ORDER BY, LIMIT)
-6. Return results suitable for visualization
-7. If user asks for "recent" or "last week" data but results are empty, try a longer time range
-
-**Available Device Filter:**
-The :deviceFilter placeholder will be automatically replaced with the user's accessible device serial numbers.
-`;
-
-const FALLBACK_FEW_SHOT_EXAMPLES = `
-**Example 1: Recent Locations**
-Q: "Give me the last ten unique locations where my devices have reported a location"
-SQL:
-\`\`\`sql
-SELECT DISTINCT ON (lat, lon)
-  serial_number,
-  time,
-  lat,
-  lon,
-  source
-FROM analytics.locations
-WHERE serial_number IN (:deviceFilter)
-  AND time > NOW() - INTERVAL '30 days'
-ORDER BY lat, lon, time DESC
-LIMIT 10;
-\`\`\`
-Visualization: map
-Explanation: Shows the 10 most recent unique locations across all devices.
-
-**Example 2: Temperature Anomalies**
-Q: "Show me all the times that temperature spiked suddenly"
-SQL:
-\`\`\`sql
-WITH temp_changes AS (
-  SELECT
-    serial_number,
-    time,
-    temperature,
-    LAG(temperature) OVER (PARTITION BY serial_number ORDER BY time) as prev_temp,
-    temperature - LAG(temperature) OVER (PARTITION BY serial_number ORDER BY time) as temp_diff
-  FROM analytics.telemetry
-  WHERE serial_number IN (:deviceFilter)
-    AND time > NOW() - INTERVAL '90 days'
-    AND temperature IS NOT NULL
-)
-SELECT
-  serial_number,
-  time,
-  temperature,
-  prev_temp,
-  temp_diff
-FROM temp_changes
-WHERE ABS(temp_diff) > 5
-ORDER BY ABS(temp_diff) DESC
-LIMIT 100;
-\`\`\`
-Visualization: scatter
-Explanation: Identifies sudden temperature changes greater than 5°C.
-
-**Example 3: Power Usage Over Time**
-Q: "Graph my power usage for the last week"
-SQL:
-\`\`\`sql
-SELECT
-  DATE_TRUNC('hour', time) as hour,
-  serial_number,
-  AVG(voltage) as avg_voltage,
-  COUNT(*) as reading_count
-FROM analytics.telemetry
-WHERE serial_number IN (:deviceFilter)
-  AND time > NOW() - INTERVAL '30 days'
-  AND voltage IS NOT NULL
-GROUP BY DATE_TRUNC('hour', time), serial_number
-ORDER BY hour;
-\`\`\`
-Visualization: line_chart
-Explanation: Shows average voltage (as proxy for power usage) per hour.
-
-**Example 4: Temperature Comparison**
-Q: "Compare the average temperature between my different devices"
-SQL:
-\`\`\`sql
-SELECT
-  d.serial_number,
-  d.name,
-  AVG(t.temperature) as avg_temp,
-  MIN(t.temperature) as min_temp,
-  MAX(t.temperature) as max_temp,
-  COUNT(*) as reading_count
-FROM analytics.devices d
-LEFT JOIN analytics.telemetry t ON d.serial_number = t.serial_number
-  AND t.time > NOW() - INTERVAL '30 days'
-WHERE d.serial_number IN (:deviceFilter)
-GROUP BY d.serial_number, d.name
-ORDER BY avg_temp DESC;
-\`\`\`
-Visualization: bar_chart
-Explanation: Compares temperature statistics across devices.
-
-**Example 5: Alert Analysis**
-Q: "What devices have alerted the most in the past month?"
-SQL:
-\`\`\`sql
-SELECT
-  serial_number,
-  alert_type,
-  COUNT(*) as alert_count,
-  COUNT(CASE WHEN acknowledged THEN 1 END) as acknowledged_count
-FROM analytics.alerts
-WHERE serial_number IN (:deviceFilter)
-  AND created_at > EXTRACT(EPOCH FROM NOW() - INTERVAL '30 days')
-GROUP BY serial_number, alert_type
-ORDER BY alert_count DESC
-LIMIT 20;
-\`\`\`
-Visualization: table
-Explanation: Shows alert frequency by device and type.
-`;
-
-const FALLBACK_TASK_PROMPT = `
-Based on the user's question, generate:
-
-1. A PostgreSQL query following the schema and rules above
-2. A suggested visualization type: line_chart, bar_chart, table, map, scatter, or gauge
-3. A brief explanation of what the query does
-
-Return your response in this JSON format:
+**Response Format (JSON only, no explanation outside the JSON):**
 {
   "sql": "SELECT...",
   "visualizationType": "line_chart",
   "explanation": "This query shows..."
 }
 
-**CRITICAL REQUIREMENTS:**
-- MUST include "WHERE serial_number IN (:deviceFilter)" in all queries
-- ONLY use SELECT statements (no INSERT, UPDATE, DELETE, DROP, etc.)
-- Limit results to 1000 rows max
-- Use proper SQL syntax for PostgreSQL
-- Return valid JSON only
-`;
+Visualization types: line_chart, bar_chart, table, map, scatter, gauge
 
-// Composed fallback prompts (match the templates stored in Phoenix Prompt Hub)
-const FALLBACK_SQL_PROMPT = `${FALLBACK_SCHEMA_CONTEXT}\n\n${FALLBACK_FEW_SHOT_EXAMPLES}\n\n${FALLBACK_TASK_PROMPT}\n\nUser Question: "{{question}}"`;
+User Question: "{{question}}"`;
+
 
 const FALLBACK_INSIGHTS_PROMPT = `You analyzed IoT device data for this question: "{{question}}"
 
@@ -297,13 +123,15 @@ function validateSQL(sql: string): void {
   ];
 
   for (const keyword of dangerousKeywords) {
-    if (lowerSQL.includes(keyword)) {
+    if (new RegExp(`\\b${keyword}\\b`).test(lowerSQL)) {
       throw new Error(`Keyword '${keyword}' is not allowed`);
     }
   }
 
-  // Must include device filter
-  if (!sql.includes(':deviceFilter')) {
+  // Must include device filter — either the :deviceFilter placeholder or a
+  // literal serial_number filter (used when the model scopes to "my device")
+  const hasDeviceFilter = sql.includes(':deviceFilter') || /serial_number\s*=\s*'[^']+'/.test(sql);
+  if (!hasDeviceFilter) {
     throw new Error('Query must include device filter (:deviceFilter)');
   }
 }
@@ -326,13 +154,36 @@ function calculateCost(modelId: string, inputTokens: number, outputTokens: numbe
   };
 }
 
-async function generateSQL(question: string): Promise<{ sql: string; visualizationType: string; explanation: string }> {
+async function generateSQL(question: string, assignedDevice?: string): Promise<{ sql: string; visualizationType: string; explanation: string }> {
+  // Retrieve relevant context via RAG (falls back gracefully on error)
+  let retrievedContext = '';
+  try {
+    const docs = await retrieveRelevantContext(
+      question,
+      rds,
+      CLUSTER_ARN,
+      SECRET_ARN,
+      DATABASE_NAME,
+      5
+    );
+    retrievedContext = formatRetrievedContext(docs);
+  } catch (error: any) {
+    console.warn('RAG retrieval failed, using static context only:', error.message);
+  }
+
   // Fetch prompt config from Phoenix (falls back to hardcoded if unavailable)
   const promptConfig = await getPromptTemplate('songbird-sql-generator', FALLBACK_SQL_PROMPT);
-  const prompt = renderTemplate(promptConfig.template, { question });
+  const assignedDeviceRule = assignedDevice
+    ? `When the user says "my device", use serial_number = '${assignedDevice}' instead of :deviceFilter`
+    : 'If the user asks about "my device" and no device is assigned, use :deviceFilter and note there is no specific device assigned';
+  const prompt = renderTemplate(promptConfig.template, {
+    question,
+    retrieved_context: retrievedContext,
+    assigned_device_rule: assignedDeviceRule,
+  });
   // Phoenix stores Anthropic API model IDs; map to Bedrock equivalents
   const modelId = (promptConfig.modelName && toBedrockModelId(promptConfig.modelName)) || BEDROCK_MODEL_ID;
-  const maxTokens = promptConfig.maxTokens || 4096;
+  const maxTokens = promptConfig.maxTokens || 8192;
 
   const { response, responseBody, content } = await traceAsyncFn(
     'bedrock.generate_sql',
@@ -341,8 +192,10 @@ async function generateSQL(question: string): Promise<{ sql: string; visualizati
       span.setAttribute('llm.system', 'aws-bedrock');
       span.setAttribute('llm.invocation_parameters', JSON.stringify({ max_tokens: maxTokens }));
 
-      // Log the user's original question
+      // Log the user's original question and whether RAG context was injected
       span.setAttribute('input.value', question);
+      span.setAttribute('rag.context_retrieved', retrievedContext.length > 0);
+      span.setAttribute('rag.context_length', retrievedContext.length);
 
       // Log the full prompt (OpenInference flattened message format)
       span.setAttribute('llm.input_messages.0.message.role', 'user');
@@ -354,16 +207,21 @@ async function generateSQL(question: string): Promise<{ sql: string; visualizati
           anthropic_version: 'bedrock-2023-05-31',
           max_tokens: maxTokens,
           messages: [
-            {
-              role: 'user',
-              content: prompt,
-            },
+            { role: 'user', content: prompt },
+            { role: 'assistant', content: '{' }, // prefill to force JSON output
           ],
         }),
       }));
 
       const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-      const content = responseBody.content[0].text;
+
+      // Check if the model was cut off before finishing
+      if (responseBody.stop_reason === 'max_tokens') {
+        throw new Error('SQL generation was cut off — prompt may be too large. Try a simpler question.');
+      }
+
+      // Prepend the prefilled '{' since Bedrock strips it from the response
+      const content = '{' + responseBody.content[0].text;
 
       // Log the LLM's response (OpenInference flattened message format)
       span.setAttribute('llm.output_messages.0.message.role', 'assistant');
@@ -390,30 +248,73 @@ async function generateSQL(question: string): Promise<{ sql: string; visualizati
     }
   );
 
-  // Extract JSON from markdown code blocks if present
-  let jsonText = content;
-  const jsonMatch = content.match(/```json\n([\s\S]+?)\n```/) || content.match(/```\n([\s\S]+?)\n```/);
-  if (jsonMatch) {
-    jsonText = jsonMatch[1];
+  // Extract JSON — strip code fences if present, then find the outermost { }
+  let jsonText = content
+    .replace(/^```(?:json)?\s*/i, '')  // strip opening fence
+    .replace(/\s*```\s*$/, '')          // strip closing fence
+    .trim();
+
+  // Find the outermost { } in case there's still surrounding text
+  const jsonStart = jsonText.indexOf('{');
+  const jsonEnd = jsonText.lastIndexOf('}');
+  if (jsonStart !== -1 && jsonEnd > jsonStart) {
+    jsonText = jsonText.slice(jsonStart, jsonEnd + 1);
   }
 
-  // Fix control characters in JSON string values (Claude often includes unescaped newlines in SQL)
-  // This regex finds string values and escapes newlines/tabs within them
-  jsonText = jsonText.replace(/"([^"\\]|\\.)*"/g, (match: string) => {
-    return match
-      .replace(/\n/g, '\\n')
-      .replace(/\r/g, '\\r')
-      .replace(/\t/g, '\\t');
-  });
+  // Fix unescaped control characters by scanning character by character.
+  // JSON.parse rejects bare newlines/tabs inside string values.
+  let fixed = '';
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < jsonText.length; i++) {
+    const ch = jsonText[i];
+    if (escape) {
+      fixed += ch;
+      escape = false;
+      continue;
+    }
+    if (ch === '\\') {
+      fixed += ch;
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      fixed += ch;
+      continue;
+    }
+    if (inString) {
+      if (ch === '\n') { fixed += '\\n'; continue; }
+      if (ch === '\r') { fixed += '\\r'; continue; }
+      if (ch === '\t') { fixed += '\\t'; continue; }
+    }
+    fixed += ch;
+  }
 
-  const result = JSON.parse(jsonText);
+  const result = JSON.parse(fixed);
   return result;
 }
 
 async function executeQuery(sql: string, deviceSerialNumbers: string[]): Promise<any[]> {
   // Replace device filter placeholder
   const deviceList = deviceSerialNumbers.map(sn => `'${sn.replace(/'/g, "''")}'`).join(', ');
-  const finalSQL = sql.replace(':deviceFilter', deviceList);
+  let finalSQL = sql.replaceAll(':deviceFilter', deviceList);
+
+  // Reject SQL containing $N positional parameters — RDS Data API treats these as
+  // prepared statement params and errors when none are supplied.
+  if (/\$\d+/.test(finalSQL)) {
+    throw new Error('Generated SQL contains unsupported positional parameters ($1, $2, ...). Please rephrase your question.');
+  }
+
+  // Auto-fix missing analytics. schema prefix for known tables
+  const knownTables = ['devices', 'telemetry', 'locations', 'alerts', 'journeys'];
+  for (const table of knownTables) {
+    // Match table name not already prefixed with analytics.
+    finalSQL = finalSQL.replace(
+      new RegExp(`(?<!analytics\\.)\\b(${table})\\b`, 'gi'),
+      'analytics.$1'
+    );
+  }
 
   console.log('Executing SQL:', finalSQL);
 
@@ -592,8 +493,29 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       }
     }
 
+    // Look up the user's assigned device from DynamoDB devices table
+    let assignedDevice: string | undefined;
+    try {
+      // Try exact match first, then case-insensitive
+      const assignedResult = await ddb.send(new ScanCommand({
+        TableName: DEVICES_TABLE,
+        FilterExpression: 'assigned_to = :email OR assigned_to = :emailLower OR assigned_to = :emailUpper',
+        ExpressionAttributeValues: {
+          ':email': request.userEmail,
+          ':emailLower': request.userEmail.toLowerCase(),
+          ':emailUpper': request.userEmail.toUpperCase(),
+        },
+        ProjectionExpression: 'serial_number',
+      }));
+      assignedDevice = assignedResult.Items?.[0]?.serial_number as string | undefined;
+      console.log('Assigned device lookup result:', assignedDevice, 'for email:', request.userEmail);
+    } catch (error: any) {
+      console.warn('Could not look up assigned device:', error.message);
+    }
+
     console.log('Processing question:', request.question);
     console.log('Device filter:', deviceSerialNumbers);
+    console.log('Assigned device:', assignedDevice);
 
     // Wrap the entire pipeline in a CHAIN span so all steps are grouped in Phoenix
     const result = await traceAsyncFn(
@@ -603,9 +525,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         chainSpan.setAttribute('user.email', request.userEmail);
         chainSpan.setAttribute('session.id', request.sessionId);
         chainSpan.setAttribute('device.count', deviceSerialNumbers.length);
+        if (assignedDevice) chainSpan.setAttribute('user.assigned_device', assignedDevice);
 
         // Step 1: Generate SQL using Bedrock
-        const { sql, visualizationType, explanation } = await generateSQL(request.question);
+        const { sql, visualizationType, explanation } = await generateSQL(request.question, assignedDevice);
 
         // Step 2: Validate SQL
         await traceAsyncFn(
@@ -630,6 +553,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
             const rows = await executeQuery(sql, deviceSerialNumbers);
             span.setAttribute('output.value', `${rows.length} rows returned`);
             span.setAttribute('sql.result_count', rows.length);
+            // Log first 20 rows as output for Phoenix inspection
+            span.setAttribute('sql.result_preview', JSON.stringify(rows.slice(0, 20)));
             return rows;
           },
           { 'openinference.span.kind': 'TOOL' },

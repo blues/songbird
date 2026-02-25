@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Analytics Chat Feedback – Songbird</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #09090b;
+    --bg-card: #18181b;
+    --bg-muted: #27272a22;
+    --border: #27272a;
+    --border-soft: #3f3f46;
+    --fg: #fafafa;
+    --fg-muted: #a1a1aa;
+    --fg-subtle: #71717a;
+    --primary: #a855f7;
+    --green: #22c55e;
+    --red: #ef4444;
+    --radius: 8px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+    max-width: 760px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-subtle);
+    margin-bottom: 12px;
+    padding: 4px 8px;
+    background: #27272a;
+    border-radius: 4px;
+    display: inline-block;
+  }
+
+  /* Message layout */
+  .message {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .avatar {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    margin-top: 2px;
+  }
+
+  .message-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+
+  .card-muted {
+    background: #27272a20;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+
+  .insights-text {
+    font-size: 13px;
+    color: var(--fg);
+    line-height: 1.6;
+  }
+
+  .insights-text strong { color: var(--fg); }
+
+  .timestamp {
+    font-size: 11px;
+    color: var(--fg-subtle);
+    margin-top: 10px;
+  }
+
+  /* Bar chart placeholder */
+  .chart-placeholder {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .chart-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--fg-muted);
+    margin-bottom: 4px;
+  }
+
+  .bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    height: 80px;
+  }
+
+  .bar-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .bar {
+    width: 100%;
+    border-radius: 3px 3px 0 0;
+    background: var(--primary);
+    opacity: 0.7;
+  }
+
+  .bar-label {
+    font-size: 10px;
+    color: var(--fg-subtle);
+  }
+
+  /* SQL button */
+  .btn-outline-sm {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--fg-muted);
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  /* Feedback row */
+  .feedback-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  .feedback-label {
+    font-size: 12px;
+    color: var(--fg-subtle);
+  }
+
+  .btn-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--fg-subtle);
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+
+  .btn-icon:hover { background: #27272a; color: var(--fg); }
+  .btn-icon.active-up { color: var(--green); border-color: #22c55e30; background: #22c55e10; }
+  .btn-icon.active-down { color: var(--red); border-color: #ef444430; background: #ef444410; }
+  .btn-icon.disabled { color: #3f3f46; cursor: default; border-color: transparent; background: transparent; }
+
+  /* Inline feedback form */
+  .feedback-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    background: #27272a30;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-top: 4px;
+  }
+
+  .feedback-input {
+    width: 100%;
+    padding: 7px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    color: var(--fg);
+    font-size: 12px;
+    font-family: var(--font);
+    outline: none;
+  }
+
+  .feedback-form-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .btn-sm {
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+
+  .btn-sm-primary { background: var(--primary); color: #fff; }
+  .btn-sm-ghost { background: transparent; color: var(--fg-muted); border-color: var(--border-soft); }
+
+  /* Confirmation text */
+  .confirmation {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--green);
+    margin-top: 2px;
+  }
+
+  /* Divider */
+  hr { border: none; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<!-- State 1: Thumbs down clicked, form open -->
+<div>
+  <div class="section-label">State 1 — Thumbs down clicked</div>
+  <div class="message">
+    <div class="avatar">✦</div>
+    <div class="message-body">
+
+      <!-- Insights card -->
+      <div class="card-muted">
+        <div class="insights-text">
+          Your device <strong>songbird-01</strong> shows stable temperature readings averaging <strong>21.4°C</strong> over the past 7 days. Voltage is healthy at 3.9V with no significant drops. Humidity averages 58% — within normal operating range. No anomalies detected in the most recent 48-hour window.
+        </div>
+        <div class="timestamp">2 minutes ago</div>
+      </div>
+
+      <!-- Visualization card -->
+      <div class="card">
+        <div class="chart-placeholder">
+          <div class="chart-title">Temperature over time — songbird-01</div>
+          <div class="bars">
+            <div class="bar-group"><div class="bar" style="height:55px"></div><div class="bar-label">Mon</div></div>
+            <div class="bar-group"><div class="bar" style="height:62px"></div><div class="bar-label">Tue</div></div>
+            <div class="bar-group"><div class="bar" style="height:48px"></div><div class="bar-label">Wed</div></div>
+            <div class="bar-group"><div class="bar" style="height:70px"></div><div class="bar-label">Thu</div></div>
+            <div class="bar-group"><div class="bar" style="height:58px"></div><div class="bar-label">Fri</div></div>
+            <div class="bar-group"><div class="bar" style="height:45px"></div><div class="bar-label">Sat</div></div>
+            <div class="bar-group"><div class="bar" style="height:52px"></div><div class="bar-label">Sun</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SQL button -->
+      <div>
+        <button class="btn-outline-sm">
+          <span>👁</span> View SQL Query
+        </button>
+      </div>
+
+      <!-- Feedback row -->
+      <div class="feedback-row">
+        <span class="feedback-label">Was this helpful?</span>
+        <button class="btn-icon disabled" title="Thumbs up">👍</button>
+        <button class="btn-icon active-down" title="Thumbs down">👎</button>
+      </div>
+
+      <!-- Inline negative feedback form -->
+      <div class="feedback-form">
+        <input class="feedback-input" type="text" placeholder="What was wrong? (optional — e.g. wrong device, wrong time range...)" />
+        <div class="feedback-form-actions">
+          <button class="btn-sm btn-sm-primary">Submit</button>
+          <button class="btn-sm btn-sm-ghost">Cancel</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<hr />
+
+<!-- State 2: Thumbs up clicked, confirmed -->
+<div>
+  <div class="section-label">State 2 — Thumbs up clicked (saved to RAG)</div>
+  <div class="message">
+    <div class="avatar">✦</div>
+    <div class="message-body">
+
+      <!-- Insights card -->
+      <div class="card-muted">
+        <div class="insights-text">
+          Your device <strong>songbird-01</strong> shows stable temperature readings averaging <strong>21.4°C</strong> over the past 7 days. Voltage is healthy at 3.9V with no significant drops. Humidity averages 58% — within normal operating range. No anomalies detected in the most recent 48-hour window.
+        </div>
+        <div class="timestamp">2 minutes ago</div>
+      </div>
+
+      <!-- Visualization card -->
+      <div class="card">
+        <div class="chart-placeholder">
+          <div class="chart-title">Temperature over time — songbird-01</div>
+          <div class="bars">
+            <div class="bar-group"><div class="bar" style="height:55px"></div><div class="bar-label">Mon</div></div>
+            <div class="bar-group"><div class="bar" style="height:62px"></div><div class="bar-label">Tue</div></div>
+            <div class="bar-group"><div class="bar" style="height:48px"></div><div class="bar-label">Wed</div></div>
+            <div class="bar-group"><div class="bar" style="height:70px"></div><div class="bar-label">Thu</div></div>
+            <div class="bar-group"><div class="bar" style="height:58px"></div><div class="bar-label">Fri</div></div>
+            <div class="bar-group"><div class="bar" style="height:45px"></div><div class="bar-label">Sat</div></div>
+            <div class="bar-group"><div class="bar" style="height:52px"></div><div class="bar-label">Sun</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SQL button -->
+      <div>
+        <button class="btn-outline-sm">
+          <span>👁</span> View SQL Query
+        </button>
+      </div>
+
+      <!-- Feedback row — thumbs up active -->
+      <div class="feedback-row">
+        <span class="feedback-label">Was this helpful?</span>
+        <button class="btn-icon active-up" title="Helpful">👍</button>
+        <button class="btn-icon disabled" title="Not helpful">👎</button>
+      </div>
+
+      <!-- Confirmation message -->
+      <div class="confirmation">
+        <span>✓</span>
+        <span>Saved to improve future results</span>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

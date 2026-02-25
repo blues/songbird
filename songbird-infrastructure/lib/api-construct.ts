@@ -356,7 +356,7 @@ export class ApiConstruct extends Construct {
         DEVICES_TABLE: props.devicesTable.tableName,
         TELEMETRY_TABLE: props.telemetryTable.tableName,
         DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
-        MAPBOX_TOKEN: 'pk.eyJ1IjoiYnJhbmRvbnNhdHJvbSIsImEiOiJjbWphb2oyaW8wN2k3M3Bwd3lrdnpjOHhtIn0.Syc0GM_ia3Dz7HreQ6-ImQ',
+        MAPBOX_TOKEN: mapboxSecret.secretValue.unsafeUnwrap(),
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
@@ -840,7 +840,9 @@ export class ApiConstruct extends Construct {
     listSessionsLambda?: lambda.Function,
     getSessionLambda?: lambda.Function,
     deleteSessionLambda?: lambda.Function,
-    rerunQueryLambda?: lambda.Function
+    rerunQueryLambda?: lambda.Function,
+    ragDocumentsLambda?: lambda.Function,
+    feedbackLambda?: lambda.Function
   ) {
     const chatQueryIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
       'ChatQueryIntegration',
@@ -925,6 +927,76 @@ export class ApiConstruct extends Construct {
         path: '/analytics/rerun',
         methods: [apigateway.HttpMethod.POST],
         integration: rerunQueryIntegration,
+        authorizer: this.authorizer,
+      });
+    }
+
+    if (ragDocumentsLambda) {
+      const ragDocsIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+        'RagDocumentsIntegration',
+        ragDocumentsLambda
+      );
+
+      // GET /analytics/rag-documents - List all RAG documents
+      this.api.addRoutes({
+        path: '/analytics/rag-documents',
+        methods: [apigateway.HttpMethod.GET],
+        integration: ragDocsIntegration,
+        authorizer: this.authorizer,
+      });
+
+      // POST /analytics/rag-documents - Create a new RAG document
+      this.api.addRoutes({
+        path: '/analytics/rag-documents',
+        methods: [apigateway.HttpMethod.POST],
+        integration: ragDocsIntegration,
+        authorizer: this.authorizer,
+      });
+
+      // POST /analytics/rag-documents/reseed - Re-seed built-in documents
+      this.api.addRoutes({
+        path: '/analytics/rag-documents/reseed',
+        methods: [apigateway.HttpMethod.POST],
+        integration: ragDocsIntegration,
+        authorizer: this.authorizer,
+      });
+
+      // PUT /analytics/rag-documents/{id} - Update a RAG document
+      this.api.addRoutes({
+        path: '/analytics/rag-documents/{id}',
+        methods: [apigateway.HttpMethod.PUT],
+        integration: ragDocsIntegration,
+        authorizer: this.authorizer,
+      });
+
+      // DELETE /analytics/rag-documents/{id} - Delete a RAG document
+      this.api.addRoutes({
+        path: '/analytics/rag-documents/{id}',
+        methods: [apigateway.HttpMethod.DELETE],
+        integration: ragDocsIntegration,
+        authorizer: this.authorizer,
+      });
+
+      // PATCH /analytics/rag-documents/{id}/pin - Toggle pinned status
+      this.api.addRoutes({
+        path: '/analytics/rag-documents/{id}/pin',
+        methods: [apigateway.HttpMethod.PATCH],
+        integration: ragDocsIntegration,
+        authorizer: this.authorizer,
+      });
+    }
+
+    if (feedbackLambda) {
+      const feedbackIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+        'FeedbackIntegration',
+        feedbackLambda
+      );
+
+      // POST /analytics/feedback - Submit query feedback
+      this.api.addRoutes({
+        path: '/analytics/feedback',
+        methods: [apigateway.HttpMethod.POST],
+        integration: feedbackIntegration,
         authorizer: this.authorizer,
       });
     }

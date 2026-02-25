@@ -3,12 +3,15 @@ import { Send, Sparkles, Database, TrendingUp, PanelLeftClose, PanelLeft } from 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChatMessage } from '@/components/analytics/ChatMessage';
 import { SuggestedQuestions } from '@/components/analytics/SuggestedQuestions';
 import { ConversationList } from '@/components/analytics/ConversationList';
+import { RagContextManager } from '@/components/analytics/RagContextManager';
 import { useChatQuery, useChatHistory, useAnalyticsSession } from '@/hooks/useAnalytics';
 import { rerunQuery } from '@/api/analytics';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { useIsAdmin } from '@/hooks/useAuth';
 import type { QueryResult } from '@/types/analytics';
 import { cn } from '@/lib/utils';
 
@@ -37,6 +40,7 @@ export function Analytics({ mapboxToken }: AnalyticsProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loadedSessionId, setLoadedSessionId] = useState<string | null>(null);
 
+  const { isAdmin } = useIsAdmin();
   const chatMutation = useChatQuery();
   const { data: historyData } = useChatHistory(userEmail);
   const { data: sessionData, isLoading: isLoadingSession } = useAnalyticsSession(loadedSessionId, userEmail);
@@ -190,6 +194,25 @@ export function Analytics({ mapboxToken }: AnalyticsProps) {
   }, []);
 
   return (
+    <div className="space-y-6">
+      {/* Page header */}
+      <div>
+        <h1 className="text-3xl font-bold flex items-center gap-2">
+          <Sparkles className="h-8 w-8 text-purple-500" />
+          Analytics
+        </h1>
+        <p className="text-muted-foreground mt-1">
+          Ask questions about your Songbird devices in natural language
+        </p>
+      </div>
+
+      <Tabs defaultValue="chat">
+        <TabsList>
+          <TabsTrigger value="chat">Analytics Chat</TabsTrigger>
+          {isAdmin && <TabsTrigger value="context">Context Manager</TabsTrigger>}
+        </TabsList>
+
+        <TabsContent value="chat" className="mt-4">
     <div className="flex h-full gap-4">
       {/* Sidebar */}
       <div
@@ -210,31 +233,20 @@ export function Analytics({ mapboxToken }: AnalyticsProps) {
 
       {/* Main Content */}
       <div className="flex-1 space-y-6 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              title={sidebarOpen ? 'Hide conversations' : 'Show conversations'}
-            >
-              {sidebarOpen ? (
-                <PanelLeftClose className="h-5 w-5" />
-              ) : (
-                <PanelLeft className="h-5 w-5" />
-              )}
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold flex items-center gap-2">
-                <Sparkles className="h-8 w-8 text-purple-500" />
-                Analytics Chat
-              </h1>
-              <p className="text-muted-foreground mt-1">
-                Ask questions about your Songbird devices in natural language
-              </p>
-            </div>
-          </div>
+        {/* Sidebar toggle */}
+        <div className="flex items-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            title={sidebarOpen ? 'Hide conversations' : 'Show conversations'}
+          >
+            {sidebarOpen ? (
+              <PanelLeftClose className="h-5 w-5" />
+            ) : (
+              <PanelLeft className="h-5 w-5" />
+            )}
+          </Button>
         </div>
 
         {/* Stats Cards */}
@@ -300,7 +312,7 @@ export function Analytics({ mapboxToken }: AnalyticsProps) {
               </div>
             ) : (
               messages.map((message, index) => (
-                <ChatMessage key={index} message={message} mapboxToken={mapboxToken} />
+                <ChatMessage key={index} message={message} mapboxToken={mapboxToken} userEmail={userEmail} />
               ))
             )}
             {chatMutation.isPending && (
@@ -333,6 +345,15 @@ export function Analytics({ mapboxToken }: AnalyticsProps) {
           </div>
         </Card>
       </div>
+    </div>
+        </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="context" className="mt-4">
+            <RagContextManager />
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   );
 }

@@ -48,3 +48,29 @@ export interface SessionResponse {
   messages: ChatHistoryItem[];
   total: number;
 }
+
+export interface FeedbackRequest {
+  userEmail: string;
+  timestamp: number;
+  rating: 'positive' | 'negative';
+  question: string;
+  sql: string;
+  visualizationType?: string;
+  comment?: string;
+}
+
+export interface RagDocument {
+  id: string;
+  doc_type: 'schema' | 'example' | 'domain';
+  title: string | null;
+  content: string;
+  metadata: Record<string, string> | null;
+  pinned: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RagDocumentsResponse {
+  documents: RagDocument[];
+  total: number;
+}

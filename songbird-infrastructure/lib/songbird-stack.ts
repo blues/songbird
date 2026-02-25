@@ -114,7 +114,9 @@ export class SongbirdStack extends cdk.Stack {
       analytics.listSessionsLambda,
       analytics.getSessionLambda,
       analytics.deleteSessionLambda,
-      analytics.rerunQueryLambda
+      analytics.rerunQueryLambda,
+      analytics.ragDocumentsLambda,
+      analytics.feedbackLambda
     );
 
     // ==========================================================================

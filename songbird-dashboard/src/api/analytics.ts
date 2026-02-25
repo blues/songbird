@@ -6,6 +6,9 @@ import type {
   ChatHistoryResponse,
   SessionListResponse,
   SessionResponse,
+  RagDocument,
+  RagDocumentsResponse,
+  FeedbackRequest,
 } from '@/types/analytics';
 
 export async function chatQuery(request: ChatRequest): Promise<QueryResult> {
@@ -121,6 +124,111 @@ export async function deleteSession(sessionId: string, userEmail: string): Promi
 /**
  * Re-execute a stored SQL query to get fresh visualization data
  */
+export async function listRagDocuments(docType?: string): Promise<RagDocumentsResponse> {
+  const session = await fetchAuthSession();
+  const token = session.tokens?.idToken?.toString();
+  const params = docType ? `?doc_type=${encodeURIComponent(docType)}` : '';
+
+  const response = await fetch(`${getApiBaseUrl()}/analytics/rag-documents${params}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch RAG documents: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function createRagDocument(doc: {
+  doc_type: 'schema' | 'example' | 'domain';
+  title?: string;
+  content: string;
+  metadata?: Record<string, string>;
+}): Promise<{ document: RagDocument }> {
+  const session = await fetchAuthSession();
+  const token = session.tokens?.idToken?.toString();
+
+  const response = await fetch(`${getApiBaseUrl()}/analytics/rag-documents`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify(doc),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `Failed to create RAG document: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updateRagDocument(
+  id: string,
+  doc: { title?: string; content: string }
+): Promise<{ document: RagDocument }> {
+  const session = await fetchAuthSession();
+  const token = session.tokens?.idToken?.toString();
+
+  const response = await fetch(`${getApiBaseUrl()}/analytics/rag-documents/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify(doc),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `Failed to update RAG document: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function deleteRagDocument(id: string): Promise<void> {
+  const session = await fetchAuthSession();
+  const token = session.tokens?.idToken?.toString();
+
+  const response = await fetch(`${getApiBaseUrl()}/analytics/rag-documents/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `Failed to delete RAG document: ${response.status}`);
+  }
+}
+
+export async function toggleRagDocumentPin(id: string, pinned: boolean): Promise<{ id: string; pinned: boolean }> {
+  const session = await fetchAuthSession();
+  const token = session.tokens?.idToken?.toString();
+
+  const response = await fetch(`${getApiBaseUrl()}/analytics/rag-documents/${encodeURIComponent(id)}/pin`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ pinned }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `Failed to toggle pin: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function reseedRagDocuments(): Promise<{ message: string }> {
+  const session = await fetchAuthSession();
+  const token = session.tokens?.idToken?.toString();
+
+  const response = await fetch(`${getApiBaseUrl()}/analytics/rag-documents/reseed`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `Failed to reseed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function rerunQuery(sql: string, userEmail: string): Promise<{ data: any[] }> {
   const session = await fetchAuthSession();
   const token = session.tokens?.idToken?.toString();
@@ -137,6 +245,27 @@ export async function rerunQuery(sql: string, userEmail: string): Promise<{ data
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }));
     throw new Error(error.error || `Failed to rerun query: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function submitFeedback(req: FeedbackRequest): Promise<{ success: boolean; indexed: boolean }> {
+  const session = await fetchAuthSession();
+  const token = session.tokens?.idToken?.toString();
+
+  const response = await fetch(`${getApiBaseUrl()}/analytics/feedback`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(req),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `Failed to submit feedback: ${response.status}`);
   }
 
   return response.json();

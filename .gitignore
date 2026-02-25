@@ -97,3 +97,4 @@ out/
 # =============================================================================
 # package-lock.json
 # yarn.lock
+songbird-infrastructure/dist/
