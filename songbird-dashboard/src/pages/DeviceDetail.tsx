@@ -160,9 +160,11 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
     ? Math.max(journeyTimeRangeHours, effectiveTimeRange)
     : effectiveTimeRange;
 
-  // Use higher limit when viewing journeys to ensure we get all data in the time range
-  // Default 1000 limit can miss older data when there are many recent records
-  const telemetryLimit = (locationTab === 'journeys' && selectedJourneyId) ? 5000 : 1000;
+  // Use higher limit when viewing journeys or longer time ranges to ensure we get all data
+  // Default 1000 limit can miss older data when there are many recent records or a wide time window
+  const telemetryLimit = (locationTab === 'journeys' && selectedJourneyId)
+    ? 10000
+    : dataTimeRange >= 168 ? 10000 : dataTimeRange >= 24 ? 2000 : 1000;
 
   const { data: device, isLoading: deviceLoading } = useDevice(serialNumber!);
   const { data: telemetryData, isLoading: telemetryLoading } = useTelemetry(
@@ -171,8 +173,10 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
     telemetryLimit
   );
   const { data: locationData } = useLocationHistory(serialNumber!, dataTimeRange);
-  // Use higher limit when viewing journeys to ensure we get all data in the time range
-  const powerLimit = (locationTab === 'journeys' && selectedJourneyId) ? 5000 : 1000;
+  // Use higher limit when viewing journeys or longer time ranges to ensure we get all data
+  const powerLimit = (locationTab === 'journeys' && selectedJourneyId)
+    ? 10000
+    : dataTimeRange >= 168 ? 10000 : dataTimeRange >= 24 ? 2000 : 1000;
   const { data: powerData, isLoading: powerLoading } = usePowerHistory(serialNumber!, dataTimeRange, powerLimit);
   const { data: healthData, isLoading: healthLoading } = useHealthHistory(serialNumber!, Math.max(dataTimeRange, 168)); // At least 7 days for health
   const { data: commandsData } = useCommands(serialNumber!);
@@ -660,6 +664,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                       showPressure
                       height={300}
                       tempUnit={tempUnit}
+                      hours={dataTimeRange}
                     />
                   ) : (
                     <div className="h-[300px] flex items-center justify-center">
@@ -677,7 +682,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                       <span className="text-muted-foreground">Loading chart...</span>
                     </div>
                   ) : filteredPower.length > 0 ? (
-                    <PowerChart data={filteredPower} />
+                    <PowerChart data={filteredPower} hours={dataTimeRange} />
                   ) : (
                     <div className="h-[300px] flex items-center justify-center">
                       <span className="text-muted-foreground">

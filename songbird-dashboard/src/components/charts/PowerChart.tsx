@@ -17,6 +17,7 @@ import type { PowerPoint } from '@/types';
 
 interface PowerChartProps {
   data: PowerPoint[];
+  hours?: number;
 }
 
 interface ConsumptionDataPoint {
@@ -26,7 +27,7 @@ interface ConsumptionDataPoint {
   time: string;
 }
 
-export function PowerChart({ data }: PowerChartProps) {
+export function PowerChart({ data, hours }: PowerChartProps) {
   // Transform data for chart - reverse to show chronological order
   const chartData = [...data].reverse().map((point) => ({
     ...point,
@@ -72,9 +73,27 @@ export function PowerChart({ data }: PowerChartProps) {
     ? (totalConsumed / timeSpanMinutes) * 60
     : 0;
 
+  const now = Date.now();
+  const earliestData = chartData.length > 0 ? chartData[0].timestamp : undefined;
+  const latestData = chartData.length > 0 ? chartData[chartData.length - 1].timestamp : now;
+  const xDomainRight = Math.min(latestData, now);
+  const windowLeft = hours ? xDomainRight - hours * 60 * 60 * 1000 : undefined;
+  const xDomainLeft = windowLeft !== undefined && earliestData !== undefined
+    ? Math.max(windowLeft, earliestData)
+    : windowLeft ?? earliestData;
+  const xDomain: [number, number] | undefined = xDomainLeft !== undefined
+    ? [xDomainLeft, xDomainRight]
+    : undefined;
+
   const formatXAxis = (timestamp: number) => {
+    if (hours && hours >= 168) return format(new Date(timestamp), 'MMM d');
+    if (hours && hours >= 24) return format(new Date(timestamp), 'MMM d HH:mm');
     return format(new Date(timestamp), 'HH:mm');
   };
+
+  const xAxisTickCount = hours && hours >= 168 ? 7 : hours && hours >= 24 ? 6 : 6;
+  const xAxisAngle = hours && hours >= 24 ? -45 : 0;
+  const xAxisHeight = hours && hours >= 24 ? 60 : 30;
 
   const formatTooltip = (timestamp: number) => {
     return format(new Date(timestamp), 'MMM d, HH:mm:ss');
@@ -158,13 +177,20 @@ export function PowerChart({ data }: PowerChartProps) {
             Consumption Steps (mAh per interval)
           </h4>
           <ResponsiveContainer width="100%" height={chartHeight}>
-            <BarChart data={consumptionData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+            <BarChart data={consumptionData} margin={{ top: 5, right: 20, left: 10, bottom: xAxisHeight - 30 + 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
               <XAxis
                 dataKey="timestamp"
                 tickFormatter={formatXAxis}
                 className="text-xs"
                 stroke="currentColor"
+                type="number"
+                scale="time"
+                domain={xDomain}
+                tickCount={xAxisTickCount}
+                angle={xAxisAngle}
+                textAnchor={xAxisAngle !== 0 ? 'end' : 'middle'}
+                height={xAxisHeight}
               />
               <YAxis
                 domain={[0, 'auto']}
@@ -200,13 +226,20 @@ export function PowerChart({ data }: PowerChartProps) {
             Consumption Rate (mAh/hour)
           </h4>
           <ResponsiveContainer width="100%" height={chartHeight}>
-            <LineChart data={consumptionData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+            <LineChart data={consumptionData} margin={{ top: 5, right: 20, left: 10, bottom: xAxisHeight - 30 + 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
                 dataKey="timestamp"
                 tickFormatter={formatXAxis}
                 className="text-xs"
                 stroke="currentColor"
+                type="number"
+                scale="time"
+                domain={xDomain}
+                tickCount={xAxisTickCount}
+                angle={xAxisAngle}
+                textAnchor={xAxisAngle !== 0 ? 'end' : 'middle'}
+                height={xAxisHeight}
               />
               <YAxis
                 domain={[0, 'auto']}
@@ -245,13 +278,20 @@ export function PowerChart({ data }: PowerChartProps) {
         <div>
           <h4 className="text-sm font-medium mb-2 text-green-500">Battery Voltage</h4>
           <ResponsiveContainer width="100%" height={chartHeight}>
-            <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+            <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: xAxisHeight - 30 + 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
                 dataKey="timestamp"
                 tickFormatter={formatXAxis}
                 className="text-xs"
                 stroke="currentColor"
+                type="number"
+                scale="time"
+                domain={xDomain}
+                tickCount={xAxisTickCount}
+                angle={xAxisAngle}
+                textAnchor={xAxisAngle !== 0 ? 'end' : 'middle'}
+                height={xAxisHeight}
               />
               <YAxis
                 domain={['auto', 'auto']}

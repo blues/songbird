@@ -20,6 +20,7 @@ interface TelemetryChartProps {
   showPressure?: boolean;
   height?: number;
   tempUnit?: 'C' | 'F';
+  hours?: number;
 }
 
 interface StatsSummary {
@@ -65,6 +66,7 @@ export function TelemetryChart({
   showPressure = false,
   height = 300,
   tempUnit = 'C',
+  hours,
 }: TelemetryChartProps) {
   // Transform data for chart - reverse to show chronological order
   // Convert temperature to preferred unit
@@ -93,9 +95,28 @@ export function TelemetryChart({
 
   const hasAnyStats = tempStats || humidityStats || pressureStats;
 
+  const now = Date.now();
+  const earliestData = chartData.length > 0 ? chartData[0].timestamp : undefined;
+  const latestData = chartData.length > 0 ? chartData[chartData.length - 1].timestamp : now;
+  const xDomainRight = Math.min(latestData, now);
+  const windowLeft = hours ? xDomainRight - hours * 60 * 60 * 1000 : undefined;
+  // Clamp left bound to earliest data so we don't show empty leading space
+  const xDomainLeft = windowLeft !== undefined && earliestData !== undefined
+    ? Math.max(windowLeft, earliestData)
+    : windowLeft ?? earliestData;
+  const xDomain: [number, number] | undefined = xDomainLeft !== undefined
+    ? [xDomainLeft, xDomainRight]
+    : undefined;
+
   const formatXAxis = (timestamp: number) => {
+    if (hours && hours >= 168) return format(new Date(timestamp), 'MMM d');
+    if (hours && hours >= 24) return format(new Date(timestamp), 'MMM d HH:mm');
     return format(new Date(timestamp), 'HH:mm');
   };
+
+  const xAxisTickCount = hours && hours >= 168 ? 7 : hours && hours >= 24 ? 6 : 6;
+  const xAxisAngle = hours && hours >= 24 ? -45 : 0;
+  const xAxisHeight = hours && hours >= 24 ? 60 : 30;
 
   const formatTooltip = (timestamp: number) => {
     return format(new Date(timestamp), 'MMM d, HH:mm:ss');
@@ -181,13 +202,20 @@ export function TelemetryChart({
             Temperature & Humidity
           </h4>
           <ResponsiveContainer width="100%" height={height}>
-            <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: xAxisHeight - 30 + 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
                 dataKey="timestamp"
                 tickFormatter={formatXAxis}
                 className="text-xs"
                 stroke="currentColor"
+                type="number"
+                scale="time"
+                domain={xDomain}
+                tickCount={xAxisTickCount}
+                angle={xAxisAngle}
+                textAnchor={xAxisAngle !== 0 ? 'end' : 'middle'}
+                height={xAxisHeight}
               />
 
               {/* Temperature Y-Axis */}
@@ -235,7 +263,7 @@ export function TelemetryChart({
                 }}
               />
               <Legend
-                wrapperStyle={{ fontSize: '12px' }}
+                wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }}
                 iconSize={12}
               />
 
@@ -275,14 +303,21 @@ export function TelemetryChart({
           <h4 className="text-sm font-medium mb-2 text-purple-500">
             Barometric Pressure
           </h4>
-          <ResponsiveContainer width="100%" height={120}>
-            <LineChart data={chartData} margin={{ top: 5, right: 10, left: 5, bottom: 5 }}>
+          <ResponsiveContainer width="100%" height={120 + (xAxisHeight - 30)}>
+            <LineChart data={chartData} margin={{ top: 5, right: 10, left: 5, bottom: xAxisHeight - 30 + 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
                 dataKey="timestamp"
                 tickFormatter={formatXAxis}
                 className="text-xs"
                 stroke="currentColor"
+                type="number"
+                scale="time"
+                domain={xDomain}
+                tickCount={xAxisTickCount}
+                angle={xAxisAngle}
+                textAnchor={xAxisAngle !== 0 ? 'end' : 'middle'}
+                height={xAxisHeight}
               />
               <YAxis
                 domain={['auto', 'auto']}
