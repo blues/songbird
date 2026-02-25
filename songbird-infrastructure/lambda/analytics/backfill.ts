@@ -58,6 +58,8 @@ const TABLES: BackfillConfig[] = [
       pressure: 'pressure',
       voltage: 'voltage',
       event_type: 'event_type',
+      milliamp_hours: 'milliamp_hours',
+      mojo_voltage: 'mojo_voltage',
     },
   },
   {

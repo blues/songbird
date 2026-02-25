@@ -9,6 +9,7 @@ import type {
   RagDocument,
   RagDocumentsResponse,
   FeedbackRequest,
+  NegativeFeedbackResponse,
 } from '@/types/analytics';
 
 export async function chatQuery(request: ChatRequest): Promise<QueryResult> {
@@ -245,6 +246,37 @@ export async function rerunQuery(sql: string, userEmail: string): Promise<{ data
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }));
     throw new Error(error.error || `Failed to rerun query: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function deleteNegativeFeedback(userEmail: string, ratedAt: number): Promise<void> {
+  const session = await fetchAuthSession();
+  const token = session.tokens?.idToken?.toString();
+
+  const response = await fetch(`${getApiBaseUrl()}/analytics/feedback`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ userEmail, ratedAt }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `Failed to delete feedback: ${response.status}`);
+  }
+}
+
+export async function listNegativeFeedback(limit = 100): Promise<NegativeFeedbackResponse> {
+  const session = await fetchAuthSession();
+  const token = session.tokens?.idToken?.toString();
+
+  const response = await fetch(`${getApiBaseUrl()}/analytics/feedback?limit=${limit}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch feedback: ${response.status}`);
   }
 
   return response.json();

@@ -37,12 +37,15 @@ export function ChatMessage({ message, mapboxToken, userEmail }: ChatMessageProp
     },
   });
 
+  // Use the exact DynamoDB timestamp from the saved record; fall back to message timestamp
+  const feedbackTimestamp = message.result?.savedTimestamp ?? message.timestamp;
+
   function handleThumbsUp() {
     if (rating || !message.result) return;
     setRating('positive');
     feedbackMutation.mutate({
       userEmail,
-      timestamp: message.timestamp,
+      timestamp: feedbackTimestamp,
       rating: 'positive',
       question: message.content,
       sql: message.result.sql,
@@ -60,7 +63,7 @@ export function ChatMessage({ message, mapboxToken, userEmail }: ChatMessageProp
     if (!message.result) return;
     feedbackMutation.mutate({
       userEmail,
-      timestamp: message.timestamp,
+      timestamp: feedbackTimestamp,
       rating: 'negative',
       question: message.content,
       sql: message.result.sql,

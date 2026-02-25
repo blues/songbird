@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, RefreshCw, Pencil, Trash2, Loader2, Pin, PinOff } from 'lucide-react';
+import { Plus, RefreshCw, Pencil, Trash2, Loader2, Pin, PinOff, ThumbsDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   listRagDocuments,
   createRagDocument,
@@ -37,6 +38,8 @@ import {
   deleteRagDocument,
   reseedRagDocuments,
   toggleRagDocumentPin,
+  listNegativeFeedback,
+  deleteNegativeFeedback,
 } from '@/api/analytics';
 import type { RagDocument } from '@/types/analytics';
 import { cn } from '@/lib/utils';
@@ -180,6 +183,20 @@ export function RagContextManager() {
   ];
 
   return (
+    <Tabs defaultValue="documents">
+      <TabsList>
+        <TabsTrigger value="documents">RAG Documents</TabsTrigger>
+        <TabsTrigger value="feedback" className="gap-2">
+          <ThumbsDown className="h-3.5 w-3.5" />
+          Feedback Review
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="feedback" className="mt-4">
+        <FeedbackReview />
+      </TabsContent>
+
+      <TabsContent value="documents" className="mt-4">
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3">
@@ -415,6 +432,105 @@ export function RagContextManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+function FeedbackReview() {
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ['negative-feedback'],
+    queryFn: () => listNegativeFeedback(100),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: ({ userEmail, ratedAt }: { userEmail: string; ratedAt: number }) =>
+      deleteNegativeFeedback(userEmail, ratedAt),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['negative-feedback'] }),
+  });
+
+  const items = data?.items ?? [];
+
+  function formatDate(ts: number) {
+    return new Date(ts).toLocaleString();
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Negative feedback from users — use this to improve prompts or add better examples to the RAG corpus.
+        </p>
+        <span className="text-xs text-muted-foreground">{items.length} items</span>
+      </div>
+
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-muted/40">
+            <tr>
+              <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">User</th>
+              <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Question</th>
+              <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide w-48">Comment</th>
+              <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide w-36">Date</th>
+              <th className="px-4 py-2.5 w-12"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+                  Loading feedback...
+                </td>
+              </tr>
+            ) : items.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground text-sm">
+                  No negative feedback yet.
+                </td>
+              </tr>
+            ) : (
+              items.map((item, i) => (
+                <tr key={i} className="border-t border-border hover:bg-muted/20 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="text-xs text-muted-foreground">{item.userEmail}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="text-sm text-foreground line-clamp-2">{item.question}</div>
+                    <details className="mt-1">
+                      <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">View SQL</summary>
+                      <pre className="text-xs text-muted-foreground mt-1 overflow-x-auto whitespace-pre-wrap font-mono bg-muted/30 rounded p-2">{item.sql}</pre>
+                    </details>
+                  </td>
+                  <td className="px-4 py-3">
+                    {item.comment ? (
+                      <div className="text-sm text-foreground">{item.comment}</div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground italic">No comment</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(item.ratedAt)}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => deleteMutation.mutate({ userEmail: item.userEmail, ratedAt: item.ratedAt })}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

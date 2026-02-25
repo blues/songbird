@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS analytics.telemetry (
   pressure DOUBLE PRECISION,
   voltage DOUBLE PRECISION,
   event_type VARCHAR(100),
+  milliamp_hours DOUBLE PRECISION,
+  mojo_voltage DOUBLE PRECISION,
   PRIMARY KEY (serial_number, time)
 ) PARTITION BY RANGE (time);
 

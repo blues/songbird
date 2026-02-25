@@ -14,7 +14,7 @@
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, UpdateCommand, ScanCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { RDSDataClient, ExecuteStatementCommand } from '@aws-sdk/client-rds-data';
 import { embedText } from '../shared/rag-retrieval';
 
@@ -43,21 +43,50 @@ interface FeedbackRequest {
 }
 
 /**
- * Persist feedback rating on the DynamoDB chat history record.
+ * Persist feedback by updating the original chat history record if it exists,
+ * and also writing a dedicated feedback record that includes question/sql
+ * for the admin review view (since UpdateCommand may not match on timestamp).
  */
 async function recordFeedback(req: FeedbackRequest): Promise<void> {
-  await ddb.send(new UpdateCommand({
+  const ratedAt = Date.now();
+
+  // Try to update the original chat history record
+  try {
+    await ddb.send(new UpdateCommand({
+      TableName: CHAT_HISTORY_TABLE,
+      Key: {
+        user_email: req.userEmail,
+        timestamp: req.timestamp,
+      },
+      UpdateExpression: 'SET feedback = :f',
+      ExpressionAttributeValues: {
+        ':f': {
+          rating: req.rating,
+          comment: req.comment || null,
+          rated_at: ratedAt,
+        },
+      },
+    }));
+  } catch (e) {
+    console.warn('Could not update original chat record:', e);
+  }
+
+  // Always write a dedicated feedback record with question + sql included,
+  // so the admin review view can always show the full context.
+  const { PutCommand } = await import('@aws-sdk/lib-dynamodb');
+  await ddb.send(new PutCommand({
     TableName: CHAT_HISTORY_TABLE,
-    Key: {
-      user_email: req.userEmail,
-      timestamp: req.timestamp,
-    },
-    UpdateExpression: 'SET feedback = :f',
-    ExpressionAttributeValues: {
-      ':f': {
+    Item: {
+      user_email: `feedback#${req.userEmail}`,
+      timestamp: ratedAt,
+      question: req.question,
+      sql: req.sql,
+      visualization_type: req.visualizationType,
+      feedback: {
         rating: req.rating,
         comment: req.comment || null,
-        rated_at: Date.now(),
+        rated_at: ratedAt,
+        original_user: req.userEmail,
       },
     },
   }));
@@ -121,7 +150,72 @@ async function indexPositiveFeedback(req: FeedbackRequest): Promise<void> {
   console.log(`Indexed positive feedback example: "${title}"`);
 }
 
+/**
+ * List negative feedback items across all users (admin use).
+ * Scans the chat history table for items with feedback.rating = 'negative'.
+ */
+async function listNegativeFeedback(limit: number): Promise<APIGatewayProxyResult> {
+  const result = await ddb.send(new ScanCommand({
+    TableName: CHAT_HISTORY_TABLE,
+    FilterExpression: 'begins_with(user_email, :prefix) AND attribute_exists(feedback)',
+    ExpressionAttributeValues: { ':prefix': 'feedback#' },
+  }));
+
+  const items = (result.Items || [])
+    .filter(item => item.feedback?.rating === 'negative')
+    .map(item => ({
+      userEmail: item.feedback?.original_user || item.user_email.replace('feedback#', ''),
+      timestamp: item.timestamp,
+      question: item.question,
+      sql: item.sql,
+      comment: item.feedback?.comment || null,
+      ratedAt: item.feedback?.rated_at,
+    }))
+    .sort((a, b) => (b.ratedAt || 0) - (a.ratedAt || 0))
+    .slice(0, limit);
+
+  return {
+    statusCode: 200,
+    headers: CORS,
+    body: JSON.stringify({ items, total: items.length }),
+  };
+}
+
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  const method = (event as any).requestContext?.http?.method || event.httpMethod;
+
+  // GET /analytics/feedback — list negative feedback (admin)
+  if (method === 'GET') {
+    try {
+      const limit = parseInt(event.queryStringParameters?.limit || '100');
+      return await listNegativeFeedback(limit);
+    } catch (error: any) {
+      console.error('List feedback error:', error);
+      return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: error.message }) };
+    }
+  }
+
+  // DELETE /analytics/feedback — delete a feedback record by userEmail + ratedAt timestamp
+  if (method === 'DELETE') {
+    try {
+      const { userEmail, ratedAt } = JSON.parse(event.body || '{}');
+      if (!userEmail || !ratedAt) {
+        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Missing userEmail or ratedAt' }) };
+      }
+      await ddb.send(new DeleteCommand({
+        TableName: CHAT_HISTORY_TABLE,
+        Key: {
+          user_email: `feedback#${userEmail}`,
+          timestamp: ratedAt,
+        },
+      }));
+      return { statusCode: 200, headers: CORS, body: JSON.stringify({ success: true }) };
+    } catch (error: any) {
+      console.error('Delete feedback error:', error);
+      return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: error.message }) };
+    }
+  }
+
   try {
     const req: FeedbackRequest = JSON.parse(event.body || '{}');
 

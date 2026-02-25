@@ -53,13 +53,16 @@ Columns:
   device_uid VARCHAR(100)
   serial_number VARCHAR(100)
   time TIMESTAMP WITH TIME ZONE — when the reading was recorded
-  temperature DOUBLE PRECISION — in Celsius
-  humidity DOUBLE PRECISION — percentage
-  pressure DOUBLE PRECISION — in kPa
-  voltage DOUBLE PRECISION — battery voltage in volts
-  event_type VARCHAR(100)
+  temperature DOUBLE PRECISION — in Celsius (present in _health.qo events only)
+  humidity DOUBLE PRECISION — percentage (present in _health.qo events only)
+  pressure DOUBLE PRECISION — in kPa (present in _health.qo events only)
+  voltage DOUBLE PRECISION — battery voltage in volts (present in _health.qo events only, ~daily)
+  event_type VARCHAR(100) — track.qo, _health.qo, _log.qo, _geolocate.qo, _track.qo
+  milliamp_hours DOUBLE PRECISION — power consumption in mAh (present in _log.qo events only; negative = discharge)
+  mojo_voltage DOUBLE PRECISION — precise voltage reading (present in _log.qo events only)
 PRIMARY KEY: (serial_number, time)
-Note: always filter by serial_number IN (:deviceFilter) and add a time range.`,
+Note: always filter by serial_number IN (:deviceFilter) and add a time range.
+To query power/mAh: filter WHERE event_type = '_log.qo' AND milliamp_hours IS NOT NULL.`,
     metadata: { table: 'analytics.telemetry' },
   },
   {
@@ -219,6 +222,37 @@ Visualization: bar_chart`,
   },
   {
     doc_type: 'example',
+    title: 'Power Usage in mAh During Journeys',
+    content: `Q: "Show me power usage across journeys for my devices" or "graph power consumption during journeys"
+SQL:
+\`\`\`sql
+SELECT
+  j.journey_id,
+  j.serial_number,
+  TO_TIMESTAMP(j.start_time) as journey_start,
+  j.distance_km,
+  SUM(ABS(t.milliamp_hours)) as total_mah_used,
+  COUNT(t.milliamp_hours) as power_readings,
+  AVG(t.mojo_voltage) as avg_voltage
+FROM analytics.journeys j
+INNER JOIN analytics.telemetry t
+  ON j.serial_number = t.serial_number
+  AND t.time >= TO_TIMESTAMP(j.start_time)
+  AND (j.end_time IS NULL OR t.time <= TO_TIMESTAMP(j.end_time))
+  AND t.event_type = '_log.qo'
+  AND t.milliamp_hours IS NOT NULL
+WHERE j.serial_number IN (:deviceFilter)
+  AND j.start_time > EXTRACT(EPOCH FROM NOW() - INTERVAL '90 days')
+GROUP BY j.journey_id, j.serial_number, j.start_time, j.distance_km
+ORDER BY journey_start DESC
+LIMIT 100;
+\`\`\`
+Visualization: bar_chart
+Explanation: Uses _log.qo events which contain milliamp_hours (negative = discharge). SUM(ABS(milliamp_hours)) gives total mAh consumed per journey. start_time/end_time are in SECONDS, use TO_TIMESTAMP() directly.`,
+    metadata: { visualization: 'bar_chart', topic: 'journeys' },
+  },
+  {
+    doc_type: 'example',
     title: 'Alert Analysis by Device',
     content: `Q: "What devices have alerted the most in the past month?"
 SQL:
@@ -250,8 +284,20 @@ const DOMAIN_KNOWLEDGE: RagDocument[] = [
   {
     doc_type: 'domain',
     title: 'Journeys',
-    content: `A journey is a sequence of GPS tracking points recorded while a device is in transit mode. Each journey has a unique journey_id (Unix timestamp of when transit started), and includes velocity, bearing, distance, and DOP (accuracy) data per point. Journeys have a status of active (currently in transit) or completed. The analytics.journeys table stores journey metadata; join with analytics.locations on journey_id to get individual GPS points.`,
+    content: `A journey is a sequence of GPS tracking points recorded while a device is in transit mode. Each journey has a unique journey_id (Unix timestamp in SECONDS of when transit started). The analytics.journeys table columns start_time and end_time are Unix timestamps in SECONDS — use TO_TIMESTAMP(start_time) directly (do NOT divide by 1000). Journeys have a status of active (currently in transit) or completed. Join with analytics.locations on journey_id to get GPS points. Join with analytics.telemetry using t.time BETWEEN TO_TIMESTAMP(j.start_time) AND TO_TIMESTAMP(j.end_time) to get sensor readings during a journey.`,
     metadata: { category: 'journeys' },
+  },
+  {
+    doc_type: 'domain',
+    title: 'Telemetry Event Types and Power Measurement',
+    content: `Songbird devices send several event types stored in analytics.telemetry (event_type column):
+- track.qo: GPS during transit, high frequency, no sensor data
+- _health.qo: daily health heartbeat — contains voltage, temperature, humidity, pressure (~once per day)
+- _log.qo: power logging — contains milliamp_hours (mAh consumed, negative = discharge) and mojo_voltage. Use these for journey power analysis.
+- _geolocate.qo: cell-tower location fix
+
+To query power consumption in mAh during journeys: filter WHERE event_type = '_log.qo' AND milliamp_hours IS NOT NULL. The _log.qo events occur frequently during transit and overlap with journey time windows. SUM(ABS(milliamp_hours)) gives total power consumed. Do NOT use _health.qo voltage for journey power analysis — it is too infrequent (~daily).`,
+    metadata: { category: 'telemetry' },
   },
   {
     doc_type: 'domain',

@@ -992,10 +992,26 @@ export class ApiConstruct extends Construct {
         feedbackLambda
       );
 
+      // GET /analytics/feedback - List negative feedback (admin)
+      this.api.addRoutes({
+        path: '/analytics/feedback',
+        methods: [apigateway.HttpMethod.GET],
+        integration: feedbackIntegration,
+        authorizer: this.authorizer,
+      });
+
       // POST /analytics/feedback - Submit query feedback
       this.api.addRoutes({
         path: '/analytics/feedback',
         methods: [apigateway.HttpMethod.POST],
+        integration: feedbackIntegration,
+        authorizer: this.authorizer,
+      });
+
+      // DELETE /analytics/feedback - Delete a feedback record
+      this.api.addRoutes({
+        path: '/analytics/feedback',
+        methods: [apigateway.HttpMethod.DELETE],
         integration: feedbackIntegration,
         authorizer: this.authorizer,
       });

@@ -65,10 +65,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     const items = (result.Items || []) as ChatHistoryItem[];
 
-    // Group by session_id
+    // Group by session_id (skip items with no session_id)
     const sessionMap = new Map<string, ChatHistoryItem[]>();
     for (const item of items) {
       const sessionId = item.session_id;
+      if (!sessionId) continue;
       if (!sessionMap.has(sessionId)) {
         sessionMap.set(sessionId, []);
       }

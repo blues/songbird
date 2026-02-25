@@ -53,6 +53,8 @@ const TABLE_CONFIGS: { [key: string]: TableConfig } = {
       pressure: 'pressure',
       voltage: 'voltage',
       event_type: 'event_type',
+      milliamp_hours: 'milliamp_hours',
+      mojo_voltage: 'mojo_voltage',
     },
   },
   'songbird-locations': {
@@ -147,6 +149,24 @@ function buildUpsertSQL(config: TableConfig, item: any): string {
     .filter(col => !config.primaryKey.includes(col))
     .map(col => `${col} = EXCLUDED.${col}`)
     .join(', ');
+
+  // For journeys: serial_number comes from analytics.devices lookup by device_uid
+  if (config.table === 'analytics.journeys' && item.device_uid && !item.serial_number) {
+    const deviceUid = item.device_uid.replace(/'/g, "''");
+    const colsWithoutSerial = columns.filter(c => c !== 'serial_number');
+    const valsWithoutSerial = values.filter((_, i) => columns[i] !== 'serial_number');
+    colsWithoutSerial.unshift('serial_number');
+    const updateClausesJourney = colsWithoutSerial
+      .filter(col => !config.primaryKey.includes(col))
+      .map(col => `${col} = EXCLUDED.${col}`)
+      .join(', ');
+    return `
+      INSERT INTO analytics.journeys (serial_number, ${colsWithoutSerial.slice(1).join(', ')})
+      SELECT serial_number, ${valsWithoutSerial.join(', ')}
+      FROM analytics.devices WHERE device_uid = '${deviceUid}'
+      ON CONFLICT (serial_number, journey_id) DO UPDATE SET ${updateClausesJourney}
+    `;
+  }
 
   const sql = `
     INSERT INTO ${config.table} (${columns.join(', ')})

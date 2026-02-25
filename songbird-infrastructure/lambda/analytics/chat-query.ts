@@ -426,7 +426,7 @@ async function generateInsights(question: string, sql: string, data: any[]): Pro
   );
 }
 
-async function saveChatHistory(request: ChatRequest, result: QueryResult): Promise<void> {
+async function saveChatHistory(request: ChatRequest, result: QueryResult): Promise<number> {
   const timestamp = Date.now();
   const ttl = Math.floor(Date.now() / 1000) + (90 * 24 * 60 * 60); // 90 days
 
@@ -445,6 +445,8 @@ async function saveChatHistory(request: ChatRequest, result: QueryResult): Promi
       ttl,
     },
   }));
+
+  return timestamp;
 }
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -577,10 +579,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         chainSpan.setAttribute('sql.query', sql);
         chainSpan.setAttribute('sql.result_count', data.length);
 
-        // Step 6: Save to chat history
-        await saveChatHistory(request, queryResult);
+        // Step 6: Save to chat history, get back the exact DynamoDB timestamp
+        const savedTimestamp = await saveChatHistory(request, queryResult);
 
-        return queryResult;
+        return { ...queryResult, savedTimestamp };
       },
       { 'openinference.span.kind': 'CHAIN' },
       SpanKind.SERVER

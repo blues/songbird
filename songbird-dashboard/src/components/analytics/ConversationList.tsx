@@ -58,7 +58,8 @@ export function ConversationList({
     return formatDistanceToNow(new Date(timestamp), { addSuffix: true });
   };
 
-  const truncateQuestion = (question: string, maxLength = 60) => {
+  const truncateQuestion = (question: string | undefined, maxLength = 60) => {
+    if (!question) return 'Untitled conversation';
     if (question.length <= maxLength) return question;
     return question.slice(0, maxLength).trim() + '...';
   };

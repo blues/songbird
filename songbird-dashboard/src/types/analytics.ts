@@ -4,6 +4,7 @@ export interface QueryResult {
   visualizationType: 'line_chart' | 'bar_chart' | 'table' | 'map' | 'scatter' | 'gauge';
   data: any[];
   insights: string;
+  savedTimestamp?: number; // exact DynamoDB sort key for feedback linking
 }
 
 export interface ChatRequest {
@@ -57,6 +58,20 @@ export interface FeedbackRequest {
   sql: string;
   visualizationType?: string;
   comment?: string;
+}
+
+export interface NegativeFeedbackItem {
+  userEmail: string;
+  timestamp: number;
+  question: string;
+  sql: string;
+  comment: string | null;
+  ratedAt: number;
+}
+
+export interface NegativeFeedbackResponse {
+  items: NegativeFeedbackItem[];
+  total: number;
 }
 
 export interface RagDocument {
