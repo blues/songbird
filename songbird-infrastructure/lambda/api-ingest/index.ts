@@ -1580,7 +1580,6 @@ async function hasUnacknowledgedAlert(deviceUid: string, alertType: string): Pro
       ':alert_type': alertType,
       ':false': 'false',
     },
-    Limit: 1,
     ScanIndexForward: false, // Most recent first
   });
 
