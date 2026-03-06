@@ -49,7 +49,7 @@ import {
 } from '@/utils/formatters';
 import type { LocationSource } from '@/types';
 
-type SortField = 'name' | 'status' | 'temperature' | 'battery' | 'last_seen';
+type SortField = 'name' | 'serial_number' | 'owner' | 'status' | 'temperature' | 'battery' | 'last_seen';
 type SortDirection = 'asc' | 'desc';
 
 function getLocationSourceInfo(source?: LocationSource | string) {
@@ -172,6 +172,14 @@ export function Devices() {
           const nameB = b.name || b.serial_number || b.device_uid;
           comparison = nameA.localeCompare(nameB);
           break;
+        case 'serial_number':
+          comparison = (a.serial_number || a.device_uid).localeCompare(b.serial_number || b.device_uid);
+          break;
+        case 'owner':
+          const ownerA = a.assigned_to_name || a.assigned_to || '';
+          const ownerB = b.assigned_to_name || b.assigned_to || '';
+          comparison = ownerA.localeCompare(ownerB);
+          break;
         case 'status':
           comparison = (a.status || '').localeCompare(b.status || '');
           break;
@@ -291,7 +299,34 @@ export function Devices() {
             ))}
           </SelectContent>
         </Select>
-              </div>
+        <Select
+          value={`${sortField}:${sortDirection}`}
+          onValueChange={(val) => {
+            const [field, dir] = val.split(':') as [SortField, SortDirection];
+            setSortField(field);
+            setSortDirection(dir);
+          }}
+        >
+          <SelectTrigger className="w-[170px] sm:hidden">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="last_seen:desc">Last Activity ↓</SelectItem>
+            <SelectItem value="last_seen:asc">Last Activity ↑</SelectItem>
+            <SelectItem value="name:asc">Device Name A–Z</SelectItem>
+            <SelectItem value="name:desc">Device Name Z–A</SelectItem>
+            <SelectItem value="serial_number:asc">Serial Number A–Z</SelectItem>
+            <SelectItem value="serial_number:desc">Serial Number Z–A</SelectItem>
+            <SelectItem value="owner:asc">Owner A–Z</SelectItem>
+            <SelectItem value="owner:desc">Owner Z–A</SelectItem>
+            <SelectItem value="status:asc">Status A–Z</SelectItem>
+            <SelectItem value="temperature:desc">Temp High–Low</SelectItem>
+            <SelectItem value="temperature:asc">Temp Low–High</SelectItem>
+            <SelectItem value="battery:desc">Battery High–Low</SelectItem>
+            <SelectItem value="battery:asc">Battery Low–High</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* Mobile Card View */}
       <div className="sm:hidden space-y-3">
@@ -437,6 +472,20 @@ export function Devices() {
               </TableHead>
               <TableHead
                 className="cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort('serial_number')}
+              >
+                Serial #
+                <SortIcon field="serial_number" />
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort('owner')}
+              >
+                Owner
+                <SortIcon field="owner" />
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
                 onClick={() => handleSort('status')}
               >
                 Status
@@ -472,14 +521,14 @@ export function Devices() {
             {isLoading ? (
               [...Array(5)].map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={8}>
                     <div className="h-12 bg-muted animate-pulse rounded" />
                   </TableCell>
                 </TableRow>
               ))
             ) : filteredDevices.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   {searchQuery || statusFilter !== 'all' || fleetFilter !== 'all'
                     ? 'No devices match your filters'
                     : 'No devices found'}
@@ -514,14 +563,11 @@ export function Devices() {
                               </Badge>
                             )}
                           </div>
-                          <div className="text-sm text-muted-foreground">
-                            {device.assigned_to_name || device.assigned_to || (
-                              <span className="italic">Unassigned</span>
-                            )}
-                            {device.mode && (
+                          {device.mode && (
+                            <div className="flex items-center gap-1 mt-0.5">
                               <Badge
                                 variant={device.transit_locked || device.demo_locked ? "default" : "outline"}
-                                className={`ml-2 text-xs ${
+                                className={`text-xs ${
                                   device.transit_locked
                                     ? "gap-1 bg-amber-500 hover:bg-amber-600"
                                     : device.demo_locked
@@ -532,16 +578,28 @@ export function Devices() {
                                 {(device.transit_locked || device.demo_locked) && <Lock className="h-2.5 w-2.5" />}
                                 {formatMode(device.mode)}
                               </Badge>
-                            )}
-                            {device.pending_mode && device.pending_mode !== device.mode && (
-                              <Badge variant="outline" className="ml-1 text-xs gap-1 border-blue-300 bg-blue-50 text-blue-700 animate-pulse">
-                                <ArrowRight className="h-2.5 w-2.5" />
-                                {formatMode(device.pending_mode)}
-                              </Badge>
-                            )}
-                          </div>
+                              {device.pending_mode && device.pending_mode !== device.mode && (
+                                <Badge variant="outline" className="text-xs gap-1 border-blue-300 bg-blue-50 text-blue-700 animate-pulse">
+                                  <ArrowRight className="h-2.5 w-2.5" />
+                                  {formatMode(device.pending_mode)}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground font-mono">
+                        {device.serial_number || '—'}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm">
+                        {device.assigned_to_name || device.assigned_to || (
+                          <span className="text-muted-foreground italic">Unassigned</span>
+                        )}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <DeviceStatus status={device.status} />
