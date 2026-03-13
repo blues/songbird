@@ -109,6 +109,7 @@ extern EventGroupHandle_t g_sleepEvent;     // Coordinates deep sleep
 
 extern volatile bool g_sleepRequested;      // Set by MainTask to request sleep
 extern volatile bool g_systemReady;         // Set when all tasks initialized
+extern volatile bool g_pvdShutdownRequested; // Set by PVD ISR when voltage drops below ~2.9V
 
 // =============================================================================
 // Function Declarations

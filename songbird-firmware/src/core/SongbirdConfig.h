@@ -204,6 +204,25 @@ typedef enum {
 #define DEFAULT_GPS_RETRY_INTERVAL_MIN  30      // Minutes between GPS retry attempts
 
 // =============================================================================
+// Brownout / PVD Power Management
+// =============================================================================
+
+// PVD threshold for safe shutdown early warning
+// PWR_PVDLEVEL_6 = ~2.9V on STM32L4 (confirmed, highest fixed threshold)
+// Must include stm32l4xx_hal_pwr.h (via Arduino STM32 framework) to use this constant
+#define PVD_SHUTDOWN_LEVEL          PWR_PVDLEVEL_6
+
+// Boot-loop prevention: if BORRSTF resets occur this many times within the window,
+// enter a low-power hold to allow battery/charger to recover
+#define BOOT_LOOP_MAX_COUNT         3       // Max consecutive brownout boots before hold
+#define BOOT_LOOP_WINDOW_SEC        30      // Window to consider boots "consecutive" (seconds)
+#define BOOT_LOOP_HOLD_SEC          60      // Seconds to hold in low-power before retrying
+
+// Safe shutdown: time budget for note queue drain during PVD shutdown
+#define PVD_SHUTDOWN_NOTE_TIMEOUT_MS 4000  // ms total deadline for draining notes
+#define PVD_QUEUE_DRAIN_LIMIT        3      // Max queued notes to flush before forced sleep
+
+// =============================================================================
 // Task Intervals (milliseconds)
 // =============================================================================
 

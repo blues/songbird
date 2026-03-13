@@ -15,6 +15,7 @@
 #include "SongbirdEnv.h"
 #include "SongbirdCommands.h"
 #include "SongbirdState.h"
+#include "SongbirdPower.h"
 
 // =============================================================================
 // Task Handles
@@ -92,6 +93,99 @@ static void queueImmediateTrackNote(OperatingMode mode) {
         #ifdef DEBUG_MODE
         DEBUG_SERIAL.println("[MainTask] Failed to read sensors for immediate track note");
         #endif
+    }
+}
+
+// =============================================================================
+// PVD Safe Shutdown
+// =============================================================================
+
+/**
+ * @brief Execute safe shutdown sequence when PVD fires (voltage ~2.9V)
+ *
+ * Called from MainTask context (not ISR). Performs a time-bounded
+ * coordinated shutdown:
+ *   1. Play single low-battery warning tone
+ *   2. Stop sensor reads / locate sequences
+ *   3. Drain pending notes (up to PVD_QUEUE_DRAIN_LIMIT or deadline)
+ *   4. Send health.qo shutdown note
+ *   5. Save state, enter Notecard sleep
+ *
+ * After this function the device should power down via the Notecard ATTN/EN
+ * mechanism. If that fails, the BOR will eventually reset the MCU.
+ *
+ * Must be called while holding no mutexes.
+ */
+static void pvdSafeShutdown(void) {
+    DEBUG_SERIAL.println("[Power] PVD fired! Safe shutdown starting...");
+
+    // Reserve the last 600ms strictly for stateSave() + notecardEnterSleep().
+    // Note queue drain and shutdown note must finish before queueDrainDeadline.
+    uint32_t deadline         = millis() + PVD_SHUTDOWN_NOTE_TIMEOUT_MS;
+    uint32_t queueDrainDeadline = deadline - 600;
+
+    // 1. Queue a low-battery warning event for AudioTask (non-blocking — does not
+    //    touch I2C from this context, avoiding mutex contention with AudioTask).
+    //    Stop any active locate sequence first so AudioTask doesn't keep the buzzer busy.
+    audioStopLocate();
+    audioQueueEvent(AUDIO_EVENT_LOW_BATTERY);
+    // Give AudioTask a brief window to play the tone before we monopolise I2C.
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    // 2. Drain pending notes from the queue (bounded by limit AND deadline).
+    //    Use time-remaining for all per-item mutex timeouts so we don't overshoot.
+    NoteQueueItem item;
+    uint8_t drained = 0;
+    while (drained < PVD_QUEUE_DRAIN_LIMIT && millis() < queueDrainDeadline) {
+        uint32_t remaining = queueDrainDeadline - millis();
+        if (!syncReceiveNote(&item, MIN(200, remaining))) break;
+
+        remaining = queueDrainDeadline - millis();
+        if (remaining < 100) break;  // Not enough time left
+        if (syncAcquireI2C(MIN(400, remaining - 50))) {
+            switch (item.type) {
+                case NOTE_TYPE_TRACK:
+                    notecardSendTrackNote(&item.data.track, s_currentConfig.mode, true);
+                    break;
+                case NOTE_TYPE_ALERT:
+                    notecardSendAlertNote(&item.data.alert);
+                    break;
+                case NOTE_TYPE_CMD_ACK:
+                    notecardSendCommandAck(&item.data.ack);
+                    break;
+                case NOTE_TYPE_HEALTH:
+                    notecardSendHealthNote(&item.data.health);
+                    break;
+            }
+            syncReleaseI2C();
+            drained++;
+        }
+    }
+
+    // 3. Send shutdown health note with current voltage (if budget allows).
+    if (millis() < queueDrainDeadline) {
+        if (syncAcquireI2C(MIN(400, queueDrainDeadline - millis()))) {
+            float voltage = notecardGetVoltage(NULL);
+            notecardSendShutdownNote(voltage, "pvd_low_battery");
+            syncReleaseI2C();
+        }
+    }
+
+    // 4. Save state and enter Notecard sleep (reserved 600ms budget).
+    //    Use a generous mutex timeout — this is the critical path.
+    if (syncAcquireI2C(500)) {
+        stateSetShutdownReason("pvd");
+        stateSave();
+        notecardEnterSleep();
+        // notecardEnterSleep() cuts power via ATTN/EN — should not return
+        syncReleaseI2C();
+    }
+
+    // If Notecard sleep didn't cut power (e.g. no ATTN/EN wired), spin and
+    // wait for BOR to reset the MCU.
+    DEBUG_SERIAL.println("[Power] Waiting for power loss...");
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
@@ -241,18 +335,17 @@ void MainTask(void* pvParameters) {
     // during startup when we hold I2C for extended Notecard operations
     audioPlayEvent(AUDIO_EVENT_POWER_ON, s_currentConfig.audioVolume);
 
-    // Try to restore state from previous sleep
-    bool warmBoot = false;
-    if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
-        warmBoot = stateRestore();
-        syncReleaseI2C();
-    }
+    // State was already loaded/initialized in setup() before FreeRTOS started.
+    // Use stateIsWarmBoot() to determine cold vs. warm boot path.
+    bool warmBoot = stateIsWarmBoot();
+
+    // Check PVD flag before any long blocking operation — the flag may have been
+    // set during setup() just before the scheduler started, and this is the
+    // earliest point MainTask can act on it.
+    if (g_pvdShutdownRequested) { pvdSafeShutdown(); }
 
     if (!warmBoot) {
-        // Cold boot - initialize state
-        stateInit();
-
-        // Configure Notecard (only on cold boot)
+        // Cold boot - configure Notecard (only on cold boot)
         // Note: GPS and tracking are configured inside notecardConfigure()
         if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
             notecardConfigure(s_currentConfig.mode);
@@ -264,6 +357,9 @@ void MainTask(void* pvParameters) {
         s_currentConfig.mode = stateGet()->currentMode;
     }
 
+    // Check PVD again before notecardWaitConnection() which can block up to 30s.
+    if (g_pvdShutdownRequested) { pvdSafeShutdown(); }
+
     // Wait for Notehub connection
     bool connected = false;
     if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
@@ -274,6 +370,18 @@ void MainTask(void* pvParameters) {
     if (connected) {
         // Play connected melody directly (not queued) to avoid mutex contention
         audioPlayEvent(AUDIO_EVENT_CONNECTED, s_currentConfig.audioVolume);
+
+        // If this was a brownout reset, log it to Notehub now that we're connected
+        if (powerWasBrownoutReset()) {
+            if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
+                float voltage = notecardGetVoltage(NULL);
+                notecardSendShutdownNote(voltage, "brownout_reset");
+                syncReleaseI2C();
+            }
+            #ifdef DEBUG_MODE
+            DEBUG_SERIAL.println("[MainTask] Brownout reset logged to Notehub");
+            #endif
+        }
     }
 
     // Fetch initial configuration from environment variables
@@ -314,6 +422,14 @@ void MainTask(void* pvParameters) {
 
     // Main loop
     for (;;) {
+        // Check for PVD low-voltage shutdown request (highest priority)
+        // Flag is set by PVD ISR in SongbirdPower.cpp — handle before anything else
+        if (g_pvdShutdownRequested) {
+            pvdSafeShutdown();
+            // Should not return — but clear flag defensively
+            g_pvdShutdownRequested = false;
+        }
+
         // Check for configuration updates from EnvTask
         SongbirdConfig newConfig;
         if (syncReceiveConfig(&newConfig)) {
