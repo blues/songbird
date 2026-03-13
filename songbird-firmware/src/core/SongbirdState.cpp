@@ -68,6 +68,12 @@ void stateInit(void) {
     s_state.gpsActiveStartTime = 0;
     s_state.lastGpsRetryTime = 0;
 
+    // Brownout / Power Management
+    s_state.lastBootTimestamp = 0;
+    s_state.consecutiveBrownouts = 0;
+    strncpy(s_state.lastShutdownReason, "unknown", sizeof(s_state.lastShutdownReason) - 1);
+    s_state.lastShutdownReason[sizeof(s_state.lastShutdownReason) - 1] = '\0';
+
     s_bootStartTime = millis();
     s_warmBoot = false;
 
@@ -351,4 +357,40 @@ bool stateValidateChecksum(const SongbirdState* state) {
 
     uint32_t calculated = stateCalculateChecksum(state);
     return calculated == state->checksum;
+}
+
+// =============================================================================
+// Brownout / Power Management
+// =============================================================================
+
+void stateSetShutdownReason(const char* reason) {
+    if (reason == NULL) return;
+    strncpy(s_state.lastShutdownReason, reason, sizeof(s_state.lastShutdownReason) - 1);
+    s_state.lastShutdownReason[sizeof(s_state.lastShutdownReason) - 1] = '\0';
+}
+
+const char* stateGetShutdownReason(void) {
+    return s_state.lastShutdownReason;
+}
+
+void stateIncrementConsecutiveBrownouts(void) {
+    if (s_state.consecutiveBrownouts < 255) {
+        s_state.consecutiveBrownouts++;
+    }
+}
+
+void stateResetConsecutiveBrownouts(void) {
+    s_state.consecutiveBrownouts = 0;
+}
+
+uint8_t stateGetConsecutiveBrownouts(void) {
+    return s_state.consecutiveBrownouts;
+}
+
+void stateRecordBootTimestamp(void) {
+    s_state.lastBootTimestamp = millis();
+}
+
+uint32_t stateGetBootTimestamp(void) {
+    return s_state.lastBootTimestamp;
 }

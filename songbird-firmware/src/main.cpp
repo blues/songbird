@@ -35,6 +35,7 @@
 
 // Songbird modules
 #include "SongbirdConfig.h"
+#include "SongbirdPower.h"
 
 // =============================================================================
 // Serial Configuration (STLink VCP)
@@ -83,6 +84,11 @@ void setup() {
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, HIGH);  // LED on during init
 
+    // Initialize power monitoring FIRST:
+    //   - Reads and clears RCC->CSR reset flags (must happen before anything else clears them)
+    //   - Enables PVD early-warning interrupt (~2.9V threshold)
+    powerInit();
+
     pinMode(BUTTON_PIN, INPUT_PULLUP);      // External panel mount button
     pinMode(BUTTON_PIN_ALT, INPUT_PULLUP);  // Internal Cygnet button (backup)
     pinMode(LOCK_LED_PIN, OUTPUT);
@@ -126,6 +132,43 @@ void setup() {
         // Continue anyway - might recover later
     } else {
         DEBUG_SERIAL.println("[Init] Notecard initialized");
+    }
+
+    // Attempt to restore persistent state so boot-loop counter is available.
+    // This is a lightweight pre-check; MainTask will do a full restore later.
+    // If restore fails (cold boot), state is freshly initialized below.
+    bool preRestored = stateRestore();
+    if (!preRestored) {
+        stateInit();
+    }
+
+    // Record boot timestamp and update boot cause in state
+    stateRecordBootTimestamp();
+    stateSetShutdownReason(powerGetBootCauseString());
+
+    // Check for and handle brownout boot-loop condition.
+    // If triggered, this blocks for BOOT_LOOP_HOLD_SEC to allow battery recovery.
+    bool bootLoopDetected = powerCheckAndHandleBootLoop();
+    (void)bootLoopDetected;  // handled internally; flag is informational
+
+    DEBUG_SERIAL.print("[Init] Boot cause: ");
+    DEBUG_SERIAL.println(powerGetBootCauseString());
+
+    // Check if PVD fired during setup() before the scheduler started.
+    // If voltage is already at the brownout threshold before RTOS even launches,
+    // attempt a minimal emergency shutdown rather than starting all 6 tasks.
+    if (g_pvdShutdownRequested) {
+        DEBUG_SERIAL.println("[Power] PVD fired during setup! Emergency shutdown...");
+        // State was already loaded/initialized above — save it now.
+        // Wire is already at 400kHz; Notecard was already initialized.
+        stateSetShutdownReason("pvd_early");
+        stateSave();
+        notecardEnterSleep();
+        // If power wasn't cut, blink and wait for BOR.
+        while (1) {
+            digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+            delay(200);
+        }
     }
 
     // Initialize synchronization primitives

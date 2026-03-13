@@ -152,6 +152,19 @@ bool notecardSendCommandAck(const CommandAck* ack);
  */
 bool notecardSendHealthNote(const HealthData* health);
 
+/**
+ * @brief Send a shutdown note to health.qo with reason and voltage
+ *
+ * Called during PVD safe shutdown or brownout boot detection to record
+ * the event in Notehub. Forces immediate sync.
+ * Caller must hold I2C mutex.
+ *
+ * @param voltage  Battery voltage at time of shutdown (0 if unavailable)
+ * @param reason   Short reason string: "pvd_low_battery", "boot_loop", etc.
+ * @return true if note sent successfully
+ */
+bool notecardSendShutdownNote(float voltage, const char* reason);
+
 // =============================================================================
 // Command Reception
 // =============================================================================
