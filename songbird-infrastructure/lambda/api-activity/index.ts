@@ -11,6 +11,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { parseIntParam } from '../shared/utils';
 
 const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient);
@@ -48,8 +49,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     const queryParams = event.queryStringParameters || {};
-    const hours = parseInt(queryParams.hours || '24');
-    const limit = parseInt(queryParams.limit || '50');
+    const hours = parseIntParam(queryParams.hours, 24, 168); // max 168h = 1 week
+    const limit = parseIntParam(queryParams.limit, 50, 500);
 
     // Fetch activities from all sources in parallel
     const [alerts, healthEvents, commands, journeys, modeChanges, devices] = await Promise.all([

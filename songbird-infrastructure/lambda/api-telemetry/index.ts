@@ -15,6 +15,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { resolveDevice } from '../shared/device-lookup';
+import { parseIntParam } from '../shared/utils';
 
 const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient);
@@ -61,8 +62,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const queryParams = event.queryStringParameters || {};
 
     // Parse time range
-    const hours = parseInt(queryParams.hours || '24');
-    const limit = parseInt(queryParams.limit || '1000');
+    const hours = parseIntParam(queryParams.hours, 24, 168); // max 168h = 1 week
+    const limit = parseIntParam(queryParams.limit, 1000, 5000);
 
     // All queries now use all_device_uids to get merged history
     if (path.endsWith('/location')) {

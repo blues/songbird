@@ -28,3 +28,18 @@ Chat query requests must supply an explicit `deviceSerialNumbers` array. If the 
 The previous behavior — falling back to `SELECT DISTINCT serial_number FROM analytics.devices` — granted unrestricted data access to any caller who omitted the field. That fallback has been removed.
 
 See [[songbird-infrastructure/lambda/analytics/chat-query.ts#handler]].
+
+## Integer Query Parameter Safety
+
+Query-string parameters that feed into DynamoDB `Limit` values must be parsed with [[songbird-infrastructure/lambda/shared/utils.ts#parseIntParam]], not bare `parseInt()`. Bare `parseInt()` returns `NaN` for non-numeric input, which propagates into DynamoDB and causes 500 errors with no useful message.
+
+`parseIntParam` returns the default when the value is missing, non-numeric, or less than 1, and optionally clamps the result to a maximum. All five GET-list handlers (`api-devices`, `api-alerts`, `api-telemetry`, `api-activity`, `api-journeys`) use this helper.
+
+## JSON Body Error Handling in Mutation Paths
+
+POST/PATCH/DELETE handlers that call `JSON.parse(event.body)` must wrap the call in a try/catch that returns a 400 with a descriptive error. Uncaught `SyntaxError` from malformed JSON propagates to the outer catch and becomes an opaque 500.
+
+Handlers that apply this guard:
+- [[songbird-infrastructure/lambda/api-devices/index.ts#mergeDevices]] — `POST /devices/merge`
+- [[songbird-infrastructure/lambda/api-devices/index.ts#updateDeviceBySerial]] — `PATCH /devices/{serial_number}`
+- [[songbird-infrastructure/lambda/api-commands/index.ts#sendCommand]] — `POST /devices/{serial_number}/commands`
