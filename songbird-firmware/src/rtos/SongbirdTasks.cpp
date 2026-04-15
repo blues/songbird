@@ -401,8 +401,8 @@ void MainTask(void* pvParameters) {
                 audioToggleMute();
                 s_clickCount = 0;
             }
-            // Check for double-click (demo lock) - after triple-click window
-            else if (s_clickCount == 2 && elapsed >= MULTI_CLICK_WINDOW_MS && elapsed < TRIPLE_CLICK_TIMEOUT_MS) {
+            // Check for double-click (demo lock) - triple-click already caught above
+            else if (s_clickCount == 2 && elapsed >= MULTI_CLICK_WINDOW_MS) {
                 // Double-click detected - toggle demo lock
                 #ifdef DEBUG_MODE
                 DEBUG_SERIAL.println("[MainTask] Double-click - toggling demo lock");
