@@ -199,6 +199,11 @@ bool tasksSleepRequested(void) {
 void tasksGetConfig(SongbirdConfig* config) {
     if (config == NULL) return;
 
+    // Pre-populate with safe defaults in case mutex times out.
+    // Without this, a timeout would leave the caller with uninitialized
+    // stack data used as active configuration.
+    envInitDefaults(config);
+
     if (syncAcquireConfig(100)) {
         memcpy(config, &s_currentConfig, sizeof(SongbirdConfig));
         syncReleaseConfig();
@@ -401,8 +406,8 @@ void MainTask(void* pvParameters) {
                 audioToggleMute();
                 s_clickCount = 0;
             }
-            // Check for double-click (demo lock) - after triple-click window
-            else if (s_clickCount == 2 && elapsed >= MULTI_CLICK_WINDOW_MS && elapsed < TRIPLE_CLICK_TIMEOUT_MS) {
+            // Check for double-click (demo lock) - triple-click already caught above
+            else if (s_clickCount == 2 && elapsed >= MULTI_CLICK_WINDOW_MS) {
                 // Double-click detected - toggle demo lock
                 #ifdef DEBUG_MODE
                 DEBUG_SERIAL.println("[MainTask] Double-click - toggling demo lock");
@@ -542,7 +547,7 @@ void MainTask(void* pvParameters) {
 
         // Periodic health check
         static uint32_t lastHealthCheck = 0;
-        if (millis() - lastHealthCheck > 60000) {  // Every minute
+        if (millis() - lastHealthCheck > HEALTH_CHECK_INTERVAL_MS) {
             lastHealthCheck = millis();
 
             #ifdef DEBUG_MODE
@@ -627,7 +632,7 @@ void SensorTask(void* pvParameters) {
         uint32_t interval = envGetSensorIntervalMs(&config);
         if (interval == 0) {
             // Sleep mode - sensors disabled, just wait
-            vTaskDelay(pdMS_TO_TICKS(60000));  // 1 minute wait in sleep mode
+            vTaskDelay(pdMS_TO_TICKS(SLEEP_MODE_SENSOR_WAIT_MS));
             continue;
         }
 
