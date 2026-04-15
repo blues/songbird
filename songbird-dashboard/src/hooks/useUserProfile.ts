@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchUserAttributes, updateUserAttribute, updateUserAttributes } from 'aws-amplify/auth';
+import { DEFAULT_PREFERENCES } from '@/config/preferences';
 import type { DisplayPreferences } from '@/types';
 
 export interface UserProfile {
@@ -10,14 +11,6 @@ export interface UserProfile {
   // Display preferences
   preferences: DisplayPreferences;
 }
-
-const DEFAULT_PREFERENCES: DisplayPreferences = {
-  temp_unit: 'celsius',
-  time_format: '24h',
-  default_time_range: '24',
-  map_style: 'street',
-  distance_unit: 'km',
-};
 
 async function getUserProfile(): Promise<UserProfile> {
   const attributes = await fetchUserAttributes();

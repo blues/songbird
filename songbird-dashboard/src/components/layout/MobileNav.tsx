@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Menu } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -9,40 +8,15 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import {
-  LayoutDashboard,
-  Cpu,
-  AlertTriangle,
-  Settings,
-  Map,
-  Terminal,
-  Sparkles,
-} from 'lucide-react';
-import { useFeatureFlags, type FeatureFlagKey } from '@/hooks/useFeatureFlags';
-
-interface NavItem {
-  to: string;
-  icon: typeof LayoutDashboard;
-  label: string;
-  featureFlag?: FeatureFlagKey;
-}
-
-const navItems: NavItem[] = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/devices', icon: Cpu, label: 'Devices' },
-  { to: '/map', icon: Map, label: 'Fleet Map' },
-  { to: '/alerts', icon: AlertTriangle, label: 'Alerts' },
-  { to: '/commands', icon: Terminal, label: 'Commands' },
-  { to: '/analytics', icon: Sparkles, label: 'Analytics', featureFlag: 'analytics' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
-];
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
+import { NAV_ITEMS, navLinkClass } from '@/config/navigation';
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const flags = useFeatureFlags();
 
   const visibleNavItems = useMemo(() => {
-    return navItems.filter(item => {
+    return NAV_ITEMS.filter(item => {
       if (!item.featureFlag) return true;
       return flags[item.featureFlag];
     });
@@ -72,14 +46,7 @@ export function MobileNav() {
               key={item.to}
               to={item.to}
               onClick={() => setOpen(false)}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                )
-              }
+              className={({ isActive }) => navLinkClass(isActive)}
             >
               <item.icon className="h-5 w-5" />
               {item.label}

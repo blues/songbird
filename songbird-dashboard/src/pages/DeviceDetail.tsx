@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, CheckCheck, Clock, Activity, MapPin, Satellite, Radio, Lock, Route, Navigation, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, CheckCheck, Clock, Activity, MapPin, Satellite, Lock, Route, Navigation, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -42,7 +42,8 @@ import {
   convertTemperature,
   getTemperatureUnit,
 } from '@/utils/formatters';
-import type { Alert, HealthPoint, LocationSource } from '@/types';
+import { getLocationSourceInfo } from '@/utils/locationSource';
+import type { Alert, HealthPoint } from '@/types';
 
 const alertTypeLabels: Record<string, string> = {
   temp_high: 'High Temperature',
@@ -68,23 +69,6 @@ const healthMethodLabels: Record<string, string> = {
   disconnected: 'Disconnected',
 };
 
-// Location source display configuration
-function getLocationSourceInfo(source?: LocationSource | string) {
-  switch (source) {
-    case 'gps':
-      return { label: 'GPS', icon: Satellite, color: 'text-green-600', bgColor: 'bg-green-100' };
-    case 'cell':
-    case 'tower':
-      return { label: 'Cell Tower', icon: Radio, color: 'text-blue-600', bgColor: 'bg-blue-100' };
-    case 'wifi':
-      return { label: 'Wi-Fi', icon: Radio, color: 'text-purple-600', bgColor: 'bg-purple-100' };
-    case 'triangulation':
-    case 'triangulated': // Handle raw Notehub value
-      return { label: 'Triangulated', icon: Radio, color: 'text-orange-600', bgColor: 'bg-orange-100' };
-    default:
-      return { label: 'Unknown', icon: MapPin, color: 'text-gray-600', bgColor: 'bg-gray-100' };
-  }
-}
 
 interface DeviceDetailProps {
   mapboxToken: string;
