@@ -16,7 +16,7 @@ import {
 import Map, { Marker, NavigationControl } from 'react-map-gl';
 import { MapPin } from 'lucide-react';
 import { Card } from '@/components/ui/card';
-import type { QueryResult } from '@/types/analytics';
+import type { QueryResult, QueryRow } from '@/types/analytics';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 interface QueryVisualizationProps {
@@ -58,7 +58,7 @@ export function QueryVisualization({ result, mapboxToken }: QueryVisualizationPr
   }
 }
 
-function LineChartViz({ data, colors }: { data: any[]; colors: string[] }) {
+function LineChartViz({ data, colors }: { data: QueryRow[]; colors: string[] }) {
   // Get numeric keys for line series
   const keys = Object.keys(data[0] || {}).filter(key => {
     const val = data[0][key];
@@ -111,7 +111,7 @@ function LineChartViz({ data, colors }: { data: any[]; colors: string[] }) {
   );
 }
 
-function BarChartViz({ data, colors }: { data: any[]; colors: string[] }) {
+function BarChartViz({ data, colors }: { data: QueryRow[]; colors: string[] }) {
   const keys = Object.keys(data[0] || {}).filter(key => {
     const val = data[0][key];
     return typeof val === 'number';
@@ -160,7 +160,7 @@ function BarChartViz({ data, colors }: { data: any[]; colors: string[] }) {
   );
 }
 
-function ScatterChartViz({ data, colors }: { data: any[]; colors: string[] }) {
+function ScatterChartViz({ data, colors }: { data: QueryRow[]; colors: string[] }) {
   const numericKeys = Object.keys(data[0] || {}).filter(key => {
     const val = data[0][key];
     return typeof val === 'number';
@@ -192,7 +192,7 @@ function ScatterChartViz({ data, colors }: { data: any[]; colors: string[] }) {
   );
 }
 
-function MapViz({ data, mapboxToken }: { data: any[]; mapboxToken: string }) {
+function MapViz({ data, mapboxToken }: { data: QueryRow[]; mapboxToken: string }) {
   // Extract and normalize location data
   const locations = useMemo(() => {
     return data
@@ -202,21 +202,24 @@ function MapViz({ data, mapboxToken }: { data: any[]; mapboxToken: string }) {
         const lonValue = row.lon ?? row.longitude ?? row.last_location_lon;
 
         // Parse values - they might be strings or numbers
-        const lat = typeof latValue === 'string' ? parseFloat(latValue) : latValue;
-        const lon = typeof lonValue === 'string' ? parseFloat(lonValue) : lonValue;
+        const lat = typeof latValue === 'string' ? parseFloat(latValue) : typeof latValue === 'number' ? latValue : null;
+        const lon = typeof lonValue === 'string' ? parseFloat(lonValue) : typeof lonValue === 'number' ? lonValue : null;
 
         // Validate coordinates
         if (lat == null || lon == null || isNaN(lat) || isNaN(lon)) {
           return null;
         }
 
+        const timeVal = row.time;
+        const time = typeof timeVal === 'string' || typeof timeVal === 'number' ? timeVal : null;
+
         return {
           id: index,
           lat,
           lon,
-          name: row.name || row.serial_number || `Location ${index + 1}`,
-          time: row.time,
-          source: row.source,
+          name: String(row.name || row.serial_number || `Location ${index + 1}`),
+          time,
+          source: row.source != null ? String(row.source) : null,
         };
       })
       .filter((loc): loc is NonNullable<typeof loc> => loc !== null);
@@ -343,7 +346,7 @@ function MapViz({ data, mapboxToken }: { data: any[]; mapboxToken: string }) {
   );
 }
 
-function GaugeViz({ data }: { data: any[] }) {
+function GaugeViz({ data }: { data: QueryRow[] }) {
   const row = data[0] || {};
   const value = Object.values(row).find(v => typeof v === 'number') as number;
   const label = Object.keys(row).find(k => typeof row[k] === 'number') || 'Value';
@@ -357,7 +360,7 @@ function GaugeViz({ data }: { data: any[] }) {
   );
 }
 
-function TableViz({ data }: { data: any[] }) {
+function TableViz({ data }: { data: QueryRow[] }) {
   if (data.length === 0) return null;
 
   const columns = Object.keys(data[0]);
@@ -401,11 +404,10 @@ function TableViz({ data }: { data: any[] }) {
   );
 }
 
-function formatCellValue(value: any): string {
+function formatCellValue(value: string | number | boolean | null): string {
   if (value === null || value === undefined) return '--';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'number') return value.toFixed(2);
-  if (value instanceof Date) return value.toLocaleString();
   if (typeof value === 'string' && value.length > 50) return value.substring(0, 50) + '...';
   return String(value);
 }

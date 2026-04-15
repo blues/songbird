@@ -167,10 +167,11 @@ export function Analytics({ mapboxToken }: AnalyticsProps) {
       };
 
       setMessages(prev => [...prev, assistantMessage]);
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to process query';
       const errorMessage = {
         type: 'assistant' as const,
-        content: `Error: ${error.message || 'Failed to process query'}`,
+        content: `Error: ${message}`,
         timestamp: Date.now(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -311,8 +312,8 @@ export function Analytics({ mapboxToken }: AnalyticsProps) {
                 </p>
               </div>
             ) : (
-              messages.map((message, index) => (
-                <ChatMessage key={index} message={message} mapboxToken={mapboxToken} userEmail={userEmail} />
+              messages.map((message) => (
+                <ChatMessage key={`${message.type}-${message.timestamp}`} message={message} mapboxToken={mapboxToken} userEmail={userEmail} />
               ))
             )}
             {chatMutation.isPending && (
