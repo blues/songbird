@@ -5,8 +5,9 @@
  * Integrates with PostHog for user identification.
  */
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { useQuery } from '@tanstack/react-query';
 import posthog from 'posthog-js';
 import type { UserGroup } from '@/types';
 
@@ -31,46 +32,31 @@ async function getUserGroups(): Promise<UserGroup[]> {
 }
 
 /**
+ * Shared TanStack Query hook for user groups — a single Cognito round-trip
+ * is shared across all components that call any of the auth hooks simultaneously.
+ */
+function useUserGroupsQuery() {
+  return useQuery({
+    queryKey: ['authSession', 'groups'],
+    queryFn: getUserGroups,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+}
+
+/**
  * Hook to check if the current user is an admin
  */
 export function useIsAdmin() {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    getUserGroups()
-      .then(groups => {
-        setIsAdmin(groups.includes('Admin'));
-        setIsLoading(false);
-      })
-      .catch(() => {
-        setIsAdmin(false);
-        setIsLoading(false);
-      });
-  }, []);
-
-  return { isAdmin, isLoading };
+  const { data: groups = [], isLoading } = useUserGroupsQuery();
+  return { isAdmin: groups.includes('Admin'), isLoading };
 }
 
 /**
  * Hook to get the current user's groups
  */
 export function useUserGroups() {
-  const [groups, setGroups] = useState<UserGroup[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    getUserGroups()
-      .then(g => {
-        setGroups(g);
-        setIsLoading(false);
-      })
-      .catch(() => {
-        setGroups([]);
-        setIsLoading(false);
-      });
-  }, []);
-
+  const { data: groups = [], isLoading } = useUserGroupsQuery();
   return { groups, isLoading };
 }
 
@@ -79,49 +65,28 @@ export function useUserGroups() {
  * Returns true for all roles except Viewer
  */
 export function useCanSendCommands() {
-  const [canSend, setCanSend] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    getUserGroups()
-      .then(groups => {
-        // Viewers can only view, not send commands
-        // If user has no groups or only Viewer group, they cannot send
-        const isViewerOnly = groups.length === 0 ||
-          (groups.length === 1 && groups.includes('Viewer'));
-        setCanSend(!isViewerOnly);
-        setIsLoading(false);
-      })
-      .catch(() => {
-        setCanSend(false);
-        setIsLoading(false);
-      });
-  }, []);
-
-  return { canSend, isLoading };
+  const { data: groups = [], isLoading } = useUserGroupsQuery();
+  // Viewers can only view, not send commands
+  // If user has no groups or only Viewer group, they cannot send
+  const isViewerOnly = groups.length === 0 ||
+    (groups.length === 1 && groups.includes('Viewer'));
+  return { canSend: !isViewerOnly, isLoading };
 }
 
 /**
  * Hook to get the current user's email
  */
 export function useCurrentUserEmail() {
-  const [email, setEmail] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    fetchAuthSession()
-      .then(session => {
-        const userEmail = session.tokens?.idToken?.payload['email'] as string | undefined;
-        setEmail(userEmail || null);
-        setIsLoading(false);
-      })
-      .catch(() => {
-        setEmail(null);
-        setIsLoading(false);
-      });
-  }, []);
-
-  return { email, isLoading };
+  const { data, isLoading } = useQuery({
+    queryKey: ['authSession', 'email'],
+    queryFn: async () => {
+      const session = await fetchAuthSession();
+      return (session.tokens?.idToken?.payload['email'] as string | undefined) ?? null;
+    },
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+  return { email: data ?? null, isLoading };
 }
 
 /**
