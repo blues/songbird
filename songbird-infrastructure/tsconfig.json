@@ -24,5 +24,5 @@
     "resolveJsonModule": true
   },
   "include": ["bin/**/*", "lib/**/*", "lambda/**/*"],
-  "exclude": ["node_modules", "cdk.out"]
+  "exclude": ["node_modules", "cdk.out", "**/*.test.ts", "test-setup.ts", "vitest.config.ts"]
 }
