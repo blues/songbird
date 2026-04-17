@@ -15,6 +15,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, UpdateCommand, DeleteCommand, GetCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyEventV2, APIGatewayProxyResult } from 'aws-lambda';
 import { resolveDevice } from '../shared/device-lookup';
+import { parseIntParam } from '../shared/utils';
 
 // Type for location point items from DynamoDB
 interface LocationPoint {
@@ -146,7 +147,7 @@ async function listJourneys(
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
   const status = queryParams.status; // 'active' | 'completed' | undefined (all)
-  const limit = parseInt(queryParams.limit || '50');
+  const limit = parseIntParam(queryParams.limit, 50, 500);
 
   // Query all device_uids in parallel
   const queryPromises = deviceUids.map(async (deviceUid) => {
@@ -473,9 +474,9 @@ async function getLocationHistory(
   queryParams: Record<string, string | undefined>,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
-  const hours = parseInt(queryParams.hours || '24');
+  const hours = parseIntParam(queryParams.hours, 24, 168); // max 168h = 1 week
   const source = queryParams.source; // 'gps' | 'cell' | 'triangulation' | undefined (all)
-  const limit = parseInt(queryParams.limit || '1000');
+  const limit = parseIntParam(queryParams.limit, 1000, 5000);
 
   const cutoffTime = Date.now() - hours * 60 * 60 * 1000;
 

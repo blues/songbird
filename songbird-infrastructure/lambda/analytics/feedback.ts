@@ -118,33 +118,38 @@ async function indexPositiveFeedback(req: FeedbackRequest): Promise<void> {
   const embedding = await embedText(content);
   const embeddingStr = `[${embedding.join(',')}]`;
 
-  const titleEscaped = title.replace(/'/g, "''");
-  const contentEscaped = content.replace(/'/g, "''");
-  const metadataEscaped = metadata.replace(/'/g, "''");
+  const connectionParams = {
+    resourceArn: CLUSTER_ARN,
+    secretArn: SECRET_ARN,
+    database: DATABASE_NAME,
+  };
 
   // Delete existing by title then insert (upsert pattern)
   await rds.send(new ExecuteStatementCommand({
-    resourceArn: CLUSTER_ARN,
-    secretArn: SECRET_ARN,
-    database: DATABASE_NAME,
-    sql: `DELETE FROM analytics.rag_documents WHERE title = '${titleEscaped}'`,
+    ...connectionParams,
+    sql: `DELETE FROM analytics.rag_documents WHERE title = :title`,
+    parameters: [{ name: 'title', value: { stringValue: title } }],
   }));
 
   await rds.send(new ExecuteStatementCommand({
-    resourceArn: CLUSTER_ARN,
-    secretArn: SECRET_ARN,
-    database: DATABASE_NAME,
+    ...connectionParams,
     sql: `
       INSERT INTO analytics.rag_documents (doc_type, title, content, embedding, metadata, pinned)
       VALUES (
         'example',
-        '${titleEscaped}',
-        '${contentEscaped}',
-        '${embeddingStr}'::vector,
-        '${metadataEscaped}'::jsonb,
+        :title,
+        :content,
+        :embedding::vector,
+        :metadata::jsonb,
         FALSE
       )
     `,
+    parameters: [
+      { name: 'title', value: { stringValue: title } },
+      { name: 'content', value: { stringValue: content } },
+      { name: 'embedding', value: { stringValue: embeddingStr } },
+      { name: 'metadata', value: { stringValue: metadata } },
+    ],
   }));
 
   console.log(`Indexed positive feedback example: "${title}"`);
@@ -186,6 +191,15 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
   // GET /analytics/feedback — list negative feedback (admin)
   if (method === 'GET') {
+    const claims = (event.requestContext as any)?.authorizer?.jwt?.claims || {};
+    const groups: string = claims['cognito:groups'] || '';
+    if (!groups.includes('Admin')) {
+      return {
+        statusCode: 403,
+        headers: CORS,
+        body: JSON.stringify({ error: 'Admin access required' }),
+      };
+    }
     try {
       const limit = parseInt(event.queryStringParameters?.limit || '100');
       return await listNegativeFeedback(limit);

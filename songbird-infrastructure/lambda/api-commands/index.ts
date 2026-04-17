@@ -206,7 +206,16 @@ async function sendCommand(
     };
   }
 
-  const request = JSON.parse(event.body);
+  let request: { cmd?: string; params?: unknown };
+  try {
+    request = JSON.parse(event.body);
+  } catch {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Invalid JSON in request body' }),
+    };
+  }
   const { cmd, params } = request;
 
   // Validate command

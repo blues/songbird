@@ -69,7 +69,10 @@ describe('analytics/feedback handler', () => {
 
     const result = await handler(makeEvent({
       httpMethod: 'GET',
-      requestContext: { http: { method: 'GET', path: '/analytics/feedback' } },
+      requestContext: {
+        http: { method: 'GET', path: '/analytics/feedback' },
+        authorizer: { jwt: { claims: { 'cognito:groups': 'Admin' } } },
+      },
     }));
 
     expect(result.statusCode).toBe(200);
@@ -86,7 +89,10 @@ describe('analytics/feedback handler', () => {
 
     const result = await handler(makeEvent({
       httpMethod: 'GET',
-      requestContext: { http: { method: 'GET', path: '/analytics/feedback' } },
+      requestContext: {
+        http: { method: 'GET', path: '/analytics/feedback' },
+        authorizer: { jwt: { claims: { 'cognito:groups': 'Admin' } } },
+      },
     }));
 
     expect(result.statusCode).toBe(200);
@@ -107,13 +113,28 @@ describe('analytics/feedback handler', () => {
 
     const result = await handler(makeEvent({
       httpMethod: 'GET',
-      requestContext: { http: { method: 'GET', path: '/analytics/feedback' } },
+      requestContext: {
+        http: { method: 'GET', path: '/analytics/feedback' },
+        authorizer: { jwt: { claims: { 'cognito:groups': 'Admin' } } },
+      },
       queryStringParameters: { limit: '2' },
     }));
 
     expect(result.statusCode).toBe(200);
     const body = JSON.parse(result.body);
     expect(body.items.length).toBe(2);
+  });
+
+  it('GET returns 403 when caller is not in the Admin group', async () => {
+    const result = await handler(makeEvent({
+      httpMethod: 'GET',
+      requestContext: {
+        http: { method: 'GET', path: '/analytics/feedback' },
+        authorizer: { jwt: { claims: { 'cognito:groups': 'Viewer' } } },
+      },
+    }));
+
+    expect(result.statusCode).toBe(403);
   });
 
   // ─── DELETE ──────────────────────────────────────────────────────────

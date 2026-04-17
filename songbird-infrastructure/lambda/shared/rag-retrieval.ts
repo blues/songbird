@@ -81,20 +81,23 @@ export async function retrieveRelevantContext(
       }));
 
       // 2b. Vector similarity search (exclude already-pinned docs)
-      const pinnedTitles = pinnedDocs.map(d => `'${d.title.replace(/'/g, "''")}'`).join(',');
-      const excludePinned = pinnedTitles.length > 0
-        ? `AND title NOT IN (${pinnedTitles})`
+      const titleParams = pinnedDocs.map((d, i) => ({
+        name: `p${i}`,
+        value: { stringValue: d.title },
+      }));
+      const excludePinned = titleParams.length > 0
+        ? `AND title NOT IN (${titleParams.map(p => `:${p.name}`).join(',')})`
         : '';
 
       const sql = `
         SELECT title, content, doc_type,
-               1 - (embedding <=> '${embeddingStr}'::vector) AS similarity
+               1 - (embedding <=> :embedding::vector) AS similarity
         FROM analytics.rag_documents
         WHERE embedding IS NOT NULL
           AND pinned = FALSE
           ${excludePinned}
-        ORDER BY embedding <=> '${embeddingStr}'::vector
-        LIMIT ${topK}
+        ORDER BY embedding <=> :embedding::vector
+        LIMIT :limit
       `;
 
       const result = await rds.send(new ExecuteStatementCommand({
@@ -102,6 +105,11 @@ export async function retrieveRelevantContext(
         secretArn,
         database: databaseName,
         sql,
+        parameters: [
+          { name: 'embedding', value: { stringValue: embeddingStr } },
+          { name: 'limit', value: { longValue: topK } },
+          ...titleParams,
+        ],
       }));
 
       const similarDocs: RetrievedDocument[] = (result.records || []).map(record => ({

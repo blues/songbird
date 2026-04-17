@@ -237,16 +237,14 @@ export class AnalyticsConstruct extends Construct {
     this.chatHistoryTable.grantReadWriteData(this.chatQueryLambda);
     props.devicesTable.grantReadData(this.chatQueryLambda);
 
-    // Grant Bedrock access (includes Marketplace permissions for first-time model invocation)
+    // Grant Bedrock access scoped to the specific model used by this Lambda
     this.chatQueryLambda.addToRolePolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['bedrock:InvokeModel'],
-      resources: ['*'],
-    }));
-    this.chatQueryLambda.addToRolePolicy(new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      actions: ['aws-marketplace:ViewSubscriptions', 'aws-marketplace:Subscribe'],
-      resources: ['*'],
+      resources: [
+        `arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-sonnet-*`,
+        `arn:aws:bedrock:*::foundation-model/us.anthropic.claude-3-5-sonnet-*`,
+      ],
     }));
 
     // ==========================================================================

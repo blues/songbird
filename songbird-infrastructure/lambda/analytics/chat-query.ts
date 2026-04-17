@@ -464,35 +464,21 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    // Get user's accessible devices (from Cognito claims or database)
-    // If no devices specified, fetch all device serial numbers from Aurora
-    let deviceSerialNumbers = request.deviceSerialNumbers || [];
+    // Get user's accessible devices — must be supplied by the caller.
+    // Falling back to all devices would grant unrestricted data access.
+    const deviceSerialNumbers: string[] = request.deviceSerialNumbers?.length
+      ? request.deviceSerialNumbers
+      : [];
 
-    if (!deviceSerialNumbers || deviceSerialNumbers.length === 0) {
-      const devicesResult = await rds.send(new ExecuteStatementCommand({
-        resourceArn: CLUSTER_ARN,
-        secretArn: SECRET_ARN,
-        database: DATABASE_NAME,
-        sql: 'SELECT DISTINCT serial_number FROM analytics.devices',
-      }));
-
-      deviceSerialNumbers = (devicesResult.records || [])
-        .map(record => record[0]?.stringValue)
-        .filter((sn): sn is string => !!sn);
-
-      // Fallback: also check telemetry table if devices table is empty
-      if (deviceSerialNumbers.length === 0) {
-        const telemetryResult = await rds.send(new ExecuteStatementCommand({
-          resourceArn: CLUSTER_ARN,
-          secretArn: SECRET_ARN,
-          database: DATABASE_NAME,
-          sql: 'SELECT DISTINCT serial_number FROM analytics.telemetry LIMIT 100',
-        }));
-
-        deviceSerialNumbers = (telemetryResult.records || [])
-          .map(record => record[0]?.stringValue)
-          .filter((sn): sn is string => !!sn);
-      }
+    if (deviceSerialNumbers.length === 0) {
+      return {
+        statusCode: 403,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+        body: JSON.stringify({ error: 'deviceSerialNumbers is required' }),
+      };
     }
 
     // Look up the user's assigned device from DynamoDB devices table
