@@ -14,6 +14,7 @@
 
 SemaphoreHandle_t g_i2cMutex = NULL;
 SemaphoreHandle_t g_configMutex = NULL;
+SemaphoreHandle_t g_stateMutex = NULL;
 QueueHandle_t g_audioQueue = NULL;
 QueueHandle_t g_noteQueue = NULL;
 QueueHandle_t g_configQueue = NULL;
@@ -40,6 +41,11 @@ bool syncInit(void) {
 
     g_configMutex = xSemaphoreCreateMutex();
     if (g_configMutex == NULL) {
+        return false;
+    }
+
+    g_stateMutex = xSemaphoreCreateMutex();
+    if (g_stateMutex == NULL) {
         return false;
     }
 
@@ -169,8 +175,10 @@ bool syncQueueConfig(const SongbirdConfig* config) {
     if (g_configQueue == NULL || config == NULL) {
         return false;
     }
-    // Blocking send - config updates are important
-    return xQueueSend(g_configQueue, config, portMAX_DELAY) == pdTRUE;
+    // Bounded timeout - config is polled every ~30s so a dropped update will
+    // be retried automatically. portMAX_DELAY would block EnvTask indefinitely
+    // if MainTask falls behind, causing a priority-inversion stall.
+    return xQueueSend(g_configQueue, config, pdMS_TO_TICKS(500)) == pdTRUE;
 }
 
 bool syncReceiveConfig(SongbirdConfig* config) {
