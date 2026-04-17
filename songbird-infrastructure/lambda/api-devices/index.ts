@@ -19,9 +19,12 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { resolveDevice, getAliasBySerial } from '../shared/device-lookup';
+import { parseIntParam } from '../shared/utils';
 
 const ddbClient = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(ddbClient);
+const docClient = DynamoDBDocumentClient.from(ddbClient, {
+  marshallOptions: { removeUndefinedValues: true },
+});
 
 const DEVICES_TABLE = process.env.DEVICES_TABLE!;
 const DEVICE_ALIASES_TABLE = process.env.DEVICE_ALIASES_TABLE || 'songbird-device-aliases';
@@ -89,7 +92,7 @@ async function listDevices(
   const queryParams = event.queryStringParameters || {};
   const fleet = queryParams.fleet;
   const status = queryParams.status;
-  const limit = parseInt(queryParams.limit || '100');
+  const limit = parseIntParam(queryParams.limit, 100, 500);
 
   let items: any[] = [];
 
@@ -215,7 +218,16 @@ async function updateDeviceBySerial(
     };
   }
 
-  const updates = JSON.parse(body);
+  let updates: Record<string, unknown>;
+  try {
+    updates = JSON.parse(body);
+  } catch {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Invalid JSON in request body' }),
+    };
+  }
 
   // Only allow certain fields to be updated (removed serial_number - it's now immutable)
   const allowedFields = ['name', 'assigned_to', 'assigned_to_name', 'fleet', 'notes'];
@@ -421,7 +433,17 @@ async function mergeDevices(
     };
   }
 
-  const { source_serial_number, target_serial_number } = JSON.parse(event.body);
+  let parsedBody: { source_serial_number?: string; target_serial_number?: string };
+  try {
+    parsedBody = JSON.parse(event.body);
+  } catch {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Invalid JSON in request body' }),
+    };
+  }
+  const { source_serial_number, target_serial_number } = parsedBody;
 
   if (!source_serial_number || !target_serial_number) {
     return {

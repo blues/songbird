@@ -6,6 +6,7 @@ import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
 
 const PHOENIX_HTTP_ENDPOINT = process.env.PHOENIX_HTTP_ENDPOINT || 'http://localhost:4318/v1/traces';
+const DEBUG_TRACING = process.env.DEBUG_TRACING === 'true';
 
 let provider: NodeTracerProvider | null = null;
 let spanProcessor: BatchSpanProcessor | null = null;
@@ -53,14 +54,14 @@ export function initializeTracing(serviceName: string): void {
  */
 export async function flushSpans(): Promise<void> {
   if (!spanProcessor) {
-    console.log('No span processor to flush');
+    if (DEBUG_TRACING) console.log('No span processor to flush');
     return;
   }
 
   try {
-    console.log('Flushing spans to Phoenix...');
+    if (DEBUG_TRACING) console.log('Flushing spans to Phoenix...');
     await spanProcessor.forceFlush();
-    console.log('Spans flushed successfully');
+    if (DEBUG_TRACING) console.log('Spans flushed successfully');
   } catch (error) {
     console.error('Error flushing spans:', error);
   }
@@ -74,7 +75,7 @@ export async function traceAsyncFn<T>(
 ): Promise<T> {
   const tracer = trace.getTracer('songbird');
   const span = tracer.startSpan(name, { attributes, kind: spanKind });
-  console.log(`Creating span: ${name}`);
+  if (DEBUG_TRACING) console.log(`Creating span: ${name}`);
 
   // Set this span as the active context so child spans nest under it
   const ctx = trace.setSpan(context.active(), span);
@@ -82,7 +83,7 @@ export async function traceAsyncFn<T>(
   try {
     const result = await context.with(ctx, () => fn(span));
     span.setStatus({ code: SpanStatusCode.OK });
-    console.log(`Span completed successfully: ${name}`);
+    if (DEBUG_TRACING) console.log(`Span completed successfully: ${name}`);
     return result;
   } catch (error) {
     span.setStatus({
@@ -94,6 +95,6 @@ export async function traceAsyncFn<T>(
     throw error;
   } finally {
     span.end();
-    console.log(`Span ended: ${name}`);
+    if (DEBUG_TRACING) console.log(`Span ended: ${name}`);
   }
 }
