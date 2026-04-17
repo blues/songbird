@@ -39,14 +39,16 @@ static SongbirdConfig s_currentConfig;
 // =============================================================================
 
 static bool s_lastButtonState = HIGH;       // Button is active-low with pull-up
-static uint32_t s_lastButtonChange = 0;     // Debounce timing
-static const uint32_t BUTTON_DEBOUNCE_MS = 50;
+static uint8_t s_stableCount = 0;           // Consecutive samples matching candidate state
+// Require N consecutive matching samples before accepting a state change. At the
+// MainTask poll rate of MAIN_LOOP_INTERVAL_MS (100ms), 3 samples = ~200-300ms of
+// sustained state, which rejects RF-coupled transients (microseconds) from the
+// cellular modem while staying well below a real finger press.
+static const uint8_t BUTTON_STABLE_SAMPLES = 3;
 
-// Multi-click detection: 1=mute, 2=transit lock, 3=demo lock
+// Multi-click detection: 1=transit lock, 2=demo lock, 3=mute
 static uint8_t s_clickCount = 0;            // Number of clicks in current window
 static uint32_t s_firstClickTime = 0;       // Time of first click
-static const uint32_t MULTI_CLICK_WINDOW_MS = 600;   // Window between clicks
-static const uint32_t SINGLE_CLICK_DELAY_MS = 700;   // Delay before single-click action
 static const uint32_t TRIPLE_CLICK_TIMEOUT_MS = 1000; // Total window for triple-click
 
 // =============================================================================
@@ -484,18 +486,25 @@ void MainTask(void* pvParameters) {
         // For now, we don't automatically sleep - let the device run continuously
 
         // Handle user button: 1-click=transit lock, 2-click=demo lock, 3-click=mute
-        // Read both buttons (either can trigger) - both are active-low with pull-up
-        bool currentButtonState = digitalRead(BUTTON_PIN) && digitalRead(BUTTON_PIN_ALT);
+        // External panel-mount button only in release builds. BUTTON_PIN_ALT is the
+        // Cygnet onboard USER_BTN on PC13, which is noise-prone and has long-wire
+        // susceptibility to cellular RF — included only in debug builds.
+        #ifdef DEBUG_MODE
+        bool rawButtonState = digitalRead(BUTTON_PIN) && digitalRead(BUTTON_PIN_ALT);
+        #else
+        bool rawButtonState = digitalRead(BUTTON_PIN);
+        #endif
         uint32_t now = millis();
 
-        // Handle button state change with debounce
-        if (currentButtonState != s_lastButtonState) {
-            if (now - s_lastButtonChange > BUTTON_DEBOUNCE_MS) {
-                s_lastButtonChange = now;
-                s_lastButtonState = currentButtonState;
+        // Multi-sample stability filter: only accept a state change after
+        // BUTTON_STABLE_SAMPLES consecutive reads agree with the new state.
+        if (rawButtonState != s_lastButtonState) {
+            if (++s_stableCount >= BUTTON_STABLE_SAMPLES) {
+                s_lastButtonState = rawButtonState;
+                s_stableCount = 0;
 
                 // Button pressed (active low)
-                if (currentButtonState == LOW) {
+                if (rawButtonState == LOW) {
                     s_clickCount++;
                     if (s_clickCount == 1) {
                         s_firstClickTime = now;
@@ -507,6 +516,8 @@ void MainTask(void* pvParameters) {
                     #endif
                 }
             }
+        } else {
+            s_stableCount = 0;
         }
 
         // Process click actions after timing window
@@ -522,8 +533,9 @@ void MainTask(void* pvParameters) {
                 audioToggleMute();
                 s_clickCount = 0;
             }
-            // Check for double-click (demo lock) - triple-click already caught above
-            else if (s_clickCount == 2 && elapsed >= MULTI_CLICK_WINDOW_MS) {
+            // Check for double-click (demo lock) - wait the full triple-click
+            // timeout so an in-flight 3rd click can still promote to a triple.
+            else if (s_clickCount == 2 && elapsed >= TRIPLE_CLICK_TIMEOUT_MS) {
                 // Double-click detected - toggle demo lock
                 #ifdef DEBUG_MODE
                 DEBUG_SERIAL.println("[MainTask] Double-click - toggling demo lock");
