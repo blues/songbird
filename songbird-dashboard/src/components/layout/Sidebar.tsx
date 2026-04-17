@@ -1,42 +1,16 @@
-import { useMemo } from 'react';
+import { useMemo, Fragment } from 'react';
 import { NavLink } from 'react-router-dom';
-import { cn } from '@/lib/utils';
-import {
-  LayoutDashboard,
-  Cpu,
-  AlertTriangle,
-  Settings,
-  Map,
-  Terminal,
-  Sparkles,
-  Radio,
-} from 'lucide-react';
-import { useFeatureFlags, type FeatureFlagKey } from '@/hooks/useFeatureFlags';
+import { Radio } from 'lucide-react';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { useMyDevice } from '@/hooks/useMyDevice';
-
-interface NavItem {
-  to: string;
-  icon: typeof LayoutDashboard;
-  label: string;
-  featureFlag?: FeatureFlagKey;
-}
-
-const navItems: NavItem[] = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/devices', icon: Cpu, label: 'Devices' },
-  { to: '/map', icon: Map, label: 'Fleet Map' },
-  { to: '/alerts', icon: AlertTriangle, label: 'Alerts' },
-  { to: '/commands', icon: Terminal, label: 'Commands' },
-  { to: '/analytics', icon: Sparkles, label: 'Analytics', featureFlag: 'analytics' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
-];
+import { NAV_ITEMS, navLinkClass } from '@/config/navigation';
 
 export function Sidebar() {
   const flags = useFeatureFlags();
   const { serialNumber: myDeviceSerial } = useMyDevice();
 
   const visibleNavItems = useMemo(() => {
-    return navItems.filter(item => {
+    return NAV_ITEMS.filter(item => {
       if (!item.featureFlag) return true;
       return flags[item.featureFlag];
     });
@@ -48,41 +22,25 @@ export function Sidebar() {
     <aside className="hidden md:flex w-64 flex-col border-r bg-muted/40">
       <nav className="flex-1 space-y-1 p-4">
         {visibleNavItems.map((item, index) => (
-          <>
+          <Fragment key={item.to}>
             <NavLink
-              key={item.to}
               to={item.to}
               end={item.to === '/devices' && !!myDevicePath}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                )
-              }
+              className={({ isActive }) => navLinkClass(isActive)}
             >
               <item.icon className="h-5 w-5" />
               {item.label}
             </NavLink>
             {index === 0 && myDevicePath && (
               <NavLink
-                key="my-device"
                 to={myDevicePath}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )
-                }
+                className={({ isActive }) => navLinkClass(isActive)}
               >
                 <Radio className="h-5 w-5" />
                 My Device
               </NavLink>
             )}
-          </>
+          </Fragment>
         ))}
       </nav>
 

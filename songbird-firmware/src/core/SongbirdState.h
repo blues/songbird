@@ -21,7 +21,13 @@
 
 // Magic number to validate state data
 #define STATE_MAGIC 0x534F4E47  // "SONG"
-#define STATE_VERSION 4
+// STATE_VERSION bumped from 4 → 5 because:
+//   - reserved[] expanded from [1] to [4] to make the 3-byte alignment
+//     padding before `checksum` explicit (struct layout change).
+//   - stateCalculateChecksum() now normalises padding before computing CRC,
+//     so checksums computed by older firmware are no longer valid.
+// Both changes together require a clean state reset on first boot after upgrade.
+#define STATE_VERSION 5
 
 /**
  * @brief Persistent state structure
@@ -52,7 +58,7 @@ typedef struct {
     uint32_t gpsActiveStartTime; // millis() when GPS became active without signal
     uint32_t lastGpsRetryTime;  // millis() when GPS was last re-enabled for retry
 
-    uint8_t reserved[1];        // Reserved for future use
+    uint8_t reserved[4];        // Reserved for future use (includes 3-byte alignment pad before checksum)
     uint32_t checksum;          // CRC32 checksum
 } SongbirdState;
 
@@ -150,9 +156,11 @@ void stateClearAlert(uint8_t alertFlag);
 uint8_t stateGetAlerts(void);
 
 /**
- * @brief Set motion detected flag
+ * @brief Signal that motion was detected. This flag is sticky — it is only
+ * cleared by stateGetAndClearMotion(). Passing motion=false is intentionally
+ * a no-op to prevent race conditions between detection and reporting.
  *
- * @param motion Motion detected
+ * @param motion true to set the flag; false is intentionally ignored
  */
 void stateSetMotion(bool motion);
 
