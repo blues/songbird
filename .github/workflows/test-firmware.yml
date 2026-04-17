@@ -1,0 +1,29 @@
+name: Test Firmware
+
+on:
+  pull_request:
+    paths:
+      - 'songbird-firmware/**'
+      - '.github/workflows/test-firmware.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: songbird-firmware
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Run tests
+        run: pio test -e native

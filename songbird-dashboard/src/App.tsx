@@ -40,6 +40,101 @@ interface AppConfig {
   mapboxToken?: string;
 }
 
+// Custom Authenticator components for branding — defined at module scope so the
+// object reference is stable across App re-renders.
+const authenticatorComponents: AuthenticatorProps['components'] = {
+  Header() {
+    return (
+      <div className="flex flex-col items-center pt-8 pb-4">
+        <img src="/songbird-logo.svg" alt="Songbird" className="h-16 w-16 mb-3" />
+        <h1 className="text-2xl font-bold text-foreground">Songbird</h1>
+        <p className="text-sm text-muted-foreground">Fleet Management Dashboard</p>
+      </div>
+    );
+  },
+  Footer() {
+    return (
+      <div className="text-center py-4 text-xs text-muted-foreground">
+        Powered by Blues Inc.
+      </div>
+    );
+  },
+};
+
+// Custom form fields for sign-up and sign-in — defined at module scope so the
+// object reference is stable across App re-renders.
+const authenticatorFormFields: AuthenticatorProps['formFields'] = {
+  signIn: {
+    username: {
+      label: 'Username (email)',
+      placeholder: 'Enter your email',
+    },
+  },
+  signUp: {
+    username: {
+      label: 'Username (email)',
+      placeholder: 'Enter your email',
+      order: 1,
+    },
+    name: {
+      label: 'Full Name',
+      placeholder: 'Enter your full name',
+      order: 2,
+      isRequired: true,
+    },
+    password: {
+      order: 3,
+    },
+    confirm_password: {
+      order: 4,
+    },
+  },
+};
+
+// Component to track page views with PostHog — defined at module scope so React
+// sees a stable component type and never unnecessarily remounts it.
+function PageViewTracker() {
+  const location = useLocation();
+  const posthog = usePostHog();
+
+  useEffect(() => {
+    posthog?.capture('$pageview', {
+      $current_url: window.location.href,
+    });
+  }, [location.pathname, posthog]);
+
+  return null;
+}
+
+// Wrapper component to use hooks inside QueryClientProvider — defined at module
+// scope so React sees a stable component type and never remounts the subtree
+// when App re-renders (e.g. on fleet change).
+interface AppLayoutProps {
+  user?: { username: string; email: string };
+  signOut?: () => void;
+  selectedFleet: string;
+  onFleetChange: (fleetUid: string) => void;
+}
+
+function AppLayout({ user, signOut, selectedFleet, onFleetChange }: AppLayoutProps) {
+  const { data: alertsData } = useActiveAlerts();
+  const alertCount = alertsData?.active_count || 0;
+
+  // Identify user to PostHog on login
+  usePostHogIdentify();
+
+  return (
+    <Layout
+      user={user}
+      alertCount={alertCount}
+      selectedFleet={selectedFleet}
+      fleets={[]}
+      onFleetChange={onFleetChange}
+      onSignOut={signOut}
+    />
+  );
+}
+
 function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -109,95 +204,6 @@ function App() {
 
   const mapboxToken = config.mapboxToken || import.meta.env.VITE_MAPBOX_TOKEN || '';
 
-  // Custom Authenticator components for branding
-  const authenticatorComponents: AuthenticatorProps['components'] = {
-    Header() {
-      return (
-        <div className="flex flex-col items-center pt-8 pb-4">
-          <img src="/songbird-logo.svg" alt="Songbird" className="h-16 w-16 mb-3" />
-          <h1 className="text-2xl font-bold text-foreground">Songbird</h1>
-          <p className="text-sm text-muted-foreground">Fleet Management Dashboard</p>
-        </div>
-      );
-    },
-    Footer() {
-      return (
-        <div className="text-center py-4 text-xs text-muted-foreground">
-          Powered by Blues Inc.
-        </div>
-      );
-    },
-  };
-
-  // Custom form fields for sign-up and sign-in
-  const authenticatorFormFields: AuthenticatorProps['formFields'] = {
-    signIn: {
-      username: {
-        label: 'Username (email)',
-        placeholder: 'Enter your email',
-      },
-    },
-    signUp: {
-      username: {
-        label: 'Username (email)',
-        placeholder: 'Enter your email',
-        order: 1,
-      },
-      name: {
-        label: 'Full Name',
-        placeholder: 'Enter your full name',
-        order: 2,
-        isRequired: true,
-      },
-      password: {
-        order: 3,
-      },
-      confirm_password: {
-        order: 4,
-      },
-    },
-  };
-
-  // Component to track page views with PostHog
-  function PageViewTracker() {
-    const location = useLocation();
-    const posthog = usePostHog();
-
-    useEffect(() => {
-      posthog?.capture('$pageview', {
-        $current_url: window.location.href,
-      });
-    }, [location.pathname, posthog]);
-
-    return null;
-  }
-
-  // Wrapper component to use hooks inside QueryClientProvider
-  function AppLayout({
-    user,
-    signOut,
-  }: {
-    user?: { username: string; email: string };
-    signOut?: () => void;
-  }) {
-    const { data: alertsData } = useActiveAlerts();
-    const alertCount = alertsData?.active_count || 0;
-
-    // Identify user to PostHog on login
-    usePostHogIdentify();
-
-    return (
-      <Layout
-        user={user}
-        alertCount={alertCount}
-        selectedFleet={selectedFleet}
-        fleets={[]}
-        onFleetChange={setSelectedFleet}
-        onSignOut={signOut}
-      />
-    );
-  }
-
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
@@ -222,6 +228,8 @@ function App() {
                           <AppLayout
                             user={user ? { username: user.username || '', email: user.signInDetails?.loginId || '' } : undefined}
                             signOut={signOut}
+                            selectedFleet={selectedFleet}
+                            onFleetChange={setSelectedFleet}
                           />
                         }
                       >
