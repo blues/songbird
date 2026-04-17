@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, CheckCheck, Clock, Activity, MapPin, Satellite, Lock, Route, Navigation, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -90,16 +90,22 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const [locationTab, setLocationTab] = useState(journeyIdFromUrl ? 'journeys' : 'current');
   const [selectedJourneyId, setSelectedJourneyId] = useState<number | null>(initialJourneyId);
 
-  // Update URL when journey selection changes
-  const handleJourneySelect = (journeyId: number | null) => {
+  // Update URL when journey selection changes. Wrapped in useCallback so the
+  // stable reference can be safely listed in useEffect dependency arrays.
+  // Uses the functional form of setSearchParams to avoid stale closure over
+  // the searchParams snapshot captured at render time.
+  const handleJourneySelect = useCallback((journeyId: number | null) => {
     setSelectedJourneyId(journeyId);
-    if (journeyId) {
-      setSearchParams({ journey: journeyId.toString() });
-    } else {
-      searchParams.delete('journey');
-      setSearchParams(searchParams);
-    }
-  };
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (journeyId) {
+        next.set('journey', journeyId.toString());
+      } else {
+        next.delete('journey');
+      }
+      return next;
+    });
+  }, [setSearchParams]);
 
   // Set default time range from preferences once loaded
   useEffect(() => {
@@ -132,7 +138,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
       handleJourneySelect(null);
       setLocationTab('current');
     }
-  }, [journeysLoading, journeys, selectedJourneyId, selectedJourney]);
+  }, [journeysLoading, journeys, selectedJourneyId, selectedJourney, handleJourneySelect]);
 
   // Calculate time range needed to cover the journey (if viewing one)
   const journeyTimeRangeHours = selectedJourney

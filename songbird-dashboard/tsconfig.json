@@ -24,5 +24,6 @@
     }
   },
   "include": ["src"],
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "test-setup.ts", "vitest.config.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
