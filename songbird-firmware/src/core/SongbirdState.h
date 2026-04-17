@@ -22,11 +22,11 @@
 // Magic number to validate state data
 #define STATE_MAGIC 0x534F4E47  // "SONG"
 // STATE_VERSION bumped from 4 → 5 because:
-//   - reserved[] expanded from [1] to [4] to make the 3-byte alignment
-//     padding before `checksum` explicit (struct layout change).
+//   - Added brownout detection fields (lastBootTimestamp, consecutiveBrownouts,
+//     lastShutdownReason) to replace reserved[] placeholder.
 //   - stateCalculateChecksum() now normalises padding before computing CRC,
 //     so checksums computed by older firmware are no longer valid.
-// Both changes together require a clean state reset on first boot after upgrade.
+// These changes require a clean state reset on first boot after upgrade.
 #define STATE_VERSION 5
 
 /**
@@ -58,7 +58,11 @@ typedef struct {
     uint32_t gpsActiveStartTime; // millis() when GPS became active without signal
     uint32_t lastGpsRetryTime;  // millis() when GPS was last re-enabled for retry
 
-    uint8_t reserved[4];        // Reserved for future use (includes 3-byte alignment pad before checksum)
+    // Brownout / Power Management (v5)
+    uint32_t lastBootTimestamp;     // millis() at boot start (used for boot-loop detection)
+    uint8_t consecutiveBrownouts;   // Number of back-to-back brownout resets
+    char lastShutdownReason[16];    // "pvd", "brownout", "normal", "unknown"
+
     uint32_t checksum;          // CRC32 checksum
 } SongbirdState;
 
@@ -315,6 +319,53 @@ void stateSetGpsActiveStartTime(uint32_t time);
  * @return millis() timestamp when GPS became active, or 0 if not tracking
  */
 uint32_t stateGetGpsActiveStartTime(void);
+
+// =============================================================================
+// Brownout / Power Management
+// =============================================================================
+
+/**
+ * @brief Set the last shutdown reason string
+ *
+ * @param reason Short string: "pvd", "brownout", "normal", "unknown"
+ */
+void stateSetShutdownReason(const char* reason);
+
+/**
+ * @brief Get the last shutdown reason string
+ *
+ * @return Pointer to reason string
+ */
+const char* stateGetShutdownReason(void);
+
+/**
+ * @brief Increment the consecutive brownout counter
+ */
+void stateIncrementConsecutiveBrownouts(void);
+
+/**
+ * @brief Reset the consecutive brownout counter to zero
+ */
+void stateResetConsecutiveBrownouts(void);
+
+/**
+ * @brief Get the consecutive brownout count
+ *
+ * @return Number of back-to-back brownout resets
+ */
+uint8_t stateGetConsecutiveBrownouts(void);
+
+/**
+ * @brief Record the current boot timestamp (call at top of setup())
+ */
+void stateRecordBootTimestamp(void);
+
+/**
+ * @brief Get the boot timestamp recorded this session
+ *
+ * @return millis() value at time of boot, or 0 if not recorded
+ */
+uint32_t stateGetBootTimestamp(void);
 
 // =============================================================================
 // Checksum

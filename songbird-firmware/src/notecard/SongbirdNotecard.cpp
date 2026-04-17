@@ -538,6 +538,40 @@ bool notecardSendHealthNote(const HealthData* health) {
     return true;
 }
 
+bool notecardSendShutdownNote(float voltage, const char* reason) {
+    if (!s_initialized || reason == NULL) {
+        return false;
+    }
+
+    J* req = s_notecard.newRequest("note.add");
+    JAddStringToObject(req, "file", NOTEFILE_HEALTH);
+    JAddBoolToObject(req, "sync", true);    // Force immediate sync
+
+    J* body = JCreateObject();
+    JAddStringToObject(body, "shutdown", reason);
+    if (voltage > 0) {
+        JAddNumberToObject(body, "voltage", voltage);
+    }
+    JAddNumberToObject(body, "uptime_sec", (uint32_t)(millis() / 1000));
+    JAddItemToObject(req, "body", body);
+
+    J* rsp = s_notecard.requestAndResponse(req);
+    if (rsp == NULL || s_notecard.responseError(rsp)) {
+        if (rsp) s_notecard.deleteResponse(rsp);
+        NC_ERROR();
+        return false;
+    }
+
+    s_notecard.deleteResponse(rsp);
+
+    #ifdef DEBUG_MODE
+    DEBUG_SERIAL.print("[Notecard] Shutdown note sent: ");
+    DEBUG_SERIAL.println(reason);
+    #endif
+
+    return true;
+}
+
 // =============================================================================
 // Command Reception
 // =============================================================================
