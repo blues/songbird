@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 
 describe('chatQuery', () => {
-  it('delegates to apiPost and returns the result', async () => {
+  it('sends a POST request and returns the result', async () => {
     const expected = { sql: 'SELECT 1', data: [] };
     vi.mocked(apiPost).mockResolvedValueOnce(expected);
 
@@ -43,7 +43,7 @@ describe('chatQuery', () => {
     expect(result).toEqual(expected);
   });
 
-  it('propagates errors from apiPost', async () => {
+  it('throws on error response', async () => {
     vi.mocked(apiPost).mockRejectedValueOnce(new Error('Internal error'));
 
     await expect(chatQuery({ query: 'fail' } as any)).rejects.toThrow('Internal error');
@@ -64,7 +64,7 @@ describe('getChatHistory', () => {
     expect(result).toEqual(expected);
   });
 
-  it('propagates errors from apiGet', async () => {
+  it('throws on error response', async () => {
     vi.mocked(apiGet).mockRejectedValueOnce(new Error('Failed to fetch chat history: 403'));
 
     await expect(getChatHistory('user@test.com')).rejects.toThrow('Failed to fetch chat history: 403');
@@ -85,7 +85,7 @@ describe('listSessions', () => {
     expect(result).toEqual(expected);
   });
 
-  it('propagates errors from apiGet', async () => {
+  it('throws on error response', async () => {
     vi.mocked(apiGet).mockRejectedValueOnce(new Error('Failed to fetch sessions: 500'));
 
     await expect(listSessions('user@test.com')).rejects.toThrow('Failed to fetch sessions: 500');
@@ -93,7 +93,7 @@ describe('listSessions', () => {
 });
 
 describe('getSession', () => {
-  it('fetches a specific session with an encoded id', async () => {
+  it('fetches a specific session', async () => {
     const expected = { session: { id: 'sess-1' } };
     vi.mocked(apiGet).mockResolvedValueOnce(expected);
 
@@ -105,7 +105,7 @@ describe('getSession', () => {
     expect(result).toEqual(expected);
   });
 
-  it('propagates errors from apiGet', async () => {
+  it('throws on error response', async () => {
     vi.mocked(apiGet).mockRejectedValueOnce(new Error('Failed to fetch session: 404'));
 
     await expect(getSession('sess-1', 'user@test.com')).rejects.toThrow('Failed to fetch session: 404');
@@ -113,15 +113,15 @@ describe('getSession', () => {
 });
 
 describe('deleteSession', () => {
-  it('calls apiDelete with an encoded session id and userEmail query', async () => {
-    vi.mocked(apiDelete).mockResolvedValueOnce(undefined);
+  it('sends a DELETE request for the session', async () => {
+    vi.mocked(apiDelete).mockResolvedValueOnce(undefined as any);
 
     await deleteSession('sess-1', 'user@test.com');
 
     expect(apiDelete).toHaveBeenCalledWith('/analytics/sessions/sess-1?userEmail=user%40test.com');
   });
 
-  it('propagates errors from apiDelete', async () => {
+  it('throws on error response', async () => {
     vi.mocked(apiDelete).mockRejectedValueOnce(new Error('Delete failed'));
 
     await expect(deleteSession('sess-1', 'user@test.com')).rejects.toThrow('Delete failed');
@@ -140,14 +140,15 @@ describe('listRagDocuments', () => {
   });
 
   it('fetches RAG documents filtered by docType', async () => {
-    vi.mocked(apiGet).mockResolvedValueOnce({ documents: [] });
+    const expected = { documents: [] };
+    vi.mocked(apiGet).mockResolvedValueOnce(expected);
 
     await listRagDocuments('schema');
 
     expect(apiGet).toHaveBeenCalledWith('/analytics/rag-documents', { doc_type: 'schema' });
   });
 
-  it('propagates errors from apiGet', async () => {
+  it('throws on error response', async () => {
     vi.mocked(apiGet).mockRejectedValueOnce(new Error('Failed to fetch RAG documents: 500'));
 
     await expect(listRagDocuments()).rejects.toThrow('Failed to fetch RAG documents: 500');
@@ -166,7 +167,7 @@ describe('createRagDocument', () => {
     expect(result).toEqual(expected);
   });
 
-  it('propagates errors from apiPost', async () => {
+  it('throws on error response', async () => {
     vi.mocked(apiPost).mockRejectedValueOnce(new Error('Invalid doc'));
 
     await expect(createRagDocument({ doc_type: 'schema', content: '' })).rejects.toThrow('Invalid doc');
@@ -185,7 +186,7 @@ describe('updateRagDocument', () => {
     expect(result).toEqual(expected);
   });
 
-  it('propagates errors from apiPut', async () => {
+  it('throws on error response', async () => {
     vi.mocked(apiPut).mockRejectedValueOnce(new Error('Not found'));
 
     await expect(updateRagDocument('doc-1', { content: 'x' })).rejects.toThrow('Not found');
@@ -194,14 +195,14 @@ describe('updateRagDocument', () => {
 
 describe('deleteRagDocument', () => {
   it('sends a DELETE request for the document', async () => {
-    vi.mocked(apiDelete).mockResolvedValueOnce(undefined);
+    vi.mocked(apiDelete).mockResolvedValueOnce(undefined as any);
 
     await deleteRagDocument('doc-1');
 
     expect(apiDelete).toHaveBeenCalledWith('/analytics/rag-documents/doc-1');
   });
 
-  it('propagates errors from apiDelete', async () => {
+  it('throws on error response', async () => {
     vi.mocked(apiDelete).mockRejectedValueOnce(new Error('Server error'));
 
     await expect(deleteRagDocument('doc-1')).rejects.toThrow('Server error');
@@ -219,7 +220,7 @@ describe('toggleRagDocumentPin', () => {
     expect(result).toEqual(expected);
   });
 
-  it('propagates errors from apiPatch', async () => {
+  it('throws on error response', async () => {
     vi.mocked(apiPatch).mockRejectedValueOnce(new Error('Pin failed'));
 
     await expect(toggleRagDocumentPin('doc-1', true)).rejects.toThrow('Pin failed');
@@ -237,7 +238,7 @@ describe('reseedRagDocuments', () => {
     expect(result).toEqual(expected);
   });
 
-  it('propagates errors from apiPost', async () => {
+  it('throws on error response', async () => {
     vi.mocked(apiPost).mockRejectedValueOnce(new Error('Reseed failed'));
 
     await expect(reseedRagDocuments()).rejects.toThrow('Reseed failed');
@@ -258,7 +259,7 @@ describe('rerunQuery', () => {
     expect(result).toEqual(expected);
   });
 
-  it('propagates errors from apiPost', async () => {
+  it('throws on error response', async () => {
     vi.mocked(apiPost).mockRejectedValueOnce(new Error('Bad SQL'));
 
     await expect(rerunQuery('BAD SQL', 'user@test.com')).rejects.toThrow('Bad SQL');
@@ -277,7 +278,7 @@ describe('submitFeedback', () => {
     expect(result).toEqual(expected);
   });
 
-  it('propagates errors from apiPost', async () => {
+  it('throws on error response', async () => {
     vi.mocked(apiPost).mockRejectedValueOnce(new Error('Feedback failed'));
 
     await expect(submitFeedback({} as any)).rejects.toThrow('Feedback failed');
@@ -295,7 +296,7 @@ describe('listNegativeFeedback', () => {
     expect(result).toEqual(expected);
   });
 
-  it('propagates errors from apiGet', async () => {
+  it('throws on error response', async () => {
     vi.mocked(apiGet).mockRejectedValueOnce(new Error('Failed to fetch feedback: 500'));
 
     await expect(listNegativeFeedback()).rejects.toThrow('Failed to fetch feedback: 500');
@@ -303,8 +304,8 @@ describe('listNegativeFeedback', () => {
 });
 
 describe('deleteNegativeFeedback', () => {
-  it('calls apiFetch with DELETE and a JSON body', async () => {
-    vi.mocked(apiFetch).mockResolvedValueOnce(undefined);
+  it('sends a DELETE request with userEmail and ratedAt', async () => {
+    vi.mocked(apiFetch).mockResolvedValueOnce(undefined as any);
 
     await deleteNegativeFeedback('user@test.com', 1700000000);
 
@@ -314,7 +315,7 @@ describe('deleteNegativeFeedback', () => {
     });
   });
 
-  it('propagates errors from apiFetch', async () => {
+  it('throws on error response', async () => {
     vi.mocked(apiFetch).mockRejectedValueOnce(new Error('Delete failed'));
 
     await expect(deleteNegativeFeedback('user@test.com', 1700000000)).rejects.toThrow('Delete failed');
