@@ -1,36 +1,14 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import Map, { Marker, Popup, NavigationControl } from 'react-map-gl';
 import type { MapRef } from 'react-map-gl';
-import { MapPin, Satellite, Radio } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { DeviceStatus } from '@/components/devices/DeviceStatus';
 import { formatRelativeTime } from '@/utils/formatters';
+import { getLocationSourceInfo } from '@/utils/locationSource';
+import { MAP_STYLES, DEFAULT_MAP_CENTER } from '@/config/mapConfig';
 import { usePreferences } from '@/contexts/PreferencesContext';
-import type { Device, LocationSource } from '@/types';
+import type { Device } from '@/types';
 import 'mapbox-gl/dist/mapbox-gl.css';
-
-// Location source display configuration
-function getLocationSourceInfo(source?: LocationSource | string) {
-  switch (source) {
-    case 'gps':
-      return { label: 'GPS', icon: Satellite, color: 'text-green-600' };
-    case 'cell':
-    case 'tower':
-      return { label: 'Cell Tower', icon: Radio, color: 'text-blue-600' };
-    case 'wifi':
-      return { label: 'Wi-Fi', icon: Radio, color: 'text-purple-600' };
-    case 'triangulation':
-    case 'triangulated':
-      return { label: 'Triangulation', icon: Radio, color: 'text-orange-600' };
-    default:
-      return null;
-  }
-}
-
-// Map style URLs
-const MAP_STYLES = {
-  street: 'mapbox://styles/mapbox/light-v11',
-  satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
-};
 
 interface FleetMapProps {
   devices: Device[];
@@ -111,15 +89,12 @@ export function FleetMap({
 
   // No longer auto-show popup for selected device - hover handles it
 
-  // Default center (Austin, TX)
-  const defaultCenter = { longitude: -97.7431, latitude: 30.2672 };
-
   return (
     <div className={className}>
       <Map
         ref={mapRef}
         initialViewState={{
-          ...defaultCenter,
+          ...DEFAULT_MAP_CENTER,
           zoom: 4,
         }}
         style={{ width: '100%', height: '100%' }}
@@ -185,7 +160,6 @@ export function FleetMap({
                 </div>
                 {(() => {
                   const sourceInfo = getLocationSourceInfo(hoveredDevice.location_source);
-                  if (!sourceInfo) return null;
                   const SourceIcon = sourceInfo.icon;
                   return (
                     <div className={`flex items-center gap-1.5 ${sourceInfo.color}`}>

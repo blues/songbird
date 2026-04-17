@@ -14,31 +14,33 @@ beforeEach(() => {
 });
 
 describe('getAlerts', () => {
-  it('calls apiGet with /v1/alerts and no query string when no params', async () => {
+  it('calls apiGet with /v1/alerts and no params when called without args', async () => {
     await getAlerts();
-    expect(apiGet).toHaveBeenCalledWith('/v1/alerts');
+    expect(apiGet).toHaveBeenCalledWith('/v1/alerts', undefined);
   });
 
-  it('builds query string with serial_number', async () => {
+  it('passes serial_number as a query param', async () => {
     await getAlerts({ serial_number: 'sb01' });
-    expect(apiGet).toHaveBeenCalledWith('/v1/alerts?serial_number=sb01');
+    expect(apiGet).toHaveBeenCalledWith('/v1/alerts', { serial_number: 'sb01' });
   });
 
-  it('builds query string with acknowledged flag', async () => {
+  it('passes acknowledged flag as a query param', async () => {
     await getAlerts({ acknowledged: false });
-    expect(apiGet).toHaveBeenCalledWith('/v1/alerts?acknowledged=false');
+    expect(apiGet).toHaveBeenCalledWith('/v1/alerts', { acknowledged: false });
   });
 
-  it('builds query string with limit', async () => {
+  it('passes limit as a query param', async () => {
     await getAlerts({ limit: 50 });
-    expect(apiGet).toHaveBeenCalledWith('/v1/alerts?limit=50');
+    expect(apiGet).toHaveBeenCalledWith('/v1/alerts', { limit: 50 });
   });
 
-  it('builds query string with all params combined', async () => {
+  it('passes all params combined', async () => {
     await getAlerts({ serial_number: 'sb01', acknowledged: true, limit: 10 });
-    expect(apiGet).toHaveBeenCalledWith(
-      '/v1/alerts?serial_number=sb01&acknowledged=true&limit=10'
-    );
+    expect(apiGet).toHaveBeenCalledWith('/v1/alerts', {
+      serial_number: 'sb01',
+      acknowledged: true,
+      limit: 10,
+    });
   });
 });
 

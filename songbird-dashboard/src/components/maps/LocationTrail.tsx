@@ -2,15 +2,10 @@ import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl';
 import type { MapRef } from 'react-map-gl';
 import { MapPin } from 'lucide-react';
+import { MAP_STYLES, DEFAULT_MAP_CENTER } from '@/config/mapConfig';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import type { LocationPoint } from '@/types';
 import 'mapbox-gl/dist/mapbox-gl.css';
-
-// Map style URLs
-const MAP_STYLES = {
-  street: 'mapbox://styles/mapbox/light-v11',
-  satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
-};
 
 interface LocationTrailProps {
   locations: LocationPoint[];
@@ -116,15 +111,12 @@ export function LocationTrail({
   const currentLocation = locations[0] || (deviceLocation ? { lat: deviceLocation.lat, lon: deviceLocation.lon, time: '' } : null);
   const trailPoints = locations.slice(1);
 
-  // Default center (Austin, TX)
-  const defaultCenter = { latitude: 30.2672, longitude: -97.7431 };
-
   return (
     <div className={className}>
       <Map
         ref={mapRef}
         initialViewState={{
-          ...defaultCenter,
+          ...DEFAULT_MAP_CENTER,
           zoom: 4,
         }}
         style={{ width: '100%', height: '100%' }}

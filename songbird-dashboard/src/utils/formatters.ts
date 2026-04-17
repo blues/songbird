@@ -44,6 +44,13 @@ export function celsiusToFahrenheit(celsius: number): number {
 }
 
 /**
+ * Convert Fahrenheit to Celsius
+ */
+export function fahrenheitToCelsius(fahrenheit: number): number {
+  return ((fahrenheit - 32) * 5) / 9;
+}
+
+/**
  * Format temperature with unit
  * @param value - Temperature in Celsius
  * @param unit - 'C' for Celsius, 'F' for Fahrenheit
