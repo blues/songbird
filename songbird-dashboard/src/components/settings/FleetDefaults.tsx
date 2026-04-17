@@ -34,7 +34,6 @@ export function FleetDefaults() {
   const useFahrenheit = preferences.temp_unit === 'fahrenheit';
   const tempUnit = useFahrenheit ? '°F' : '°C';
 
-  // Convert display temperature based on preference
   // Convert display temperature based on preference (rounded for slider display)
   const displayTemp = (celsius: number) => useFahrenheit ? Math.round(celsiusToFahrenheit(celsius)) : celsius;
 
@@ -72,11 +71,10 @@ export function FleetDefaults() {
 
   const handleSave = () => {
     if (!selectedFleet) return;
-    updateDefaults.mutate({
-      fleetUid: selectedFleet,
-      config: localConfig,
-    });
-    setHasChanges(false);
+    updateDefaults.mutate(
+      { fleetUid: selectedFleet, config: localConfig },
+      { onSuccess: () => setHasChanges(false) }
+    );
   };
 
   if (fleetsLoading) {
@@ -440,6 +438,11 @@ export function FleetDefaults() {
                   {updateDefaults.isSuccess && !hasChanges && (
                     <span className="ml-3 text-sm text-green-600">
                       Defaults saved and synced to Notehub!
+                    </span>
+                  )}
+                  {updateDefaults.isError && (
+                    <span className="ml-3 text-sm text-destructive">
+                      Failed to save fleet defaults. Please try again.
                     </span>
                   )}
                   {fleetConfig?.updated_at && (
