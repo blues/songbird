@@ -6,15 +6,8 @@
 
 import { createContext, useContext, ReactNode } from 'react';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { DEFAULT_PREFERENCES } from '@/config/preferences';
 import type { DisplayPreferences } from '@/types';
-
-const DEFAULT_PREFERENCES: DisplayPreferences = {
-  temp_unit: 'celsius',
-  time_format: '24h',
-  default_time_range: '24',
-  map_style: 'street',
-  distance_unit: 'km',
-};
 
 interface PreferencesContextValue {
   preferences: DisplayPreferences;

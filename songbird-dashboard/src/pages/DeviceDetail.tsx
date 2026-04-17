@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, CheckCheck, Clock, Activity, MapPin, Lock, Route, Navigation, ExternalLink, Satellite } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, CheckCheck, Clock, Activity, MapPin, Satellite, Lock, Route, Navigation, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';

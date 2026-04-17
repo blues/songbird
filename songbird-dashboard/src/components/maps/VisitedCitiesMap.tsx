@@ -2,16 +2,11 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import Map, { Marker, Popup, NavigationControl } from 'react-map-gl';
 import type { MapRef } from 'react-map-gl';
 import { MapPin, Calendar, Hash } from 'lucide-react';
+import { MAP_STYLES, DEFAULT_MAP_CENTER } from '@/config/mapConfig';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { formatDateTime } from '@/utils/formatters';
 import type { VisitedCity } from '@/types';
 import 'mapbox-gl/dist/mapbox-gl.css';
-
-// Map style URLs
-const MAP_STYLES = {
-  street: 'mapbox://styles/mapbox/light-v11',
-  satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
-};
 
 interface VisitedCitiesMapProps {
   cities: VisitedCity[];
@@ -98,15 +93,12 @@ export function VisitedCitiesMap({
     return 'text-gray-500';
   };
 
-  // Default center (Austin, TX)
-  const defaultCenter = { longitude: -97.7431, latitude: 30.2672 };
-
   return (
     <div className={className}>
       <Map
         ref={mapRef}
         initialViewState={{
-          ...defaultCenter,
+          ...DEFAULT_MAP_CENTER,
           zoom: 4,
         }}
         style={{ width: '100%', height: '100%' }}

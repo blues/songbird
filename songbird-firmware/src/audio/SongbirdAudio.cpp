@@ -196,7 +196,11 @@ void audioPlayMelody(const Melody* melody, uint8_t volume) {
 
         // Small gap between notes (unless it's a rest)
         if (melody->notes[i] != NOTE_REST && i < melody->length - 1) {
-            vTaskDelay(pdMS_TO_TICKS(TONE_GAP_MS));
+            if (useRtosPrimitives()) {
+                vTaskDelay(pdMS_TO_TICKS(TONE_GAP_MS));
+            } else {
+                delay(TONE_GAP_MS);  // Arduino delay — safe before scheduler starts
+            }
         }
     }
 }

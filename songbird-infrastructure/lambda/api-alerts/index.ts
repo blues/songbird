@@ -18,33 +18,16 @@ import {
   BatchWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { getAllDeviceUidsForSerial } from '../shared/device-lookup';
+import { parseIntParam } from '../shared/utils';
+import { ACKNOWLEDGED } from '../shared/constants';
 
 const ddbClient = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(ddbClient);
+const docClient = DynamoDBDocumentClient.from(ddbClient, {
+  marshallOptions: { removeUndefinedValues: true },
+});
 
 const ALERTS_TABLE = process.env.ALERTS_TABLE!;
-const DEVICE_ALIASES_TABLE = process.env.DEVICE_ALIASES_TABLE || 'songbird-device-aliases';
-
-/**
- * Get all device_uids associated with a serial number
- */
-async function getAllDeviceUidsForSerial(serialNumber: string): Promise<string[]> {
-  const result = await docClient.send(new GetCommand({
-    TableName: DEVICE_ALIASES_TABLE,
-    Key: { serial_number: serialNumber },
-  }));
-
-  if (!result.Item) {
-    return [];
-  }
-
-  // Return current device_uid plus any historical ones
-  const deviceUids = [result.Item.device_uid];
-  if (result.Item.previous_device_uids && Array.isArray(result.Item.previous_device_uids)) {
-    deviceUids.push(...result.Item.previous_device_uids);
-  }
-  return deviceUids;
-}
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const method = (event.requestContext as any)?.http?.method || event.httpMethod;
@@ -107,7 +90,7 @@ async function listAlerts(
   const queryParams = event.queryStringParameters || {};
   const serialNumber = queryParams.serial_number || queryParams.device_uid; // Support both for backwards compat
   const acknowledged = queryParams.acknowledged;
-  const limit = parseInt(queryParams.limit || '100');
+  const limit = parseIntParam(queryParams.limit, 100, 500);
 
   let items: any[] = [];
 
@@ -153,7 +136,7 @@ async function listAlerts(
       TableName: ALERTS_TABLE,
       IndexName: 'status-index',
       KeyConditionExpression: 'acknowledged = :ack',
-      ExpressionAttributeValues: { ':ack': 'false' },
+      ExpressionAttributeValues: { ':ack': ACKNOWLEDGED.FALSE },
       ScanIndexForward: false,
       Limit: limit,
     });
@@ -175,7 +158,7 @@ async function listAlerts(
   }
 
   // Calculate stats
-  const activeCount = items.filter(a => a.acknowledged === 'false').length;
+  const activeCount = items.filter(a => a.acknowledged === ACKNOWLEDGED.FALSE).length;
 
   return {
     statusCode: 200,
@@ -237,7 +220,7 @@ async function acknowledgeAlert(
     Key: { alert_id: alertId },
     UpdateExpression: 'SET acknowledged = :ack, acknowledged_at = :ack_at, acknowledged_by = :ack_by',
     ExpressionAttributeValues: {
-      ':ack': 'true',
+      ':ack': ACKNOWLEDGED.TRUE,
       ':ack_at': now,
       ':ack_by': acknowledgedBy,
     },
@@ -294,10 +277,10 @@ async function bulkAcknowledgeAlerts(
         UpdateExpression: 'SET acknowledged = :ack, acknowledged_at = :ack_at, acknowledged_by = :ack_by',
         ConditionExpression: 'acknowledged = :not_ack',
         ExpressionAttributeValues: {
-          ':ack': 'true',
+          ':ack': ACKNOWLEDGED.TRUE,
           ':ack_at': now,
           ':ack_by': acknowledgedBy,
-          ':not_ack': 'false',
+          ':not_ack': ACKNOWLEDGED.FALSE,
         },
         ReturnValues: 'ALL_NEW',
       });
