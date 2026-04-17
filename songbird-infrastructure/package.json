@@ -19,6 +19,7 @@
     "aws-cdk": "^2.115.0",
     "aws-sdk-client-mock": "^4.1.0",
     "aws-sdk-client-mock-jest": "^4.1.0",
+    "esbuild": "^0.28.0",
     "typescript": "~5.3.0",
     "vitest": "^4.1.4"
   },
@@ -45,7 +46,6 @@
     "@opentelemetry/sdk-trace-node": "^1.25.0",
     "@opentelemetry/semantic-conventions": "^1.25.0",
     "aws-cdk-lib": "^2.115.0",
-    "constructs": "^10.3.0",
-    "esbuild": "^0.19.0"
+    "constructs": "^10.3.0"
   }
 }
