@@ -20,11 +20,8 @@ import {
 } from '@/components/ui/select';
 import { useNotehubFleets, useFleetDefaults, useUpdateFleetDefaults } from '@/hooks/useSettings';
 import { usePreferences } from '@/contexts/PreferencesContext';
+import { celsiusToFahrenheit, fahrenheitToCelsius } from '@/utils/formatters';
 import type { FleetDefaults as FleetDefaultsType, OperatingMode, MotionSensitivity } from '@/types';
-
-// Temperature conversion helpers
-const celsiusToFahrenheit = (c: number) => Math.round((c * 9) / 5 + 32);
-const fahrenheitToCelsius = (f: number) => Math.round(((f - 32) * 5) / 9);
 
 export function FleetDefaults() {
   const { data: fleets, isLoading: fleetsLoading } = useNotehubFleets();
@@ -37,8 +34,8 @@ export function FleetDefaults() {
   const useFahrenheit = preferences.temp_unit === 'fahrenheit';
   const tempUnit = useFahrenheit ? '°F' : '°C';
 
-  // Convert display temperature based on preference
-  const displayTemp = (celsius: number) => useFahrenheit ? celsiusToFahrenheit(celsius) : celsius;
+  // Convert display temperature based on preference (rounded for slider display)
+  const displayTemp = (celsius: number) => useFahrenheit ? Math.round(celsiusToFahrenheit(celsius)) : celsius;
 
   // Slider ranges based on unit
   const tempHighMin = useFahrenheit ? 14 : -10;   // -10°C = 14°F
@@ -74,11 +71,10 @@ export function FleetDefaults() {
 
   const handleSave = () => {
     if (!selectedFleet) return;
-    updateDefaults.mutate({
-      fleetUid: selectedFleet,
-      config: localConfig,
-    });
-    setHasChanges(false);
+    updateDefaults.mutate(
+      { fleetUid: selectedFleet, config: localConfig },
+      { onSuccess: () => setHasChanges(false) }
+    );
   };
 
   if (fleetsLoading) {
@@ -233,7 +229,7 @@ export function FleetDefaults() {
                       <Slider
                         value={[displayTemp(localConfig.temp_alert_high_c || 35)]}
                         onValueChange={([v]) => {
-                          const celsius = useFahrenheit ? fahrenheitToCelsius(v) : v;
+                          const celsius = useFahrenheit ? Math.round(fahrenheitToCelsius(v)) : v;
                           updateLocalConfig('temp_alert_high_c', celsius);
                         }}
                         min={tempHighMin}
@@ -252,7 +248,7 @@ export function FleetDefaults() {
                       <Slider
                         value={[displayTemp(localConfig.temp_alert_low_c || 5)]}
                         onValueChange={([v]) => {
-                          const celsius = useFahrenheit ? fahrenheitToCelsius(v) : v;
+                          const celsius = useFahrenheit ? Math.round(fahrenheitToCelsius(v)) : v;
                           updateLocalConfig('temp_alert_low_c', celsius);
                         }}
                         min={tempLowMin}
@@ -442,6 +438,11 @@ export function FleetDefaults() {
                   {updateDefaults.isSuccess && !hasChanges && (
                     <span className="ml-3 text-sm text-green-600">
                       Defaults saved and synced to Notehub!
+                    </span>
+                  )}
+                  {updateDefaults.isError && (
+                    <span className="ml-3 text-sm text-destructive">
+                      Failed to save fleet defaults. Please try again.
                     </span>
                   )}
                   {fleetConfig?.updated_at && (

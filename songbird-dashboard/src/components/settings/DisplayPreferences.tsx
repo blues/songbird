@@ -48,8 +48,9 @@ export function DisplayPreferences() {
   };
 
   const handleSave = () => {
-    updatePreferences.mutate(localPrefs);
-    setHasChanges(false);
+    updatePreferences.mutate(localPrefs, {
+      onSuccess: () => setHasChanges(false),
+    });
   };
 
   if (isLoading) {
@@ -212,6 +213,11 @@ export function DisplayPreferences() {
           </Button>
           {updatePreferences.isSuccess && !hasChanges && (
             <span className="ml-3 text-sm text-green-600">Preferences saved!</span>
+          )}
+          {updatePreferences.isError && (
+            <span className="ml-3 text-sm text-destructive">
+              Failed to save preferences. Please try again.
+            </span>
           )}
         </div>
       </CardContent>

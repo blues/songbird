@@ -495,163 +495,168 @@ void envLogConfigChanges(const SongbirdConfig* oldConfig, const SongbirdConfig* 
         return;
     }
 
-    Serial.println("[Env] Configuration changed from Notehub:");
+    #ifdef DEBUG_MODE
+    DEBUG_SERIAL.println("[Env] Configuration changed from Notehub:");
 
     // Mode
     if (oldConfig->mode != newConfig->mode) {
-        Serial.print("  mode: ");
-        Serial.print(envGetModeName(oldConfig->mode));
-        Serial.print(" -> ");
-        Serial.println(envGetModeName(newConfig->mode));
+        DEBUG_SERIAL.print("  mode: ");
+        DEBUG_SERIAL.print(envGetModeName(oldConfig->mode));
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(envGetModeName(newConfig->mode));
     }
 
     // Timing
     if (oldConfig->gpsIntervalMin != newConfig->gpsIntervalMin) {
-        Serial.print("  gps_interval_min: ");
-        Serial.print(oldConfig->gpsIntervalMin);
-        Serial.print(" -> ");
-        Serial.println(newConfig->gpsIntervalMin);
+        DEBUG_SERIAL.print("  gps_interval_min: ");
+        DEBUG_SERIAL.print(oldConfig->gpsIntervalMin);
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->gpsIntervalMin);
     }
     if (oldConfig->syncIntervalMin != newConfig->syncIntervalMin) {
-        Serial.print("  sync_interval_min: ");
-        Serial.print(oldConfig->syncIntervalMin);
-        Serial.print(" -> ");
-        Serial.println(newConfig->syncIntervalMin);
+        DEBUG_SERIAL.print("  sync_interval_min: ");
+        DEBUG_SERIAL.print(oldConfig->syncIntervalMin);
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->syncIntervalMin);
     }
     if (oldConfig->heartbeatHours != newConfig->heartbeatHours) {
-        Serial.print("  heartbeat_hours: ");
-        Serial.print(oldConfig->heartbeatHours);
-        Serial.print(" -> ");
-        Serial.println(newConfig->heartbeatHours);
+        DEBUG_SERIAL.print("  heartbeat_hours: ");
+        DEBUG_SERIAL.print(oldConfig->heartbeatHours);
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->heartbeatHours);
     }
 
     // Temperature alerts
     if (oldConfig->tempAlertHighC != newConfig->tempAlertHighC) {
-        Serial.print("  temp_alert_high_c: ");
-        Serial.print(oldConfig->tempAlertHighC);
-        Serial.print(" -> ");
-        Serial.println(newConfig->tempAlertHighC);
+        DEBUG_SERIAL.print("  temp_alert_high_c: ");
+        DEBUG_SERIAL.print(oldConfig->tempAlertHighC);
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->tempAlertHighC);
     }
     if (oldConfig->tempAlertLowC != newConfig->tempAlertLowC) {
-        Serial.print("  temp_alert_low_c: ");
-        Serial.print(oldConfig->tempAlertLowC);
-        Serial.print(" -> ");
-        Serial.println(newConfig->tempAlertLowC);
+        DEBUG_SERIAL.print("  temp_alert_low_c: ");
+        DEBUG_SERIAL.print(oldConfig->tempAlertLowC);
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->tempAlertLowC);
     }
 
     // Humidity alerts
     if (oldConfig->humidityAlertHigh != newConfig->humidityAlertHigh) {
-        Serial.print("  humidity_alert_high: ");
-        Serial.print(oldConfig->humidityAlertHigh);
-        Serial.print(" -> ");
-        Serial.println(newConfig->humidityAlertHigh);
+        DEBUG_SERIAL.print("  humidity_alert_high: ");
+        DEBUG_SERIAL.print(oldConfig->humidityAlertHigh);
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->humidityAlertHigh);
     }
     if (oldConfig->humidityAlertLow != newConfig->humidityAlertLow) {
-        Serial.print("  humidity_alert_low: ");
-        Serial.print(oldConfig->humidityAlertLow);
-        Serial.print(" -> ");
-        Serial.println(newConfig->humidityAlertLow);
+        DEBUG_SERIAL.print("  humidity_alert_low: ");
+        DEBUG_SERIAL.print(oldConfig->humidityAlertLow);
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->humidityAlertLow);
     }
 
     // Pressure and voltage alerts
     if (oldConfig->pressureAlertDelta != newConfig->pressureAlertDelta) {
-        Serial.print("  pressure_alert_delta: ");
-        Serial.print(oldConfig->pressureAlertDelta);
-        Serial.print(" -> ");
-        Serial.println(newConfig->pressureAlertDelta);
+        DEBUG_SERIAL.print("  pressure_alert_delta: ");
+        DEBUG_SERIAL.print(oldConfig->pressureAlertDelta);
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->pressureAlertDelta);
     }
     if (oldConfig->voltageAlertLow != newConfig->voltageAlertLow) {
-        Serial.print("  voltage_alert_low: ");
-        Serial.print(oldConfig->voltageAlertLow);
-        Serial.print(" -> ");
-        Serial.println(newConfig->voltageAlertLow);
+        DEBUG_SERIAL.print("  voltage_alert_low: ");
+        DEBUG_SERIAL.print(oldConfig->voltageAlertLow);
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->voltageAlertLow);
     }
 
     // Motion
     if (oldConfig->motionSensitivity != newConfig->motionSensitivity) {
-        Serial.print("  motion_sensitivity: ");
-        Serial.print(getSensitivityName(oldConfig->motionSensitivity));
-        Serial.print(" -> ");
-        Serial.println(getSensitivityName(newConfig->motionSensitivity));
+        DEBUG_SERIAL.print("  motion_sensitivity: ");
+        DEBUG_SERIAL.print(getSensitivityName(oldConfig->motionSensitivity));
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(getSensitivityName(newConfig->motionSensitivity));
     }
     if (oldConfig->motionWakeEnabled != newConfig->motionWakeEnabled) {
-        Serial.print("  motion_wake_enabled: ");
-        Serial.print(oldConfig->motionWakeEnabled ? "true" : "false");
-        Serial.print(" -> ");
-        Serial.println(newConfig->motionWakeEnabled ? "true" : "false");
+        DEBUG_SERIAL.print("  motion_wake_enabled: ");
+        DEBUG_SERIAL.print(oldConfig->motionWakeEnabled ? "true" : "false");
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->motionWakeEnabled ? "true" : "false");
     }
 
     // Audio
     if (oldConfig->audioEnabled != newConfig->audioEnabled) {
-        Serial.print("  audio_enabled: ");
-        Serial.print(oldConfig->audioEnabled ? "true" : "false");
-        Serial.print(" -> ");
-        Serial.println(newConfig->audioEnabled ? "true" : "false");
+        DEBUG_SERIAL.print("  audio_enabled: ");
+        DEBUG_SERIAL.print(oldConfig->audioEnabled ? "true" : "false");
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->audioEnabled ? "true" : "false");
     }
     if (oldConfig->audioVolume != newConfig->audioVolume) {
-        Serial.print("  audio_volume: ");
-        Serial.print(oldConfig->audioVolume);
-        Serial.print(" -> ");
-        Serial.println(newConfig->audioVolume);
+        DEBUG_SERIAL.print("  audio_volume: ");
+        DEBUG_SERIAL.print(oldConfig->audioVolume);
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->audioVolume);
     }
     if (oldConfig->audioAlertsOnly != newConfig->audioAlertsOnly) {
-        Serial.print("  audio_alerts_only: ");
-        Serial.print(oldConfig->audioAlertsOnly ? "true" : "false");
-        Serial.print(" -> ");
-        Serial.println(newConfig->audioAlertsOnly ? "true" : "false");
+        DEBUG_SERIAL.print("  audio_alerts_only: ");
+        DEBUG_SERIAL.print(oldConfig->audioAlertsOnly ? "true" : "false");
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->audioAlertsOnly ? "true" : "false");
     }
 
     // Commands
     if (oldConfig->cmdWakeEnabled != newConfig->cmdWakeEnabled) {
-        Serial.print("  cmd_wake_enabled: ");
-        Serial.print(oldConfig->cmdWakeEnabled ? "true" : "false");
-        Serial.print(" -> ");
-        Serial.println(newConfig->cmdWakeEnabled ? "true" : "false");
+        DEBUG_SERIAL.print("  cmd_wake_enabled: ");
+        DEBUG_SERIAL.print(oldConfig->cmdWakeEnabled ? "true" : "false");
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->cmdWakeEnabled ? "true" : "false");
     }
     if (oldConfig->cmdAckEnabled != newConfig->cmdAckEnabled) {
-        Serial.print("  cmd_ack_enabled: ");
-        Serial.print(oldConfig->cmdAckEnabled ? "true" : "false");
-        Serial.print(" -> ");
-        Serial.println(newConfig->cmdAckEnabled ? "true" : "false");
+        DEBUG_SERIAL.print("  cmd_ack_enabled: ");
+        DEBUG_SERIAL.print(oldConfig->cmdAckEnabled ? "true" : "false");
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->cmdAckEnabled ? "true" : "false");
     }
     if (oldConfig->locateDurationSec != newConfig->locateDurationSec) {
-        Serial.print("  locate_duration_sec: ");
-        Serial.print(oldConfig->locateDurationSec);
-        Serial.print(" -> ");
-        Serial.println(newConfig->locateDurationSec);
+        DEBUG_SERIAL.print("  locate_duration_sec: ");
+        DEBUG_SERIAL.print(oldConfig->locateDurationSec);
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->locateDurationSec);
     }
 
     // Misc
     if (oldConfig->ledEnabled != newConfig->ledEnabled) {
-        Serial.print("  led_enabled: ");
-        Serial.print(oldConfig->ledEnabled ? "true" : "false");
-        Serial.print(" -> ");
-        Serial.println(newConfig->ledEnabled ? "true" : "false");
+        DEBUG_SERIAL.print("  led_enabled: ");
+        DEBUG_SERIAL.print(oldConfig->ledEnabled ? "true" : "false");
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->ledEnabled ? "true" : "false");
     }
     if (oldConfig->debugMode != newConfig->debugMode) {
-        Serial.print("  debug_mode: ");
-        Serial.print(oldConfig->debugMode ? "true" : "false");
-        Serial.print(" -> ");
-        Serial.println(newConfig->debugMode ? "true" : "false");
+        DEBUG_SERIAL.print("  debug_mode: ");
+        DEBUG_SERIAL.print(oldConfig->debugMode ? "true" : "false");
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->debugMode ? "true" : "false");
     }
 
     // GPS Power Management
     if (oldConfig->gpsPowerSaveEnabled != newConfig->gpsPowerSaveEnabled) {
-        Serial.print("  gps_power_save_enabled: ");
-        Serial.print(oldConfig->gpsPowerSaveEnabled ? "true" : "false");
-        Serial.print(" -> ");
-        Serial.println(newConfig->gpsPowerSaveEnabled ? "true" : "false");
+        DEBUG_SERIAL.print("  gps_power_save_enabled: ");
+        DEBUG_SERIAL.print(oldConfig->gpsPowerSaveEnabled ? "true" : "false");
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->gpsPowerSaveEnabled ? "true" : "false");
     }
     if (oldConfig->gpsSignalTimeoutMin != newConfig->gpsSignalTimeoutMin) {
-        Serial.print("  gps_signal_timeout_min: ");
-        Serial.print(oldConfig->gpsSignalTimeoutMin);
-        Serial.print(" -> ");
-        Serial.println(newConfig->gpsSignalTimeoutMin);
+        DEBUG_SERIAL.print("  gps_signal_timeout_min: ");
+        DEBUG_SERIAL.print(oldConfig->gpsSignalTimeoutMin);
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->gpsSignalTimeoutMin);
     }
     if (oldConfig->gpsRetryIntervalMin != newConfig->gpsRetryIntervalMin) {
-        Serial.print("  gps_retry_interval_min: ");
-        Serial.print(oldConfig->gpsRetryIntervalMin);
-        Serial.print(" -> ");
-        Serial.println(newConfig->gpsRetryIntervalMin);
+        DEBUG_SERIAL.print("  gps_retry_interval_min: ");
+        DEBUG_SERIAL.print(oldConfig->gpsRetryIntervalMin);
+        DEBUG_SERIAL.print(" -> ");
+        DEBUG_SERIAL.println(newConfig->gpsRetryIntervalMin);
     }
+    #else
+    (void)oldConfig;
+    (void)newConfig;
+    #endif
 }

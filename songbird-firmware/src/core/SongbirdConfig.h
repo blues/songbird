@@ -247,6 +247,12 @@ typedef enum {
 // Main task loop interval
 #define MAIN_LOOP_INTERVAL_MS           100     // 100ms
 
+// Periodic health check interval (MainTask)
+#define HEALTH_CHECK_INTERVAL_MS        60000   // Health check every 1 minute
+
+// Sensor polling wait used when in sleep mode (sensors disabled, wake-on-motion)
+#define SLEEP_MODE_SENSOR_WAIT_MS       60000   // Sensor polling interval in sleep mode
+
 // =============================================================================
 // Timeouts
 // =============================================================================
@@ -403,9 +409,37 @@ typedef struct {
 // Helper Macros
 // =============================================================================
 
+// Type-safe min/max/clamp using C++ inline templates.
+// The old macro forms evaluated arguments multiple times, which was incorrect
+// for arguments with side effects (e.g. MIN(getNextValue(), threshold) would
+// call getNextValue() twice).  The macros below are kept for backward
+// compatibility but now delegate to the templates — each argument is evaluated
+// exactly once.
+#ifdef __cplusplus
+template<typename T>
+inline T songbirdMin(T a, T b) { return (a < b) ? a : b; }
+
+template<typename T>
+inline T songbirdMax(T a, T b) { return (a > b) ? a : b; }
+
+template<typename T>
+inline T songbirdClamp(T x, T low, T high) {
+    return songbirdMax(low, songbirdMin(x, high));
+}
+
+// Backward-compatible macros — no longer evaluate args multiple times.
+// All three arguments are cast to the type of the first argument so that
+// mixed-type calls (e.g. CLAMP(int32_t, int-literal, int-literal)) compile
+// without ambiguous deduction errors.
+#define MIN(a, b)         songbirdMin((a), static_cast<decltype(a)>(b))
+#define MAX(a, b)         songbirdMax((a), static_cast<decltype(a)>(b))
+#define CLAMP(x, lo, hi)  songbirdClamp((x), static_cast<decltype(x)>(lo), static_cast<decltype(x)>(hi))
+#else
+// Plain C fallback (should not be reached in this C++ project)
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define CLAMP(x, low, high) (MIN(MAX((x), (low)), (high)))
+#endif
 
 // Convert minutes to milliseconds
 #define MINUTES_TO_MS(m) ((m) * 60UL * 1000UL)

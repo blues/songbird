@@ -5,11 +5,13 @@
  * Processes incoming Songbird events and writes to DynamoDB.
  */
 
+import { randomUUID } from 'crypto';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, UpdateCommand, QueryCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { handleDeviceAlias } from '../shared/device-lookup';
+import { ACKNOWLEDGED } from '../shared/constants';
 
 // Initialize clients
 const ddbClient = new DynamoDBClient({});
@@ -593,7 +595,7 @@ async function createLowBatteryAlert(event: SongbirdEvent): Promise<void> {
 
   const now = Date.now();
   const ttl = Math.floor(now / 1000) + TTL_SECONDS;
-  const alertId = `alert_${event.device_uid}_${now}_${Math.random().toString(36).substring(7)}`;
+  const alertId = `alert_${randomUUID()}`;
 
   const alertRecord = {
     alert_id: alertId,
@@ -605,7 +607,7 @@ async function createLowBatteryAlert(event: SongbirdEvent): Promise<void> {
     message: `Device restarted due to low battery (${event.body.voltage?.toFixed(2)}V)`,
     created_at: now,
     event_timestamp: event.timestamp * 1000,
-    acknowledged: 'false',
+    acknowledged: ACKNOWLEDGED.FALSE,
     ttl,
     location: event.location ? {
       lat: event.location.lat,
@@ -700,7 +702,7 @@ async function createGpsPowerSaveAlert(event: SongbirdEvent): Promise<void> {
 
   const now = Date.now();
   const ttl = Math.floor(now / 1000) + TTL_SECONDS;
-  const alertId = `alert_${event.device_uid}_${now}_${Math.random().toString(36).substring(7)}`;
+  const alertId = `alert_${randomUUID()}`;
 
   const alertRecord = {
     alert_id: alertId,
@@ -711,7 +713,7 @@ async function createGpsPowerSaveAlert(event: SongbirdEvent): Promise<void> {
     message: 'GPS disabled for power saving - unable to acquire satellite signal',
     created_at: now,
     event_timestamp: event.timestamp * 1000,
-    acknowledged: 'false',
+    acknowledged: ACKNOWLEDGED.FALSE,
     ttl,
     location: event.location ? {
       lat: event.location.lat,
@@ -803,7 +805,7 @@ async function createNoSatAlert(event: SongbirdEvent): Promise<void> {
 
   const now = Date.now();
   const ttl = Math.floor(now / 1000) + TTL_SECONDS;
-  const alertId = `alert_${event.device_uid}_${now}_${Math.random().toString(36).substring(7)}`;
+  const alertId = `alert_${randomUUID()}`;
 
   const alertRecord = {
     alert_id: alertId,
@@ -814,7 +816,7 @@ async function createNoSatAlert(event: SongbirdEvent): Promise<void> {
     message: 'Unable to obtain GPS location',
     created_at: now,
     event_timestamp: event.timestamp * 1000,
-    acknowledged: 'false',
+    acknowledged: ACKNOWLEDGED.FALSE,
     ttl,
     location: event.location ? {
       lat: event.location.lat,
@@ -1121,7 +1123,7 @@ async function storeAlert(event: SongbirdEvent): Promise<void> {
   const ttl = Math.floor(now / 1000) + TTL_SECONDS;
 
   // Generate a unique alert ID
-  const alertId = `alert_${event.device_uid}_${now}_${Math.random().toString(36).substring(7)}`;
+  const alertId = `alert_${randomUUID()}`;
 
   const alertRecord = {
     alert_id: alertId,
@@ -1134,7 +1136,7 @@ async function storeAlert(event: SongbirdEvent): Promise<void> {
     message: event.body.message || '',
     created_at: now,
     event_timestamp: event.timestamp * 1000,
-    acknowledged: 'false', // String for GSI partition key
+    acknowledged: ACKNOWLEDGED.FALSE, // String for GSI partition key
     ttl,
     location: event.location ? {
       lat: event.location.lat,
@@ -1578,7 +1580,7 @@ async function hasUnacknowledgedAlert(deviceUid: string, alertType: string): Pro
     ExpressionAttributeValues: {
       ':device_uid': deviceUid,
       ':alert_type': alertType,
-      ':false': 'false',
+      ':false': ACKNOWLEDGED.FALSE,
     },
     ScanIndexForward: false, // Most recent first
   });

@@ -21,6 +21,12 @@
 
 // Magic number to validate state data
 #define STATE_MAGIC 0x534F4E47  // "SONG"
+// STATE_VERSION bumped from 4 → 5 because:
+//   - Added brownout detection fields (lastBootTimestamp, consecutiveBrownouts,
+//     lastShutdownReason) to replace reserved[] placeholder.
+//   - stateCalculateChecksum() now normalises padding before computing CRC,
+//     so checksums computed by older firmware are no longer valid.
+// These changes require a clean state reset on first boot after upgrade.
 #define STATE_VERSION 5
 
 /**
@@ -154,9 +160,11 @@ void stateClearAlert(uint8_t alertFlag);
 uint8_t stateGetAlerts(void);
 
 /**
- * @brief Set motion detected flag
+ * @brief Signal that motion was detected. This flag is sticky — it is only
+ * cleared by stateGetAndClearMotion(). Passing motion=false is intentionally
+ * a no-op to prevent race conditions between detection and reporting.
  *
- * @param motion Motion detected
+ * @param motion true to set the flag; false is intentionally ignored
  */
 void stateSetMotion(bool motion);
 

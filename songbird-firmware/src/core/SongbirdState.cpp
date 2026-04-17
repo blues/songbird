@@ -9,6 +9,7 @@
 #include "SongbirdState.h"
 #include "SongbirdNotecard.h"
 #include <string.h>
+#include <STM32FreeRTOS.h>
 
 // =============================================================================
 // Module State
@@ -195,46 +196,70 @@ bool stateIsWarmBoot(void) {
 // =============================================================================
 
 void stateIncrementBootCount(void) {
+    taskENTER_CRITICAL();
     s_state.bootCount++;
+    taskEXIT_CRITICAL();
 }
 
 void stateUpdateSyncTime(void) {
+    taskENTER_CRITICAL();
     s_state.lastSyncTime = millis();
+    taskEXIT_CRITICAL();
 }
 
 void stateUpdateGpsFixTime(void) {
+    taskENTER_CRITICAL();
     s_state.lastGpsFixTime = millis();
+    taskEXIT_CRITICAL();
 }
 
 void stateUpdateLastPressure(float pressure) {
+    taskENTER_CRITICAL();
     s_state.lastPressure = pressure;
+    taskEXIT_CRITICAL();
 }
 
 void stateSetMode(OperatingMode mode) {
+    taskENTER_CRITICAL();
     s_state.currentMode = mode;
+    taskEXIT_CRITICAL();
 }
 
 void stateSetAlert(uint8_t alertFlag) {
+    taskENTER_CRITICAL();
     s_state.alertsSent |= alertFlag;
+    taskEXIT_CRITICAL();
 }
 
 void stateClearAlert(uint8_t alertFlag) {
+    taskENTER_CRITICAL();
     s_state.alertsSent &= ~alertFlag;
+    taskEXIT_CRITICAL();
 }
 
 uint8_t stateGetAlerts(void) {
-    return s_state.alertsSent;
+    taskENTER_CRITICAL();
+    uint8_t alerts = s_state.alertsSent;
+    taskEXIT_CRITICAL();
+    return alerts;
 }
 
 void stateSetMotion(bool motion) {
+    taskENTER_CRITICAL();
     if (motion) {
+        // Sticky flag — only cleared by stateGetAndClearMotion()
         s_state.motionSinceLastReport = true;
     }
+    // Intentional: passing false is a no-op to prevent race conditions
+    // between motion detection and reporting.
+    taskEXIT_CRITICAL();
 }
 
 bool stateGetAndClearMotion(void) {
+    taskENTER_CRITICAL();
     bool motion = s_state.motionSinceLastReport;
     s_state.motionSinceLastReport = false;
+    taskEXIT_CRITICAL();
     return motion;
 }
 
@@ -252,45 +277,69 @@ uint32_t stateGetTotalUptimeSec(void) {
 }
 
 uint32_t stateGetBootCount(void) {
-    return s_state.bootCount;
+    taskENTER_CRITICAL();
+    uint32_t count = s_state.bootCount;
+    taskEXIT_CRITICAL();
+    return count;
 }
 
 float stateGetLastPressure(void) {
-    return s_state.lastPressure;
+    taskENTER_CRITICAL();
+    float pressure = s_state.lastPressure;
+    taskEXIT_CRITICAL();
+    return pressure;
 }
 
 void stateSetTransitLock(bool locked, OperatingMode previousMode) {
+    taskENTER_CRITICAL();
     s_state.transitLocked = locked;
     if (locked) {
         s_state.preTransitMode = previousMode;
     }
+    taskEXIT_CRITICAL();
 }
 
 bool stateIsTransitLocked(void) {
-    return s_state.transitLocked;
+    taskENTER_CRITICAL();
+    bool locked = s_state.transitLocked;
+    taskEXIT_CRITICAL();
+    return locked;
 }
 
 OperatingMode stateGetPreTransitMode(void) {
-    return s_state.preTransitMode;
+    taskENTER_CRITICAL();
+    OperatingMode mode = s_state.preTransitMode;
+    taskEXIT_CRITICAL();
+    return mode;
 }
 
 void stateSetDemoLock(bool locked, OperatingMode previousMode) {
+    taskENTER_CRITICAL();
     s_state.demoLocked = locked;
     if (locked) {
         s_state.preDemoMode = previousMode;
     }
+    taskEXIT_CRITICAL();
 }
 
 bool stateIsDemoLocked(void) {
-    return s_state.demoLocked;
+    taskENTER_CRITICAL();
+    bool locked = s_state.demoLocked;
+    taskEXIT_CRITICAL();
+    return locked;
 }
 
 OperatingMode stateGetPreDemoMode(void) {
-    return s_state.preDemoMode;
+    taskENTER_CRITICAL();
+    OperatingMode mode = s_state.preDemoMode;
+    taskEXIT_CRITICAL();
+    return mode;
 }
 
 void stateUpdateLockLED(void) {
+    taskENTER_CRITICAL();
     bool lockActive = s_state.transitLocked || s_state.demoLocked;
+    taskEXIT_CRITICAL();
     // Note: LED is active-high (GPIO HIGH = LED on)
     digitalWrite(LOCK_LED_PIN, lockActive ? HIGH : LOW);
 
@@ -305,35 +354,55 @@ void stateUpdateLockLED(void) {
 // =============================================================================
 
 void stateSetGpsPowerSaving(bool enabled) {
+    taskENTER_CRITICAL();
     s_state.gpsPowerSaving = enabled;
+    taskEXIT_CRITICAL();
 }
 
 bool stateIsGpsPowerSaving(void) {
-    return s_state.gpsPowerSaving;
+    taskENTER_CRITICAL();
+    bool saving = s_state.gpsPowerSaving;
+    taskEXIT_CRITICAL();
+    return saving;
 }
 
 void stateSetLastGpsRetryTime(uint32_t time) {
+    taskENTER_CRITICAL();
     s_state.lastGpsRetryTime = time;
+    taskEXIT_CRITICAL();
 }
 
 uint32_t stateGetLastGpsRetryTime(void) {
-    return s_state.lastGpsRetryTime;
+    taskENTER_CRITICAL();
+    uint32_t t = s_state.lastGpsRetryTime;
+    taskEXIT_CRITICAL();
+    return t;
 }
 
 void stateSetGpsWasActive(bool active) {
+    taskENTER_CRITICAL();
     s_state.gpsWasActive = active;
+    taskEXIT_CRITICAL();
 }
 
 bool stateGetGpsWasActive(void) {
-    return s_state.gpsWasActive;
+    taskENTER_CRITICAL();
+    bool active = s_state.gpsWasActive;
+    taskEXIT_CRITICAL();
+    return active;
 }
 
 void stateSetGpsActiveStartTime(uint32_t time) {
+    taskENTER_CRITICAL();
     s_state.gpsActiveStartTime = time;
+    taskEXIT_CRITICAL();
 }
 
 uint32_t stateGetGpsActiveStartTime(void) {
-    return s_state.gpsActiveStartTime;
+    taskENTER_CRITICAL();
+    uint32_t t = s_state.gpsActiveStartTime;
+    taskEXIT_CRITICAL();
+    return t;
 }
 
 // =============================================================================
@@ -341,13 +410,20 @@ uint32_t stateGetGpsActiveStartTime(void) {
 // =============================================================================
 
 uint32_t stateCalculateChecksum(const SongbirdState* state) {
-    if (state == NULL) {
-        return 0;
-    }
-
-    // Calculate CRC over all fields except the checksum itself
+    if (state == NULL) { return 0; }
+    // Copy into a zeroed buffer to normalize padding bytes between struct fields.
+    // Without this, two logically identical states can produce different CRC values
+    // because the compiler inserts padding bytes (e.g., between bool and uint32_t
+    // fields) whose values are undefined and can vary across memset vs memcpy paths.
+    // NOTE: This changes the CRC algorithm behaviour relative to any checksum
+    // computed before this fix.  Devices upgrading from older firmware will fail
+    // the checksum check on the first boot and perform a clean state reset —
+    // this is expected and correct (STATE_VERSION was also bumped for the same reason).
+    SongbirdState normalized;
+    memset(&normalized, 0, sizeof(normalized));
+    memcpy(&normalized, state, sizeof(normalized));
     size_t checksumOffset = offsetof(SongbirdState, checksum);
-    return crc32((const uint8_t*)state, checksumOffset);
+    return crc32((const uint8_t*)&normalized, checksumOffset);
 }
 
 bool stateValidateChecksum(const SongbirdState* state) {

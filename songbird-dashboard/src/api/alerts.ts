@@ -19,13 +19,7 @@ export async function getAlerts(params?: {
   acknowledged?: boolean;
   limit?: number;
 }): Promise<AlertsResponse> {
-  const searchParams = new URLSearchParams();
-  if (params?.serial_number) searchParams.set('serial_number', params.serial_number);
-  if (params?.acknowledged !== undefined) searchParams.set('acknowledged', String(params.acknowledged));
-  if (params?.limit) searchParams.set('limit', String(params.limit));
-
-  const query = searchParams.toString();
-  return apiGet<AlertsResponse>(`/v1/alerts${query ? `?${query}` : ''}`);
+  return apiGet<AlertsResponse>('/v1/alerts', params as Record<string, string | number | boolean>);
 }
 
 /**

@@ -1,8 +1,10 @@
+export type QueryRow = Record<string, string | number | boolean | null>;
+
 export interface QueryResult {
   sql: string;
   explanation: string;
   visualizationType: 'line_chart' | 'bar_chart' | 'table' | 'map' | 'scatter' | 'gauge';
-  data: any[];
+  data: QueryRow[];
   insights: string;
   savedTimestamp?: number; // exact DynamoDB sort key for feedback linking
 }
