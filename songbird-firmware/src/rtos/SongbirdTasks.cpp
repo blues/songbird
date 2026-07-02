@@ -947,16 +947,24 @@ void CommandTask(void* pvParameters) {
         SongbirdConfig config;
         tasksGetConfig(&config);
 
-        // Check for commands
-        Command cmd;
-        bool hasCommand = false;
+        // Drain command.qi within a bounded budget. notecardGetCommand() returns
+        // one note per call, so a backlog previously cleared at one command per
+        // poll interval (up to 60s each in storage mode). Loop until the queue is
+        // empty or COMMAND_DRAIN_MAX_PER_POLL is reached, re-acquiring the I2C
+        // mutex per command so the bus is released between notes (M7).
+        for (uint8_t drained = 0; drained < COMMAND_DRAIN_MAX_PER_POLL; drained++) {
+            Command cmd;
+            bool hasCommand = false;
 
-        if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
-            hasCommand = notecardGetCommand(&cmd);
-            syncReleaseI2C();
-        }
+            if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
+                hasCommand = notecardGetCommand(&cmd);
+                syncReleaseI2C();
+            }
 
-        if (hasCommand) {
+            if (!hasCommand) {
+                break;  // Queue empty (or bus unavailable) — stop draining.
+            }
+
             // Execute command
             CommandAck ack;
             commandsExecute(&cmd, &config, &ack);
