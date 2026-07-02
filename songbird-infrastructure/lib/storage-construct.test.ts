@@ -159,6 +159,43 @@ describe('StorageConstruct', () => {
     });
   });
 
+  it('enables PITR on all 8 stateful tables', () => {
+    template.resourcePropertiesCountIs(
+      'AWS::DynamoDB::Table',
+      {
+        PointInTimeRecoverySpecification: {
+          PointInTimeRecoveryEnabled: true,
+        },
+      },
+      8,
+    );
+  });
+
+  it('retains all tables by default (no demoMode) to survive stack deletion', () => {
+    const tables = template.findResources('AWS::DynamoDB::Table');
+    expect(Object.keys(tables)).toHaveLength(8);
+    for (const table of Object.values(tables)) {
+      expect(table.DeletionPolicy).toBe('Retain');
+      expect(table.UpdateReplacePolicy).toBe('Retain');
+    }
+  });
+
+  it('destroys tables when demoMode is enabled', () => {
+    const demoApp = new cdk.App();
+    const demoStack = new cdk.Stack(demoApp, 'DemoStack');
+    new StorageConstruct(demoStack, 'Storage', {
+      dynamoTableName: 'test-devices',
+      telemetryTableName: 'test-telemetry',
+      demoMode: true,
+    });
+    const demoTemplate = Template.fromStack(demoStack);
+    const tables = demoTemplate.findResources('AWS::DynamoDB::Table');
+    expect(Object.keys(tables)).toHaveLength(8);
+    for (const table of Object.values(tables)) {
+      expect(table.DeletionPolicy).toBe('Delete');
+    }
+  });
+
   it('devices table has fleet-index and status-index GSIs', () => {
     template.hasResourceProperties('AWS::DynamoDB::Table', {
       TableName: 'test-devices',

@@ -12,6 +12,14 @@ import { Construct } from 'constructs';
 export interface StorageConstructProps {
   dynamoTableName: string;
   telemetryTableName: string;
+
+  /**
+   * When true, tables are destroyed on stack deletion (throwaway demo
+   * environments). When false (the default), tables are retained so that
+   * device metadata, telemetry, alerts and audit history survive an
+   * accidental stack delete. Gate DESTROY behind this flag explicitly.
+   */
+  demoMode?: boolean;
 }
 
 export class StorageConstruct extends Construct {
@@ -26,6 +34,13 @@ export class StorageConstruct extends Construct {
 
   constructor(scope: Construct, id: string, props: StorageConstructProps) {
     super(scope, id);
+
+    // Stateful tables are RETAINed by default so an accidental stack delete
+    // does not destroy device, telemetry, alert or audit data. Throwaway demo
+    // stacks can opt into DESTROY by passing demoMode: true.
+    const removalPolicy = props.demoMode
+      ? cdk.RemovalPolicy.DESTROY
+      : cdk.RemovalPolicy.RETAIN;
 
     // ==========================================================================
     // DynamoDB Table for Device Metadata
@@ -45,8 +60,8 @@ export class StorageConstruct extends Construct {
       // Enable point-in-time recovery
       pointInTimeRecovery: true,
 
-      // Remove table on stack deletion (demo environment)
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      // Retain by default; DESTROY only in demoMode (see removalPolicy above)
+      removalPolicy,
 
       // Enable streams for future event-driven updates
       stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
@@ -99,8 +114,11 @@ export class StorageConstruct extends Construct {
       // Billing mode - on-demand for unpredictable demo usage
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
 
-      // Remove table on stack deletion (demo environment)
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      // Enable point-in-time recovery (protects stateful data)
+      pointInTimeRecovery: true,
+
+      // Retain by default; DESTROY only in demoMode (see removalPolicy above)
+      removalPolicy,
 
       // TTL to automatically delete old telemetry (90 days)
       timeToLiveAttribute: 'ttl',
@@ -138,8 +156,11 @@ export class StorageConstruct extends Construct {
       // Billing mode - on-demand for unpredictable demo usage
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
 
-      // Remove table on stack deletion (demo environment)
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      // Enable point-in-time recovery (protects stateful data)
+      pointInTimeRecovery: true,
+
+      // Retain by default; DESTROY only in demoMode (see removalPolicy above)
+      removalPolicy,
 
       // TTL to automatically delete old alerts (90 days)
       timeToLiveAttribute: 'ttl',
@@ -196,8 +217,11 @@ export class StorageConstruct extends Construct {
       // Billing mode - on-demand for unpredictable usage
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
 
-      // Remove table on stack deletion (demo environment)
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      // Enable point-in-time recovery (protects stateful data)
+      pointInTimeRecovery: true,
+
+      // Retain by default; DESTROY only in demoMode (see removalPolicy above)
+      removalPolicy,
     });
 
     // ==========================================================================
@@ -219,8 +243,11 @@ export class StorageConstruct extends Construct {
       // Billing mode - on-demand for unpredictable usage
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
 
-      // Remove table on stack deletion (demo environment)
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      // Enable point-in-time recovery (protects stateful data)
+      pointInTimeRecovery: true,
+
+      // Retain by default; DESTROY only in demoMode (see removalPolicy above)
+      removalPolicy,
 
       // TTL to automatically delete old journeys (90 days)
       timeToLiveAttribute: 'ttl',
@@ -262,8 +289,11 @@ export class StorageConstruct extends Construct {
       // Billing mode - on-demand for unpredictable usage
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
 
-      // Remove table on stack deletion (demo environment)
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      // Enable point-in-time recovery (protects stateful data)
+      pointInTimeRecovery: true,
+
+      // Retain by default; DESTROY only in demoMode (see removalPolicy above)
+      removalPolicy,
 
       // TTL to automatically delete old locations (90 days)
       timeToLiveAttribute: 'ttl',
@@ -304,8 +334,11 @@ export class StorageConstruct extends Construct {
       // Billing mode - on-demand for unpredictable usage
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
 
-      // Remove table on stack deletion (demo environment)
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      // Enable point-in-time recovery (protects stateful data)
+      pointInTimeRecovery: true,
+
+      // Retain by default; DESTROY only in demoMode (see removalPolicy above)
+      removalPolicy,
     });
 
     // GSI for looking up serial_number by device_uid
@@ -335,8 +368,11 @@ export class StorageConstruct extends Construct {
       // Billing mode - on-demand for unpredictable usage
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
 
-      // Remove table on stack deletion (demo environment)
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      // Enable point-in-time recovery (protects stateful data)
+      pointInTimeRecovery: true,
+
+      // Retain by default; DESTROY only in demoMode (see removalPolicy above)
+      removalPolicy,
 
       // TTL to automatically delete old audit records (90 days)
       timeToLiveAttribute: 'ttl',
