@@ -80,7 +80,6 @@ typedef struct {
 // Mutexes
 extern SemaphoreHandle_t g_i2cMutex;        // Protects I2C bus (Notecard + BME280)
 extern SemaphoreHandle_t g_configMutex;     // Protects shared configuration
-extern SemaphoreHandle_t g_stateMutex;      // Protects SongbirdState s_state
 
 // Queues
 extern QueueHandle_t g_audioQueue;          // Audio events -> AudioTask
@@ -120,7 +119,7 @@ extern volatile bool g_pvdShutdownRequested; // Set by PVD ISR when voltage drop
  * @brief Initialize all synchronization primitives
  *
  * Must be called before creating any tasks. Creates:
- * - i2cMutex, configMutex, and stateMutex
+ * - i2cMutex and configMutex
  * - audioQueue, noteQueue, and configQueue
  * - syncSemaphore
  * - sleepEvent group

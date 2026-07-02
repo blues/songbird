@@ -14,7 +14,6 @@
 
 SemaphoreHandle_t g_i2cMutex = NULL;
 SemaphoreHandle_t g_configMutex = NULL;
-SemaphoreHandle_t g_stateMutex = NULL;
 QueueHandle_t g_audioQueue = NULL;
 QueueHandle_t g_noteQueue = NULL;
 QueueHandle_t g_configQueue = NULL;
@@ -41,11 +40,6 @@ bool syncInit(void) {
 
     g_configMutex = xSemaphoreCreateMutex();
     if (g_configMutex == NULL) {
-        return false;
-    }
-
-    g_stateMutex = xSemaphoreCreateMutex();
-    if (g_stateMutex == NULL) {
         return false;
     }
 
