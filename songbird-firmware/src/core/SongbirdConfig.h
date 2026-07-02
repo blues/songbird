@@ -238,6 +238,13 @@ typedef enum {
 #define COMMAND_POLL_STORAGE_MS         60000   // 60 seconds
 #define COMMAND_POLL_SLEEP_MS           0       // Disabled (wake handles)
 
+// Max commands drained from command.qi in a single poll. notecardGetCommand()
+// returns one note per call; without a drain loop a backlog of queued commands
+// takes one poll interval each to clear (up to 60s apart in storage mode). Cap
+// the per-poll drain so a flood of commands cannot monopolise the I2C bus or
+// starve other CommandTask work (M7).
+#define COMMAND_DRAIN_MAX_PER_POLL      8
+
 // Environment variable polling
 #define ENV_POLL_INTERVAL_MS            30000   // 30 seconds
 
