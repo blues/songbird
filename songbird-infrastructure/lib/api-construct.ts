@@ -356,7 +356,7 @@ export class ApiConstruct extends Construct {
         DEVICES_TABLE: props.devicesTable.tableName,
         TELEMETRY_TABLE: props.telemetryTable.tableName,
         DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
-        MAPBOX_TOKEN: mapboxSecret.secretValue.unsafeUnwrap(),
+        MAPBOX_SECRET_ARN: mapboxSecret.secretArn,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
@@ -366,6 +366,7 @@ export class ApiConstruct extends Construct {
     props.devicesTable.grantReadData(journeysFunction); // Need read for owner check
     props.telemetryTable.grantReadData(journeysFunction); // Need read for power consumption
     props.deviceAliasesTable.grantReadData(journeysFunction);
+    mapboxSecret.grantRead(journeysFunction); // Fetch Mapbox token at runtime (never in plaintext env)
 
     // Visited Cities API (aggregates location history by city)
     const visitedCitiesFunction = new NodejsFunction(this, 'VisitedCitiesFunction', {
