@@ -13,6 +13,7 @@
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, UpdateCommand, DeleteCommand, GetCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { APIGatewayProxyEvent, APIGatewayProxyEventV2, APIGatewayProxyResult } from 'aws-lambda';
 import { resolveDevice } from '../shared/device-lookup';
 import { parseIntParam } from '../shared/utils';
@@ -63,7 +64,56 @@ const JOURNEYS_TABLE = process.env.JOURNEYS_TABLE!;
 const LOCATIONS_TABLE = process.env.LOCATIONS_TABLE!;
 const DEVICES_TABLE = process.env.DEVICES_TABLE!;
 const TELEMETRY_TABLE = process.env.TELEMETRY_TABLE!;
-const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN;
+const MAPBOX_SECRET_ARN = process.env.MAPBOX_SECRET_ARN || '';
+
+const secretsClient = new SecretsManagerClient({});
+
+// Cache the token to avoid fetching on every request (warm invocations reuse it)
+let cachedMapboxToken: string | null = null;
+
+/**
+ * Fetch the Mapbox API token from Secrets Manager at runtime.
+ * Returns null when the secret is not configured or the token is missing,
+ * so callers can degrade gracefully (map matching becomes unavailable).
+ */
+async function getMapboxToken(): Promise<string | null> {
+  if (cachedMapboxToken) {
+    return cachedMapboxToken;
+  }
+
+  if (!MAPBOX_SECRET_ARN) {
+    return null;
+  }
+
+  try {
+    const response = await secretsClient.send(
+      new GetSecretValueCommand({ SecretId: MAPBOX_SECRET_ARN })
+    );
+
+    if (!response.SecretString) {
+      return null;
+    }
+
+    // Secret may be a bare token or a JSON object with a `token` field.
+    let token: string | undefined;
+    try {
+      const parsed = JSON.parse(response.SecretString);
+      token = parsed.token || parsed.MAPBOX_TOKEN;
+    } catch {
+      token = response.SecretString;
+    }
+
+    if (!token) {
+      return null;
+    }
+
+    cachedMapboxToken = token;
+    return cachedMapboxToken;
+  } catch (err) {
+    console.error('Failed to fetch Mapbox token from Secrets Manager:', err);
+    return null;
+  }
+}
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   console.log('Request:', JSON.stringify(event));
@@ -309,7 +359,8 @@ async function matchJourney(
   journeyId: number,
   headers: Record<string, string>
 ): Promise<APIGatewayProxyResult> {
-  if (!MAPBOX_TOKEN) {
+  const mapboxToken = await getMapboxToken();
+  if (!mapboxToken) {
     return {
       statusCode: 500,
       headers,
@@ -401,7 +452,7 @@ async function matchJourney(
     .join(';');
 
   // Call Mapbox Map Matching API
-  const mapMatchUrl = `https://api.mapbox.com/matching/v5/mapbox/driving/${coordinates}?access_token=${MAPBOX_TOKEN}&geometries=geojson&radiuses=${radiuses}&timestamps=${timestamps}&overview=full&steps=false`;
+  const mapMatchUrl = `https://api.mapbox.com/matching/v5/mapbox/driving/${coordinates}?access_token=${mapboxToken}&geometries=geojson&radiuses=${radiuses}&timestamps=${timestamps}&overview=full&steps=false`;
 
   console.log(`Calling Mapbox Map Matching API for journey ${journeyId} with ${sampledPoints.length} points`);
 
