@@ -1039,19 +1039,25 @@ void NotecardTask(void* pvParameters) {
         if (millis() - lastSyncCheck > SYNC_CHECK_INTERVAL_MS) {
             lastSyncCheck = millis();
 
+            // Check GPS status. Acquire the I2C mutex only for this single
+            // Notecard request so lower-priority tasks are not starved across
+            // the entire periodic block (H5).
+            bool hasLock = false;
+            double lat, lon;
+            uint32_t timeSec;
+            bool isActive = false;
+            bool hasSignal = false;
+            bool gotStatus = false;
             if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
-                // Check GPS status
-                bool hasLock;
-                double lat, lon;
-                uint32_t timeSec;
-                bool isActive = false;
-                bool hasSignal = false;
-                if (notecardGetGPSStatus(&hasLock, &lat, &lon, &timeSec, &isActive, &hasSignal)) {
-                    if (hasLock && timeSec < 10) {
-                        // Fresh GPS fix
-                        stateUpdateGpsFixTime();
-                        audioQueueEvent(AUDIO_EVENT_GPS_LOCK);
-                    }
+                gotStatus = notecardGetGPSStatus(&hasLock, &lat, &lon, &timeSec, &isActive, &hasSignal);
+                syncReleaseI2C();
+            }
+
+            if (gotStatus) {
+                if (hasLock && timeSec < 10) {
+                    // Fresh GPS fix
+                    stateUpdateGpsFixTime();
+                    audioQueueEvent(AUDIO_EVENT_GPS_LOCK);
                 }
 
                 // GPS Power Management for Transit Mode
@@ -1076,7 +1082,12 @@ void NotecardTask(void* pvParameters) {
                             DEBUG_SERIAL.print(config.gpsRetryIntervalMin);
                             DEBUG_SERIAL.println(" min) - re-enabling GPS");
                             #endif
-                            if (notecardEnableTransitGPS()) {
+                            bool enabled = false;
+                            if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
+                                enabled = notecardEnableTransitGPS();
+                                syncReleaseI2C();
+                            }
+                            if (enabled) {
                                 stateSetGpsPowerSaving(false);
                                 stateSetGpsActiveStartTime(0);
                                 stateSetLastGpsRetryTime(now);
@@ -1117,7 +1128,12 @@ void NotecardTask(void* pvParameters) {
                                 DEBUG_SERIAL.print(config.gpsSignalTimeoutMin);
                                 DEBUG_SERIAL.println(" min without signal - disabling GPS");
                                 #endif
-                                if (notecardDisableGPS()) {
+                                bool disabled = false;
+                                if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
+                                    disabled = notecardDisableGPS();
+                                    syncReleaseI2C();
+                                }
+                                if (disabled) {
                                     stateSetGpsPowerSaving(true);
                                     stateSetGpsActiveStartTime(0);
                                     stateSetLastGpsRetryTime(now);
@@ -1137,16 +1153,18 @@ void NotecardTask(void* pvParameters) {
                     // Update previous active state for next iteration
                     stateSetGpsWasActive(isActive);
                 }
+            }
 
-                // Check if we need to sync
-                if (config.mode == MODE_DEMO) {
+            // Check if we need to sync. Acquire the mutex only for the sync
+            // request itself, not the whole GPS block above.
+            if (config.mode == MODE_DEMO) {
+                if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
                     // Continuous sync in demo mode
                     if (!notecardIsSyncing()) {
                         notecardSync();
                     }
+                    syncReleaseI2C();
                 }
-
-                syncReleaseI2C();
             }
         }
     }
