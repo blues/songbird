@@ -20,7 +20,7 @@ import {
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { getAllDeviceUidsForSerial } from '../shared/device-lookup';
 import { parseIntParam } from '../shared/utils';
-import { ACKNOWLEDGED } from '../shared/constants';
+import { ACKNOWLEDGED, computeAckShard } from '../shared/constants';
 
 const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient, {
@@ -218,9 +218,10 @@ async function acknowledgeAlert(
   const command = new UpdateCommand({
     TableName: ALERTS_TABLE,
     Key: { alert_id: alertId },
-    UpdateExpression: 'SET acknowledged = :ack, acknowledged_at = :ack_at, acknowledged_by = :ack_by',
+    UpdateExpression: 'SET acknowledged = :ack, ack_shard = :ack_shard, acknowledged_at = :ack_at, acknowledged_by = :ack_by',
     ExpressionAttributeValues: {
       ':ack': ACKNOWLEDGED.TRUE,
+      ':ack_shard': computeAckShard(ACKNOWLEDGED.TRUE, alertId),
       ':ack_at': now,
       ':ack_by': acknowledgedBy,
     },
@@ -274,10 +275,11 @@ async function bulkAcknowledgeAlerts(
       const command = new UpdateCommand({
         TableName: ALERTS_TABLE,
         Key: { alert_id: alertId },
-        UpdateExpression: 'SET acknowledged = :ack, acknowledged_at = :ack_at, acknowledged_by = :ack_by',
+        UpdateExpression: 'SET acknowledged = :ack, ack_shard = :ack_shard, acknowledged_at = :ack_at, acknowledged_by = :ack_by',
         ConditionExpression: 'acknowledged = :not_ack',
         ExpressionAttributeValues: {
           ':ack': ACKNOWLEDGED.TRUE,
+          ':ack_shard': computeAckShard(ACKNOWLEDGED.TRUE, alertId),
           ':ack_at': now,
           ':ack_by': acknowledgedBy,
           ':not_ack': ACKNOWLEDGED.FALSE,

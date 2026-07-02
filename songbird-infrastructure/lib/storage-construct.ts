@@ -162,11 +162,38 @@ export class StorageConstruct extends Construct {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
-    // GSI for querying active (unacknowledged) alerts
+    // GSI for querying active (unacknowledged) alerts.
+    //
+    // NOTE: This index partitions on `acknowledged`, which only ever holds two
+    // values ('true' / 'false'). Every unacknowledged alert therefore lands in
+    // a single partition, creating a write/read hot partition as alert volume
+    // grows. It is retained here for backward compatibility with existing
+    // readers; new code should prefer the sharded `status-shard-index` below.
     this.alertsTable.addGlobalSecondaryIndex({
       indexName: 'status-index',
       partitionKey: {
         name: 'acknowledged',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'created_at',
+        type: dynamodb.AttributeType.NUMBER,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // Sharded GSI for querying active alerts without a hot partition.
+    //
+    // `ack_shard` is a composite attribute of the form "<acknowledged>#<shard>"
+    // (e.g. "false#3"), spreading unacknowledged alerts across a small, fixed
+    // set of partitions. Readers scatter-gather across the shards and merge by
+    // `created_at`. This is an additive, non-destructive change: the attribute
+    // is populated on new writes and the existing `status-index` continues to
+    // serve current readers until the full migration (see PR body) completes.
+    this.alertsTable.addGlobalSecondaryIndex({
+      indexName: 'status-shard-index',
+      partitionKey: {
+        name: 'ack_shard',
         type: dynamodb.AttributeType.STRING,
       },
       sortKey: {

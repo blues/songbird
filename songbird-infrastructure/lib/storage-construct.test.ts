@@ -218,6 +218,21 @@ describe('StorageConstruct', () => {
     });
   });
 
+  it('alerts table has sharded status-shard-index GSI to avoid a hot partition', () => {
+    template.hasResourceProperties('AWS::DynamoDB::Table', {
+      TableName: 'songbird-alerts',
+      GlobalSecondaryIndexes: Match.arrayWith([
+        Match.objectLike({
+          IndexName: 'status-shard-index',
+          KeySchema: Match.arrayWith([
+            { AttributeName: 'ack_shard', KeyType: 'HASH' },
+            { AttributeName: 'created_at', KeyType: 'RANGE' },
+          ]),
+        }),
+      ]),
+    });
+  });
+
   it('device aliases table has device-uid-index GSI', () => {
     template.hasResourceProperties('AWS::DynamoDB::Table', {
       TableName: 'songbird-device-aliases',
