@@ -274,7 +274,6 @@ bool notecardSetupTemplates(void) {
         JAddStringToObject(body, "status", "xxxxxxxx");  // 8 char max
         // 64 char placeholder for message
         JAddStringToObject(body, "message", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
-        JAddNumberToObject(body, "executed_at", TUINT32);
         JAddNumberToObject(body, "_time", TINT32);
         JAddItemToObject(req, "body", body);
 
@@ -496,7 +495,6 @@ bool notecardSendCommandAck(const CommandAck* ack) {
     }
     JAddStringToObject(body, "status", statusStr);
     JAddStringToObject(body, "message", ack->message);
-    JAddNumberToObject(body, "executed_at", ack->executedAt);
     JAddItemToObject(req, "body", body);
 
     J* rsp = s_notecard.requestAndResponse(req);
