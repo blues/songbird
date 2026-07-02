@@ -74,6 +74,16 @@ interface NotehubEvent {
     method?: string;
     text?: string;
     voltage_mode?: string;
+    // App-level health.qo fields (firmware-emitted, NOT the Notecard _health.qo)
+    // Firmware health note (notecardSendHealthNote)
+    firmware?: string;
+    uptime_sec?: number;
+    boot_count?: number;
+    last_gps_fix_sec?: number;
+    sensor_errors?: number;
+    notecard_errors?: number;
+    // Shutdown note (notecardSendShutdownNote) - brownout/PVD reason + voltage
+    shutdown?: string;
     // Session fields may appear in body for _session.qo
     power_usb?: boolean;
     // GPS tracking fields (_track.qo)
@@ -209,6 +219,15 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Write health events to DynamoDB (_health.qo)
     if (songbirdEvent.event_type === '_health.qo') {
       await writeHealthEvent(songbirdEvent);
+    }
+
+    // Handle app-level health.qo (firmware-emitted, distinct from Notecard _health.qo).
+    // Firmware emits two body shapes on this same file:
+    //   - shutdown note:  { shutdown: <reason>, voltage?, uptime_sec }  (brownout/PVD)
+    //   - firmware health: { firmware, uptime_sec, boot_count, ... }
+    // Both were previously dropped because ingest only branched on '_health.qo'.
+    if (songbirdEvent.event_type === 'health.qo') {
+      await writeAppHealthEvent(songbirdEvent);
     }
 
     // Handle triangulation results (_geolocate.qo)
@@ -421,7 +440,14 @@ interface SongbirdEvent {
     method?: string;
     text?: string;
     voltage_mode?: string;
-    // GPS tracking fields (_track.qo)
+    // App-level health.qo fields (firmware-emitted)
+    firmware?: string;
+    uptime_sec?: number;
+    boot_count?: number;
+    last_gps_fix_sec?: number;
+    sensor_errors?: number;
+    notecard_errors?: number;
+    shutdown?: string;
     velocity?: number;
     bearing?: number;
     distance?: number;
@@ -581,6 +607,89 @@ async function writeHealthEvent(event: SongbirdEvent): Promise<void> {
     event.body.text.includes('restarted')
   ) {
     await createLowBatteryAlert(event);
+  }
+}
+
+/**
+ * Write an app-level health.qo event (firmware-emitted).
+ *
+ * Firmware writes two body shapes on the same `health.qo` file:
+ *   - Shutdown note (brownout/PVD): { shutdown: <reason>, voltage?, uptime_sec }
+ *   - Firmware health note:         { firmware, uptime_sec, boot_count,
+ *                                     last_gps_fix_sec, sensor_errors,
+ *                                     notecard_errors }
+ * We distinguish them by the presence of `body.shutdown`. Both are persisted to
+ * the telemetry table so battery/health/shutdown signals are no longer dropped.
+ * Shutdown events raise a low-battery alert when a brownout reason is present.
+ */
+async function writeAppHealthEvent(event: SongbirdEvent): Promise<void> {
+  const timestamp = event.timestamp * 1000; // Convert to milliseconds
+  const ttl = Math.floor(Date.now() / 1000) + TTL_SECONDS;
+
+  const isShutdown = typeof event.body.shutdown === 'string';
+  const dataType = isShutdown ? 'shutdown' : 'app_health';
+
+  const record: Record<string, any> = {
+    device_uid: event.device_uid,
+    timestamp,
+    ttl,
+    data_type: dataType,
+    event_type: event.event_type,
+    event_type_timestamp: `${dataType}#${timestamp}`,
+    serial_number: event.serial_number || 'unknown',
+    fleet: event.fleet || 'default',
+  };
+
+  // Shutdown-note fields (brownout / PVD)
+  if (event.body.shutdown !== undefined) {
+    record.shutdown_reason = event.body.shutdown;
+  }
+  if (event.body.voltage !== undefined) {
+    record.voltage = event.body.voltage;
+  }
+  // Firmware-health fields
+  if (event.body.firmware !== undefined) {
+    record.firmware = event.body.firmware;
+  }
+  if (event.body.uptime_sec !== undefined) {
+    record.uptime_sec = event.body.uptime_sec;
+  }
+  if (event.body.boot_count !== undefined) {
+    record.boot_count = event.body.boot_count;
+  }
+  if (event.body.last_gps_fix_sec !== undefined) {
+    record.last_gps_fix_sec = event.body.last_gps_fix_sec;
+  }
+  if (event.body.sensor_errors !== undefined) {
+    record.sensor_errors = event.body.sensor_errors;
+  }
+  if (event.body.notecard_errors !== undefined) {
+    record.notecard_errors = event.body.notecard_errors;
+  }
+
+  // Add location if available
+  if (event.location?.lat !== undefined && event.location?.lon !== undefined) {
+    record.latitude = event.location.lat;
+    record.longitude = event.location.lon;
+    record.location_source = event.location.source || 'tower';
+  }
+
+  await docClient.send(new PutCommand({
+    TableName: TELEMETRY_TABLE,
+    Item: record,
+  }));
+  console.log(
+    `Wrote app health.qo record for ${event.device_uid} (type=${dataType})`
+  );
+
+  // A brownout/shutdown note is a strong low-battery signal - raise an alert
+  // if the voltage is below threshold (or no voltage was reported but the
+  // shutdown reason indicates a power event).
+  if (isShutdown) {
+    const voltage = event.body.voltage;
+    if (typeof voltage !== 'number' || voltage < LOW_BATTERY_THRESHOLD) {
+      await createLowBatteryAlert(event);
+    }
   }
 }
 
