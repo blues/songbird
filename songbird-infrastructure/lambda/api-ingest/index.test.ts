@@ -113,6 +113,56 @@ describe('handler - request validation', () => {
   });
 });
 
+describe('handler - idempotency (H9)', () => {
+  it('claims the Notehub event id with a conditional put', async () => {
+    const event = makeEvent(makeNotehubEvent({ event: 'dev:1234#track.qo#42' }));
+    await handler(event);
+
+    const putCalls = ddbMock.commandCalls(PutCommand);
+    const claim = putCalls.find(
+      c => c.args[0].input.TableName === process.env.IDEMPOTENCY_TABLE
+    );
+    expect(claim).toBeDefined();
+    expect(claim!.args[0].input.Item?.event_id).toBe('dev:1234#track.qo#42');
+    expect(claim!.args[0].input.ConditionExpression).toContain('attribute_not_exists(event_id)');
+  });
+
+  it('does not double-write when the same event id is delivered twice', async () => {
+    // Simulate the idempotency claim failing (id already present) for writes to
+    // the idempotency table only; other puts succeed.
+    const condError: any = new Error('The conditional request failed');
+    condError.name = 'ConditionalCheckFailedException';
+    ddbMock.on(PutCommand).callsFake((input: any) => {
+      if (input.TableName === process.env.IDEMPOTENCY_TABLE) {
+        return Promise.reject(condError);
+      }
+      return Promise.resolve({});
+    });
+
+    const event = makeEvent(makeNotehubEvent({ event: 'dev:1234#track.qo#99' }));
+    const result = await handler(event);
+
+    expect(result.statusCode).toBe(200);
+    expect(JSON.parse(result.body).status).toBe('duplicate');
+
+    // No telemetry (or any non-idempotency) write should have occurred.
+    const putCalls = ddbMock.commandCalls(PutCommand);
+    const dataWrite = putCalls.find(
+      c => c.args[0].input.TableName !== process.env.IDEMPOTENCY_TABLE
+    );
+    expect(dataWrite).toBeUndefined();
+  });
+
+  it('returns 200 (ignored) for permanently-malformed JSON input', async () => {
+    const event = makeEvent(null);
+    event.body = '{ not valid json';
+
+    const result = await handler(event);
+    expect(result.statusCode).toBe(200);
+    expect(JSON.parse(result.body).status).toBe('ignored');
+  });
+});
+
 describe('handler - device alias handling', () => {
   it('calls handleDeviceAlias with serial and device_uid', async () => {
     const event = makeEvent(makeNotehubEvent());
@@ -665,11 +715,14 @@ describe('handler - mode change tracking', () => {
 });
 
 describe('handler - error handling', () => {
-  it('returns 500 on unexpected errors', async () => {
+  it('returns 200 (ignored) for permanently-malformed JSON body (H9)', async () => {
+    // Malformed JSON can never succeed on retry, so acknowledge with 200 so
+    // Notehub stops redelivering it.
     const event = makeEvent('invalid json{{{');
     event.body = 'invalid json{{{';
 
     const result = await handler(event);
-    expect(result.statusCode).toBe(500);
+    expect(result.statusCode).toBe(200);
+    expect(JSON.parse(result.body).status).toBe('ignored');
   });
 });

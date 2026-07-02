@@ -12,8 +12,8 @@ describe('StorageConstruct', () => {
   });
   const template = Template.fromStack(stack);
 
-  it('creates exactly 8 DynamoDB tables', () => {
-    template.resourceCountIs('AWS::DynamoDB::Table', 8);
+  it('creates exactly 9 DynamoDB tables', () => {
+    template.resourceCountIs('AWS::DynamoDB::Table', 9);
   });
 
   it('creates devices table with correct key schema and billing mode', () => {
