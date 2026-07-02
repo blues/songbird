@@ -167,19 +167,21 @@ export function Devices() {
       let comparison = 0;
 
       switch (sortField) {
-        case 'name':
+        case 'name': {
           const nameA = a.name || a.serial_number || a.device_uid;
           const nameB = b.name || b.serial_number || b.device_uid;
           comparison = nameA.localeCompare(nameB);
           break;
+        }
         case 'serial_number':
           comparison = (a.serial_number || a.device_uid).localeCompare(b.serial_number || b.device_uid);
           break;
-        case 'owner':
+        case 'owner': {
           const ownerA = a.assigned_to_name || a.assigned_to || '';
           const ownerB = b.assigned_to_name || b.assigned_to || '';
           comparison = ownerA.localeCompare(ownerB);
           break;
+        }
         case 'status':
           comparison = (a.status || '').localeCompare(b.status || '');
           break;
@@ -189,11 +191,12 @@ export function Devices() {
         case 'battery':
           comparison = (a.voltage || 0) - (b.voltage || 0);
           break;
-        case 'last_seen':
+        case 'last_seen': {
           const timeA = a.last_seen ? new Date(a.last_seen).getTime() : 0;
           const timeB = b.last_seen ? new Date(b.last_seen).getTime() : 0;
           comparison = timeB - timeA; // Most recent first by default
           break;
+        }
       }
 
       return sortDirection === 'asc' ? comparison : -comparison;
