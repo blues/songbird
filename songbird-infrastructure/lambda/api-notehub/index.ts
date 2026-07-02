@@ -7,6 +7,7 @@
 
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
+import { safeStringify } from '../shared/utils';
 
 const secretsClient = new SecretsManagerClient({});
 
@@ -115,7 +116,7 @@ async function getDeviceCount(): Promise<number> {
 }
 
 export async function handler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
-  console.log('Event:', JSON.stringify(event, null, 2));
+  console.log('Event:', safeStringify(event, 2));
 
   const method = event.requestContext.http.method;
   const path = event.rawPath;

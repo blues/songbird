@@ -17,6 +17,7 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { resolveDevice } from '../shared/device-lookup';
+import { safeStringify } from '../shared/utils';
 
 const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient);
@@ -26,7 +27,7 @@ const TELEMETRY_TABLE = process.env.TELEMETRY_TABLE!;
 const AUDIT_TABLE = process.env.AUDIT_TABLE!;
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  console.log('Public device request:', JSON.stringify(event));
+  console.log('Public device request:', safeStringify(event));
 
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
