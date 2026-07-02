@@ -245,10 +245,10 @@ describe('createAlias', () => {
 });
 
 describe('updateAliasOnSwap', () => {
-  it('updates alias with new device_uid and appends old to history', async () => {
+  it('updates alias with new device_uid and rebuilds deduped history', async () => {
     ddbMock.on(UpdateCommand).resolves({});
 
-    await updateAliasOnSwap('sb01', 'dev:new', 'dev:old');
+    await updateAliasOnSwap('sb01', 'dev:new', 'dev:old', ['dev:older']);
 
     const calls = ddbMock.commandCalls(UpdateCommand);
     expect(calls).toHaveLength(1);
@@ -256,7 +256,27 @@ describe('updateAliasOnSwap', () => {
     const input = calls[0].args[0].input;
     expect(input.Key).toEqual({ serial_number: 'sb01' });
     expect(input.ExpressionAttributeValues![':new_uid']).toBe('dev:new');
-    expect(input.ExpressionAttributeValues![':old_uid_list']).toEqual(['dev:old']);
+    expect(input.ExpressionAttributeValues![':previous']).toEqual(['dev:older', 'dev:old']);
+  });
+
+  it('guards the write with a device_uid ConditionExpression', async () => {
+    ddbMock.on(UpdateCommand).resolves({});
+
+    await updateAliasOnSwap('sb01', 'dev:new', 'dev:old');
+
+    const input = ddbMock.commandCalls(UpdateCommand)[0].args[0].input;
+    expect(input.ConditionExpression).toBe('device_uid = :expected_old');
+    expect(input.ExpressionAttributeValues![':expected_old']).toBe('dev:old');
+  });
+
+  it('dedups previous_device_uids and never keeps the new uid in history', async () => {
+    ddbMock.on(UpdateCommand).resolves({});
+
+    // History already contains the old uid AND the (soon-to-be) new uid.
+    await updateAliasOnSwap('sb01', 'dev:new', 'dev:old', ['dev:old', 'dev:new']);
+
+    const input = ddbMock.commandCalls(UpdateCommand)[0].args[0].input;
+    expect(input.ExpressionAttributeValues![':previous']).toEqual(['dev:old']);
   });
 });
 
@@ -303,6 +323,51 @@ describe('handleDeviceAlias', () => {
     });
 
     const result = await handleDeviceAlias('sb01', 'dev:123');
+    expect(result).toEqual({ isNewDevice: false, isSwap: false });
+  });
+
+  it('retries on a conditional-check failure and succeeds on the second attempt', async () => {
+    // Both reads see the same stale device_uid, so a swap is attempted.
+    ddbMock.on(GetCommand).resolves({
+      Item: {
+        serial_number: 'sb01',
+        device_uid: 'dev:old',
+        created_at: 1000,
+        updated_at: 1000,
+      },
+    });
+
+    const conditionError = new Error('The conditional request failed');
+    conditionError.name = 'ConditionalCheckFailedException';
+    ddbMock
+      .on(UpdateCommand)
+      .rejectsOnce(conditionError) // lost the race
+      .resolves({}); // retry wins
+
+    const result = await handleDeviceAlias('sb01', 'dev:new');
+
+    expect(result).toEqual({ isNewDevice: false, isSwap: true, oldDeviceUid: 'dev:old' });
+    // Two update attempts: the failed one plus the successful retry.
+    expect(ddbMock.commandCalls(UpdateCommand)).toHaveLength(2);
+  });
+
+  it('returns no-op if a concurrent writer already applied our device_uid before retry', async () => {
+    // First read sees stale uid; after the conditional failure the second read
+    // sees that the other writer already set our target uid.
+    ddbMock
+      .on(GetCommand)
+      .resolvesOnce({
+        Item: { serial_number: 'sb01', device_uid: 'dev:old', created_at: 1, updated_at: 1 },
+      })
+      .resolves({
+        Item: { serial_number: 'sb01', device_uid: 'dev:new', created_at: 1, updated_at: 2 },
+      });
+
+    const conditionError = new Error('The conditional request failed');
+    conditionError.name = 'ConditionalCheckFailedException';
+    ddbMock.on(UpdateCommand).rejects(conditionError);
+
+    const result = await handleDeviceAlias('sb01', 'dev:new');
     expect(result).toEqual({ isNewDevice: false, isSwap: false });
   });
 });
