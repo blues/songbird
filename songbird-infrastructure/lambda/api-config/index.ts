@@ -12,6 +12,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { safeStringify } from '../shared/utils';
 
 const secretsClient = new SecretsManagerClient({});
 const dynamoClient = new DynamoDBClient({});
@@ -89,7 +90,7 @@ const CONFIG_SCHEMA: Record<string, { type: string; min?: number; max?: number; 
 };
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  console.log('Request:', JSON.stringify(event));
+  console.log('Request:', safeStringify(event));
 
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',

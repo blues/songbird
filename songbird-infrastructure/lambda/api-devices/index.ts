@@ -19,7 +19,7 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { resolveDevice, getAliasBySerial } from '../shared/device-lookup';
-import { parseIntParam } from '../shared/utils';
+import { parseIntParam, safeStringify } from '../shared/utils';
 
 const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient, {
@@ -34,7 +34,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   const method = (event.requestContext as any)?.http?.method || event.httpMethod;
   const path = (event as any).rawPath || event.path || '';
 
-  console.log('Request:', JSON.stringify(event));
+  console.log('Request:', safeStringify(event));
 
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
