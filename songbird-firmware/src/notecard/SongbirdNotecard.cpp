@@ -581,6 +581,12 @@ bool notecardGetCommand(Command* cmd) {
         return false;
     }
 
+    // Zero-initialize the whole struct before parsing. notecardGetCommand only
+    // fills matched fields, so without this a caller-supplied stack Command
+    // would carry garbage in unmatched union members (e.g. play_melody with no
+    // "melody" key leaves melodyName uninitialized). Cloud-reachable input.
+    memset(cmd, 0, sizeof(*cmd));
+
     // Check for notes in command.qi
     J* req = s_notecard.newRequest("note.get");
     JAddStringToObject(req, "file", NOTEFILE_COMMAND);
@@ -638,6 +644,11 @@ bool notecardGetCommand(Command* cmd) {
                 if (melody) {
                     strncpy(cmd->params.playMelody.melodyName, melody,
                             sizeof(cmd->params.playMelody.melodyName) - 1);
+                    // strncpy does not null-terminate when the source is >= the
+                    // destination size; force termination so downstream strcmp
+                    // over cloud-supplied melody names cannot over-read.
+                    cmd->params.playMelody.melodyName[
+                        sizeof(cmd->params.playMelody.melodyName) - 1] = '\0';
                 }
             }
         } else if (strcmp(cmdStr, "test_audio") == 0) {
