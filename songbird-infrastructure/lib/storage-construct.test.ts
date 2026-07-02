@@ -159,7 +159,7 @@ describe('StorageConstruct', () => {
     });
   });
 
-  it('devices table has fleet-index and status-index GSIs', () => {
+  it('devices table has fleet-index, status-index and assigned-to-index GSIs', () => {
     template.hasResourceProperties('AWS::DynamoDB::Table', {
       TableName: 'test-devices',
       GlobalSecondaryIndexes: Match.arrayWith([
@@ -174,6 +174,13 @@ describe('StorageConstruct', () => {
           IndexName: 'status-index',
           KeySchema: Match.arrayWith([
             { AttributeName: 'status', KeyType: 'HASH' },
+            { AttributeName: 'last_seen', KeyType: 'RANGE' },
+          ]),
+        }),
+        Match.objectLike({
+          IndexName: 'assigned-to-index',
+          KeySchema: Match.arrayWith([
+            { AttributeName: 'assigned_to', KeyType: 'HASH' },
             { AttributeName: 'last_seen', KeyType: 'RANGE' },
           ]),
         }),

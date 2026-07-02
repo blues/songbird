@@ -21,7 +21,7 @@ import {
   type GroupType,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, UpdateCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, UpdateCommand, ScanCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
 
 const cognitoClient = new CognitoIdentityProviderClient({});
@@ -102,9 +102,11 @@ async function listUsers(): Promise<UserInfo[]> {
 }
 
 async function getDevicesAssignedToUser(userEmail: string): Promise<string[]> {
-  const result = await docClient.send(new ScanCommand({
+  // Query the assigned-to-index GSI instead of scanning the whole table.
+  const result = await docClient.send(new QueryCommand({
     TableName: DEVICES_TABLE,
-    FilterExpression: 'assigned_to = :email',
+    IndexName: 'assigned-to-index',
+    KeyConditionExpression: 'assigned_to = :email',
     ExpressionAttributeValues: {
       ':email': userEmail,
     },
