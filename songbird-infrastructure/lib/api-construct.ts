@@ -825,6 +825,40 @@ export class ApiConstruct extends Construct {
       authorizer: this.authorizer,
     });
 
+    // ==========================================================================
+    // Rate limiting / throttling (M14)
+    // ==========================================================================
+    // WAFv2 cannot be associated with an API Gateway *HTTP* (v2) API — WAF
+    // supports only REST APIs, CloudFront and ALB — so we defend the API at the
+    // stage level using API Gateway's built-in token-bucket throttling.
+    //
+    // - A fleet-wide default limit protects every route (including the
+    //   authenticated ones) from runaway or abusive traffic.
+    // - A tighter per-route override is applied to the unauthenticated public
+    //   device endpoint, which is the most exposed surface and the one an
+    //   attacker would use to serially enumerate device serial numbers.
+    //
+    // Throttling is applied via the default stage's underlying CfnStage
+    // (the L2 HttpApi creates the default stage for us).
+    const PUBLIC_DEVICE_ROUTE_KEY = `${apigateway.HttpMethod.GET} /v1/public/devices/{serial_number}`;
+    const defaultStage = this.api.defaultStage!;
+    const cfnStage = defaultStage.node.defaultChild as apigateway.CfnStage;
+    cfnStage.defaultRouteSettings = {
+      // Fleet-wide steady-state and burst caps across all routes.
+      throttlingRateLimit: 100,
+      throttlingBurstLimit: 200,
+    };
+    // `routeSettings` is an untyped (`any`) L1 property, so CDK does not map
+    // camelCase to the CloudFormation PascalCase keys for us — use them directly.
+    cfnStage.routeSettings = {
+      // Public, unauthenticated endpoint: much lower limits to blunt serial
+      // enumeration of device serial numbers.
+      [PUBLIC_DEVICE_ROUTE_KEY]: {
+        ThrottlingRateLimit: 5,
+        ThrottlingBurstLimit: 10,
+      },
+    };
+
     // Store API URL
     this.apiUrl = this.api.url!;
     this.ingestUrl = `${this.api.url}v1/ingest`;
