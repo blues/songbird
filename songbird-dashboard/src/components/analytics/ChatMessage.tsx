@@ -2,6 +2,7 @@ import { User, Sparkles, Code, Eye, EyeOff, ThumbsUp, ThumbsDown } from 'lucide-
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import Markdown from 'react-markdown';
+import { sanitizeUrl } from './sanitizeUrl';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -96,7 +97,11 @@ export function ChatMessage({ message, mapboxToken, userEmail }: ChatMessageProp
         {/* Insights */}
         <Card className="p-4 bg-muted/50">
           <div className="prose prose-sm max-w-none dark:prose-invert">
-            <Markdown>{message.content}</Markdown>
+            {/*
+              Content is model-controlled. Keep HTML disabled (no rehype-raw)
+              and strip dangerous URL schemes (javascript:, etc.) via urlTransform.
+            */}
+            <Markdown urlTransform={sanitizeUrl}>{message.content}</Markdown>
           </div>
           <p className="text-xs text-muted-foreground mt-3">
             {formatRelativeTime(new Date(message.timestamp))}
