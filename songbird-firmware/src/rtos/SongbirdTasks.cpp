@@ -367,11 +367,25 @@ void MainTask(void* pvParameters) {
     // Check PVD again before notecardWaitConnection() which can block up to 30s.
     if (g_pvdShutdownRequested) { pvdSafeShutdown(); }
 
-    // Wait for Notehub connection
+    // Wait for Notehub connection. Poll connection status one probe at a time,
+    // releasing g_i2cMutex between probes so other tasks (sensor reads, audio,
+    // command polls) can use the I2C bus during the up-to-30s wait. Previously
+    // the mutex was held across the entire notecardWaitConnection() loop,
+    // starving every other bus user for up to 30 seconds (M5).
     bool connected = false;
-    if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
-        connected = notecardWaitConnection(NOTEHUB_CONNECT_TIMEOUT_MS);
-        syncReleaseI2C();
+    uint32_t connectStart = millis();
+    while ((millis() - connectStart) < NOTEHUB_CONNECT_TIMEOUT_MS) {
+        if (g_pvdShutdownRequested) { pvdSafeShutdown(); }
+
+        if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
+            connected = notecardIsConnected();
+            syncReleaseI2C();
+        }
+        if (connected) {
+            break;
+        }
+        // Bus is released here, during the inter-probe delay.
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
     if (connected) {
