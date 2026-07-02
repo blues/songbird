@@ -24,3 +24,4 @@ process.env.DATABASE_NAME = 'test-analytics';
 process.env.BEDROCK_MODEL_ID = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
 process.env.REPORT_SNS_TOPIC = 'arn:aws:sns:us-east-1:123456789:test-eval-reports';
 process.env.SEED_LAMBDA_ARN = 'arn:aws:lambda:us-east-1:123456789:function:test-seed';
+process.env.INGEST_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123456789:secret:test-ingest-secret';
