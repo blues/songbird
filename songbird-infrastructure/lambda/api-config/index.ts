@@ -396,8 +396,42 @@ async function setDeviceWifi(
     };
   }
 
-  // Format the _wifi value as per Notehub documentation: ["SSID","PASSWORD"]
-  const wifiValue = `["${ssid}","${password}"]`;
+  if (typeof password !== 'string') {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Password must be a string' }),
+    };
+  }
+
+  // Validate charset/length. Wi-Fi SSIDs are max 32 bytes; WPA passphrases are
+  // 8-63 chars (0 allowed for open networks). Reject control characters that
+  // could break the _wifi env var or the device-side parser.
+  const hasControlChars = (s: string): boolean =>
+    // eslint-disable-next-line no-control-regex
+    /[\u0000-\u001f\u007f]/.test(s);
+
+  if (ssid.length > 32 || hasControlChars(ssid)) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'SSID must be at most 32 characters with no control characters' }),
+    };
+  }
+
+  if (password.length > 63 || hasControlChars(password)) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Password must be at most 63 characters with no control characters' }),
+    };
+  }
+
+  // Format the _wifi value as per Notehub documentation: ["SSID","PASSWORD"].
+  // Use JSON.stringify so quotes/backslashes in the SSID or password are
+  // escaped instead of breaking out of the JSON array (raw interpolation was
+  // an injection risk).
+  const wifiValue = JSON.stringify([ssid, password]);
 
   try {
     const notehubToken = await getNotehubToken();
