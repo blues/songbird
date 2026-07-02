@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mockClient } from 'aws-sdk-client-mock';
 import { DynamoDBDocumentClient, PutCommand, UpdateCommand, QueryCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import type { APIGatewayProxyEvent } from 'aws-lambda';
 
 // Mock the device-lookup module before importing handler
@@ -22,10 +23,16 @@ import { handleDeviceAlias } from '../shared/device-lookup';
 
 const ddbMock = mockClient(DynamoDBDocumentClient);
 const snsMock = mockClient(SNSClient);
+const secretsMock = mockClient(SecretsManagerClient);
+
+// The shared secret the handler expects (returned by the mocked Secrets Manager).
+const INGEST_SECRET = 'test-ingest-secret-value';
+const INGEST_SECRET_HEADER = 'x-songbird-ingest-secret';
 
 beforeEach(() => {
   ddbMock.reset();
   snsMock.reset();
+  secretsMock.reset();
   vi.mocked(handleDeviceAlias).mockResolvedValue({ isNewDevice: false, isSwap: false });
   // Default: no existing device state, no unacknowledged alerts
   ddbMock.on(GetCommand).resolves({ Item: undefined });
@@ -33,12 +40,14 @@ beforeEach(() => {
   ddbMock.on(PutCommand).resolves({});
   ddbMock.on(UpdateCommand).resolves({});
   snsMock.on(PublishCommand).resolves({});
+  // Secrets Manager returns the expected ingest shared secret.
+  secretsMock.on(GetSecretValueCommand).resolves({ SecretString: INGEST_SECRET });
 });
 
-function makeEvent(body: any): APIGatewayProxyEvent {
+function makeEvent(body: any, headers: Record<string, string> = { [INGEST_SECRET_HEADER]: INGEST_SECRET }): APIGatewayProxyEvent {
   return {
     body: JSON.stringify(body),
-    headers: {},
+    headers,
     multiValueHeaders: {},
     httpMethod: 'POST',
     isBase64Encoded: false,
@@ -78,6 +87,47 @@ function makeNotehubEvent(overrides: Record<string, any> = {}) {
     ...overrides,
   };
 }
+
+describe('handler - shared-secret authentication (C2)', () => {
+  it('rejects requests with no secret header (401) before any write', async () => {
+    const event = makeEvent(makeNotehubEvent(), {}); // no secret header
+
+    const result = await handler(event);
+
+    expect(result.statusCode).toBe(401);
+    expect(JSON.parse(result.body).error).toBe('Unauthorized');
+    // No DynamoDB writes should have occurred.
+    expect(ddbMock.commandCalls(PutCommand).length).toBe(0);
+    expect(ddbMock.commandCalls(UpdateCommand).length).toBe(0);
+    expect(vi.mocked(handleDeviceAlias)).not.toHaveBeenCalled();
+  });
+
+  it('rejects requests with an incorrect secret (401)', async () => {
+    const event = makeEvent(makeNotehubEvent(), { [INGEST_SECRET_HEADER]: 'wrong-secret' });
+
+    const result = await handler(event);
+
+    expect(result.statusCode).toBe(401);
+    expect(ddbMock.commandCalls(PutCommand).length).toBe(0);
+    expect(vi.mocked(handleDeviceAlias)).not.toHaveBeenCalled();
+  });
+
+  it('accepts requests with the correct secret header', async () => {
+    const event = makeEvent(makeNotehubEvent()); // default header includes correct secret
+
+    const result = await handler(event);
+
+    expect(result.statusCode).toBe(200);
+  });
+
+  it('accepts the secret header regardless of header casing', async () => {
+    const event = makeEvent(makeNotehubEvent(), { 'X-Songbird-Ingest-Secret': INGEST_SECRET });
+
+    const result = await handler(event);
+
+    expect(result.statusCode).toBe(200);
+  });
+});
 
 describe('handler - request validation', () => {
   it('returns 400 when body is missing', async () => {
