@@ -3,5 +3,6 @@
   "region": "us-east-1",
   "userPoolId": "us-east-1_XXXXXXXXX",
   "userPoolClientId": "XXXXXXXXXXXXXXXXXXXXXXXXXX",
-  "mapboxToken": "pk.YOUR_MAPBOX_TOKEN"
+  "mapboxToken": "pk.YOUR_MAPBOX_TOKEN",
+  "notehubProjectUID": "app:YOUR_NOTEHUB_PROJECT_UID"
 }

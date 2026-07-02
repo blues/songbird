@@ -38,6 +38,7 @@ interface AppConfig {
   userPoolId: string;
   userPoolClientId: string;
   mapboxToken?: string;
+  notehubProjectUID?: string;
 }
 
 // Custom Authenticator components for branding — defined at module scope so the
@@ -203,6 +204,10 @@ function App() {
   }
 
   const mapboxToken = config.mapboxToken || import.meta.env.VITE_MAPBOX_TOKEN || '';
+  const notehubProjectUID =
+    config.notehubProjectUID ||
+    import.meta.env.VITE_NOTEHUB_PROJECT_UID ||
+    'app:b5b8fc4a-d8ca-4bd8-84ad-39563006635d';
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -248,7 +253,7 @@ function App() {
                         />
                         <Route
                           path="/devices/:serialNumber"
-                          element={<DeviceDetail mapboxToken={mapboxToken} />}
+                          element={<DeviceDetail mapboxToken={mapboxToken} notehubProjectUID={notehubProjectUID} />}
                         />
                         <Route
                           path="/map"
