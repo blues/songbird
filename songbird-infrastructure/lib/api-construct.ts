@@ -31,6 +31,7 @@ export interface ApiConstructProps {
   locationsTable: dynamodb.Table;
   deviceAliasesTable: dynamodb.Table;
   auditTable: dynamodb.Table;
+  idempotencyTable: dynamodb.Table;
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
   notehubProjectUid: string;
@@ -322,6 +323,7 @@ export class ApiConstruct extends Construct {
         JOURNEYS_TABLE: props.journeysTable.tableName,
         LOCATIONS_TABLE: props.locationsTable.tableName,
         DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
+        IDEMPOTENCY_TABLE: props.idempotencyTable.tableName,
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
@@ -334,6 +336,7 @@ export class ApiConstruct extends Construct {
     props.journeysTable.grantReadWriteData(ingestFunction);
     props.locationsTable.grantReadWriteData(ingestFunction);
     props.deviceAliasesTable.grantReadWriteData(ingestFunction);
+    props.idempotencyTable.grantReadWriteData(ingestFunction);
 
     // Mapbox API Token Secret (for map matching)
     const mapboxSecret = new secretsmanager.Secret(this, 'MapboxApiToken', {

@@ -23,6 +23,7 @@ export class StorageConstruct extends Construct {
   public readonly locationsTable: dynamodb.Table;
   public readonly deviceAliasesTable: dynamodb.Table;
   public readonly auditTable: dynamodb.Table;
+  public readonly idempotencyTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: StorageConstructProps) {
     super(scope, id);
@@ -368,6 +369,31 @@ export class StorageConstruct extends Construct {
         type: dynamodb.AttributeType.NUMBER,
       },
       projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // ==========================================================================
+    // DynamoDB Table for Ingest Idempotency
+    // ==========================================================================
+    // Stores the Notehub event id of every successfully-processed ingest event
+    // so duplicate deliveries (Notehub retries) are not double-written.
+    this.idempotencyTable = new dynamodb.Table(this, 'IdempotencyTable', {
+      tableName: 'songbird-ingest-idempotency',
+
+      // Primary key: the Notehub event id (e.g. "dev:xxxxx#track.qo#1")
+      partitionKey: {
+        name: 'event_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+
+      // Billing mode - on-demand for unpredictable ingest volume
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+
+      // TTL to automatically expire idempotency keys (7 days is well beyond
+      // Notehub's retry window while keeping the table small)
+      timeToLiveAttribute: 'ttl',
+
+      // Remove table on stack deletion (demo environment)
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
   }
 }
