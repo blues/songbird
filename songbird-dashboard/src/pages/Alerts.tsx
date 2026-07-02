@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useAlerts, useAcknowledgeAlert, useBulkAcknowledgeAlerts } from '@/hooks/useAlerts';
 import { useCanSendCommands } from '@/hooks/useAuth';
+import { useToast } from '@/components/ui/use-toast';
 import { formatRelativeTime } from '@/utils/formatters';
 import type { Alert } from '@/types';
 
@@ -150,14 +151,39 @@ export function Alerts() {
 
   const acknowledgeMutation = useAcknowledgeAlert();
   const bulkAcknowledgeMutation = useBulkAcknowledgeAlerts();
+  const { toast } = useToast();
 
   const handleAcknowledge = (alertId: string) => {
-    acknowledgeMutation.mutate({ alertId });
+    acknowledgeMutation.mutate(
+      { alertId },
+      {
+        onError: (error) => {
+          toast({
+            variant: 'destructive',
+            title: 'Failed to acknowledge alert',
+            description:
+              error instanceof Error ? error.message : 'Please try again.',
+          });
+        },
+      }
+    );
   };
 
   const handleAcknowledgeAll = () => {
     const activeAlertIds = activeAlerts.map(alert => alert.alert_id);
-    bulkAcknowledgeMutation.mutate({ alertIds: activeAlertIds });
+    bulkAcknowledgeMutation.mutate(
+      { alertIds: activeAlertIds },
+      {
+        onError: (error) => {
+          toast({
+            variant: 'destructive',
+            title: 'Failed to acknowledge alerts',
+            description:
+              error instanceof Error ? error.message : 'Please try again.',
+          });
+        },
+      }
+    );
   };
 
   const handleDeviceClick = (serialNumber: string) => {

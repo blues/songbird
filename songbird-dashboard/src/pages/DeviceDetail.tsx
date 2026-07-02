@@ -34,6 +34,7 @@ import { useDeviceAlerts, useAcknowledgeAlert, useBulkAcknowledgeAlerts } from '
 import { useIsAdmin, useCanSendCommands } from '@/hooks/useAuth';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { usePreferences } from '@/contexts/PreferencesContext';
+import { useToast } from '@/components/ui/use-toast';
 import {
   formatBattery,
   formatMode,
@@ -173,6 +174,15 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   const { data: alertsData } = useDeviceAlerts(serialNumber!);
   const acknowledgeMutation = useAcknowledgeAlert();
   const bulkAcknowledgeMutation = useBulkAcknowledgeAlerts();
+  const { toast } = useToast();
+
+  const ackErrorToast = (error: unknown) => {
+    toast({
+      variant: 'destructive',
+      title: 'Failed to acknowledge alert',
+      description: error instanceof Error ? error.message : 'Please try again.',
+    });
+  };
 
   // Journey and location history hooks
   const { data: journeyDetailData, isLoading: journeyDetailLoading } = useJourneyDetail(serialNumber!, selectedJourneyId);
@@ -787,7 +797,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                       <AlertDialogAction
                         onClick={() => {
                           const alertIds = activeAlerts.map((a: Alert) => a.alert_id);
-                          bulkAcknowledgeMutation.mutate({ alertIds });
+                          bulkAcknowledgeMutation.mutate({ alertIds }, { onError: ackErrorToast });
                         }}
                       >
                         Acknowledge All
@@ -835,7 +845,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => acknowledgeMutation.mutate({ alertId: alert.alert_id })}
+                            onClick={() => acknowledgeMutation.mutate({ alertId: alert.alert_id }, { onError: ackErrorToast })}
                             disabled={acknowledgeMutation.isPending}
                           >
                             <Check className="h-3 w-3 mr-1" />
