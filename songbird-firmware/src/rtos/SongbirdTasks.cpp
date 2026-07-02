@@ -1138,13 +1138,9 @@ void NotecardTask(void* pvParameters) {
                     stateSetGpsWasActive(isActive);
                 }
 
-                // Check if we need to sync
-                if (config.mode == MODE_DEMO) {
-                    // Continuous sync in demo mode
-                    if (!notecardIsSyncing()) {
-                        notecardSync();
-                    }
-                }
+                // Demo mode uses hub.set mode:"continuous" sync:true, which
+                // already keeps the connection synced. An explicit hub.sync
+                // here every ~5s is redundant and burns battery/cell (M3).
 
                 syncReleaseI2C();
             }
