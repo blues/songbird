@@ -34,6 +34,13 @@ TaskHandle_t g_envTaskHandle = NULL;
 
 static SongbirdConfig s_currentConfig;
 
+// I2C bus acquire failures (g_i2cMutex timeouts). Previously a task that could
+// not acquire the bus simply skipped its work with no record, so a wedged or
+// heavily contended bus was invisible. Count the timeouts, split by subsystem,
+// so they can be surfaced via health.qo (sensor_errors / notecard_errors) (M4).
+static volatile uint32_t s_sensorAcquireFailures = 0;
+static volatile uint32_t s_notecardAcquireFailures = 0;
+
 // =============================================================================
 // Button State (for mute toggle, transit lock, and demo lock)
 // =============================================================================
@@ -304,6 +311,19 @@ void tasksGetConfig(SongbirdConfig* config) {
         memcpy(config, &s_currentConfig, sizeof(SongbirdConfig));
         syncReleaseConfig();
     }
+}
+
+// Running counts of I2C bus acquire (mutex) timeouts, split by subsystem, so a
+// wedged/contended bus is observable via health.qo instead of being silently
+// swallowed (M4). Values saturate at UINT8_MAX to fit the HealthData fields.
+uint8_t tasksGetSensorErrorCount(void) {
+    uint32_t n = s_sensorAcquireFailures;
+    return (n > 255) ? 255 : (uint8_t)n;
+}
+
+uint8_t tasksGetNotecardErrorCount(void) {
+    uint32_t n = s_notecardAcquireFailures;
+    return (n > 255) ? 255 : (uint8_t)n;
 }
 
 void tasksLogStackUsage(void) {
@@ -792,6 +812,11 @@ void SensorTask(void* pvParameters) {
             data.motion = notecardGetMotion() || stateGetAndClearMotion();
 
             syncReleaseI2C();
+        } else {
+            // Could not acquire the I2C bus this cycle — record it so the wedged
+            // bus is reported via health.qo sensor_errors rather than silently
+            // leaving readSuccess false (M4).
+            s_sensorAcquireFailures++;
         }
 
         if (readSuccess) {
@@ -954,6 +979,10 @@ void CommandTask(void* pvParameters) {
         if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
             hasCommand = notecardGetCommand(&cmd);
             syncReleaseI2C();
+        } else {
+            // Command poll skipped because the Notecard I2C bus was unavailable;
+            // count it toward notecard_errors instead of silently dropping (M4).
+            s_notecardAcquireFailures++;
         }
 
         if (hasCommand) {
@@ -1184,6 +1213,10 @@ void EnvTask(void* pvParameters) {
         if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
             modified = envCheckModified();
             syncReleaseI2C();
+        } else {
+            // Env-modified check reads from the Notecard; record the missed
+            // acquire toward notecard_errors rather than silently skipping (M4).
+            s_notecardAcquireFailures++;
         }
 
         if (modified) {
