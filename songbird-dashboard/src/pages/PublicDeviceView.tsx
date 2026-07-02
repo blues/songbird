@@ -9,6 +9,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { z } from 'zod';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import {
   Thermometer,
@@ -61,10 +62,28 @@ interface PublicDeviceViewProps {
   mapboxToken: string;
 }
 
+/**
+ * Serial numbers come straight from the (unauthenticated) URL path, so they are
+ * untrusted. Constrain to a conservative allowlist before we ever build a
+ * request URL or enable the query — this prevents path injection and stops the
+ * component from polling a 404 forever for garbage input.
+ */
+export const serialNumberSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z0-9_-]+$/);
+
+export function isValidSerialNumber(value: string | undefined): value is string {
+  return serialNumberSchema.safeParse(value).success;
+}
+
 export function PublicDeviceView({ mapboxToken }: PublicDeviceViewProps) {
   const { serialNumber } = useParams<{ serialNumber: string }>();
   const [authChecked, setAuthChecked] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  const serialIsValid = isValidSerialNumber(serialNumber);
 
   // Check if user is authenticated
   useEffect(() => {
@@ -85,8 +104,12 @@ export function PublicDeviceView({ mapboxToken }: PublicDeviceViewProps) {
   const { data: device, isLoading, error } = useQuery({
     queryKey: ['public-device', serialNumber],
     queryFn: () => getPublicDevice(serialNumber!),
-    enabled: !!serialNumber,
-    refetchInterval: 30_000, // Refresh every 30 seconds
+    // Only enable for a syntactically valid serial number (untrusted URL input).
+    enabled: serialIsValid,
+    // Don't hammer the API when the device doesn't exist / serial is bad.
+    retry: false,
+    // Poll while healthy, but stop polling once a request has errored (e.g. 404).
+    refetchInterval: (query) => (query.state.error ? false : 30_000),
   });
 
   // Transform recent_telemetry for chart
@@ -103,8 +126,28 @@ export function PublicDeviceView({ mapboxToken }: PublicDeviceViewProps) {
   const sparklineHumidity = chartData.slice(0, 20).map(t => t.humidity || 0);
 
   // Redirect authenticated users to full device detail view
-  if (authChecked && isAuthenticated && serialNumber) {
+  if (authChecked && isAuthenticated && serialIsValid) {
     return <Navigate to={`/devices/${serialNumber}`} replace />;
+  }
+
+  // Invalid/untrusted serial number: never query, show Not Found immediately.
+  if (!serialIsValid) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-500 mb-2">Device Not Found</h1>
+          <p className="text-muted-foreground mb-4">
+            The device you're looking for doesn't exist or is unavailable.
+          </p>
+          <Link to="/">
+            <Button>
+              <LogIn className="h-4 w-4 mr-2" />
+              Sign In to Dashboard
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   // Show loading while checking auth or loading device
