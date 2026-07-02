@@ -35,6 +35,13 @@ export interface ApiConstructProps {
   userPoolClient: cognito.UserPoolClient;
   notehubProjectUid: string;
   alertTopic: sns.ITopic;
+  /**
+   * Origins allowed for CORS. Defaults to the Songbird dashboard domains.
+   * Configurable so preview/staging dashboards can be added without code
+   * changes. A wildcard ('*') must never be combined with the Authorization
+   * header (browsers reject it, and it would allow any site to call the API).
+   */
+  corsAllowedOrigins?: string[];
 }
 
 export class ApiConstruct extends Construct {
@@ -389,11 +396,19 @@ export class ApiConstruct extends Construct {
     // ==========================================================================
     // HTTP API Gateway
     // ==========================================================================
+    // CORS: restrict to the dashboard origin(s). Because the API accepts the
+    // Authorization header, a wildcard origin is unsafe (and browser-rejected),
+    // so we default to the known dashboard domains and allow overriding via prop.
+    const corsAllowedOrigins = props.corsAllowedOrigins ?? [
+      'https://songbird.live',
+      'https://www.songbird.live',
+    ];
+
     this.api = new apigateway.HttpApi(this, 'Api', {
       apiName: 'songbird-api',
       description: 'Songbird Demo Platform API',
       corsPreflight: {
-        allowOrigins: ['*'],
+        allowOrigins: corsAllowedOrigins,
         allowMethods: [
           apigateway.CorsHttpMethod.GET,
           apigateway.CorsHttpMethod.POST,
