@@ -89,4 +89,32 @@ bool powerWasBrownoutReset(void);
  */
 bool powerCheckAndHandleBootLoop(void);
 
+// =============================================================================
+// Independent Watchdog (IWDG)
+// =============================================================================
+
+/**
+ * @brief Start the independent watchdog (IWDG)
+ *
+ * Once started the IWDG cannot be stopped and MUST be refreshed at least once
+ * every WATCHDOG_TIMEOUT_MS or the MCU is reset (reported afterwards as
+ * BOOT_CAUSE_WATCHDOG via RCC_CSR_IWDGRSTF). This recovers an unattended
+ * battery device from a hung task (I2C lockup, stuck mutex, deadlock).
+ *
+ * The IWDG clock is the LSI (~32 kHz), independent of the main clock, so it
+ * keeps running even if the core clock stalls. Call once from MainTask after
+ * initialization completes, then refresh from the MainTask loop.
+ *
+ * Does NOT require the I2C mutex (no Notecard access).
+ */
+void powerWatchdogInit(void);
+
+/**
+ * @brief Refresh (kick) the independent watchdog
+ *
+ * No-op if powerWatchdogInit() has not been called. Safe to call from any
+ * task context; touches only the IWDG key register.
+ */
+void powerWatchdogRefresh(void);
+
 #endif // SONGBIRD_POWER_H
