@@ -361,7 +361,7 @@ void MainTask(void* pvParameters) {
         }
     } else {
         // Warm boot - restore mode from state
-        s_currentConfig.mode = stateGet()->currentMode;
+        s_currentConfig.mode = stateGetMode();
     }
 
     // Check PVD again before notecardWaitConnection() which can block up to 30s.
