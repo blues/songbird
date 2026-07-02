@@ -1219,12 +1219,26 @@ bool notecardConfigureSleep(uint32_t sleepSeconds,
         JAddNumberToObject(req, "seconds", sleepSeconds);
     }
 
-    // Add payload if provided
+    // Add payload if provided.
+    //
+    // The card.attn "payload" field is a base64-encoded string. The state
+    // struct is raw binary and contains embedded 0x00 bytes, so it CANNOT be
+    // handed to JAddStringToObject() directly — that would truncate at the
+    // first NUL and corrupt the saved state. Base64-encode it first using the
+    // note-c helper (see JB64Encode / NotePayloadSaveAndSleep).
     if (payload != NULL && payloadSize > 0) {
-        // Base64 encode the payload
-        // Note: For simplicity, we'd use a proper base64 encoder here
-        // The Notecard library may provide this functionality
-        JAddStringToObject(req, "payload", (const char*)payload);
+        int encodedLen = JB64EncodeLen((int)payloadSize);
+        char* encoded = (char*)malloc((size_t)encodedLen);
+        if (encoded == NULL) {
+            J* rsp = s_notecard.requestAndResponse(req);  // consume/free req
+            if (rsp) s_notecard.deleteResponse(rsp);
+            NC_ERROR();
+            return false;
+        }
+        JB64Encode(encoded, (const char*)payload, (int)payloadSize);
+        // JAddStringToObject copies the string, so freeing after is safe.
+        JAddStringToObject(req, "payload", encoded);
+        free(encoded);
     }
 
     J* rsp = s_notecard.requestAndResponse(req);
@@ -1266,11 +1280,32 @@ void notecardGetWakeReason(bool* timer, bool* motion, bool* command) {
 }
 
 size_t notecardGetSleepPayload(uint8_t* buffer, size_t bufferSize) {
-    // Retrieve payload saved before sleep
-    // This would come from card.attn response after wake
+    // Retrieve payload saved before sleep via card.attn.
+    //
+    // On wake, "card.attn":{"start":true} returns the previously-saved payload
+    // (base64-encoded in the response). NotePayloadRetrieveAfterSleep() issues
+    // that request, base64-decodes the payload into a freshly-allocated buffer,
+    // and reports the decoded length. We copy it into the caller's buffer.
+    if (!s_initialized || buffer == NULL || bufferSize == 0) {
+        return 0;
+    }
 
-    // For now, return 0 indicating no payload
-    return 0;
+    NotePayloadDesc desc;
+    if (!NotePayloadRetrieveAfterSleep(&desc)) {
+        // No payload available (cold boot) or retrieval failed.
+        return 0;
+    }
+
+    size_t copied = 0;
+    if (desc.data != NULL && desc.length > 0) {
+        copied = (desc.length <= bufferSize) ? desc.length : bufferSize;
+        memcpy(buffer, desc.data, copied);
+    }
+
+    // Free the buffer allocated by NotePayloadRetrieveAfterSleep().
+    NotePayloadFree(&desc);
+
+    return copied;
 }
 
 // =============================================================================
