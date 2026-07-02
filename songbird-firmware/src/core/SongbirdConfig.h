@@ -222,6 +222,15 @@ typedef enum {
 #define PVD_SHUTDOWN_NOTE_TIMEOUT_MS 4000  // ms total deadline for draining notes
 #define PVD_QUEUE_DRAIN_LIMIT        3      // Max queued notes to flush before forced sleep
 
+// Independent watchdog (IWDG) timeout. Must exceed the longest legitimate
+// blocking operation — a Notecard request can block up to
+// NOTECARD_RESPONSE_TIMEOUT_MS (10s), and NotecardTask may chain a GPS status
+// read plus location writes plus a sync under one mutex hold. A ~26s timeout
+// leaves generous headroom above that worst case while still recovering an
+// unattended device from a true hang within half a minute. The IWDG runs off
+// the LSI (~32 kHz); with prescaler 256 that is ~8ms per tick.
+#define WATCHDOG_TIMEOUT_MS          26000  // ~26 seconds
+
 // =============================================================================
 // Task Intervals (milliseconds)
 // =============================================================================

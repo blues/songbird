@@ -44,6 +44,16 @@ static uint8_t  s_sramBrownoutCount = 0;
 volatile bool g_pvdShutdownRequested = false;
 
 // =============================================================================
+// Independent Watchdog (IWDG) State
+// =============================================================================
+
+// IWDG handle. Once initialised, the watchdog cannot be stopped; it is refreshed
+// from the MainTask loop. Guarded by s_watchdogStarted so powerWatchdogRefresh()
+// is a safe no-op before powerWatchdogInit() runs.
+static IWDG_HandleTypeDef s_iwdg;
+static bool s_watchdogStarted = false;
+
+// =============================================================================
 // Initialization
 // =============================================================================
 
@@ -187,6 +197,52 @@ bool powerCheckAndHandleBootLoop(void) {
 
     DEBUG_SERIAL.println("[Power] Boot-loop hold complete. Resuming boot.");
     return true;
+}
+
+// =============================================================================
+// Independent Watchdog (IWDG)
+// =============================================================================
+
+void powerWatchdogInit(void) {
+    // IWDG clock = LSI (~32 kHz). With prescaler /256 the counter ticks at
+    // ~125 Hz (8ms/tick). Reload = WATCHDOG_TIMEOUT_MS / 8ms, clamped to the
+    // 12-bit reload register max (0xFFF = 4095 → ~32.7s at this prescaler).
+    const uint32_t lsiHz          = 32000UL;
+    const uint32_t prescalerDiv   = 256UL;
+    const uint32_t ticksPerSecond = lsiHz / prescalerDiv;           // ~125 Hz
+    uint32_t reload = (WATCHDOG_TIMEOUT_MS * ticksPerSecond) / 1000UL;
+    if (reload > 0xFFF) {
+        reload = 0xFFF;
+    }
+
+    s_iwdg.Instance       = IWDG;
+    s_iwdg.Init.Prescaler = IWDG_PRESCALER_256;
+    s_iwdg.Init.Reload    = reload;
+    s_iwdg.Init.Window    = IWDG_WINDOW_DISABLE;   // No lower window — refresh any time
+
+    if (HAL_IWDG_Init(&s_iwdg) != HAL_OK) {
+        // If the watchdog can't start, continue without it rather than hang —
+        // the device is still functional, just without hang-recovery.
+        #ifdef DEBUG_MODE
+        DEBUG_SERIAL.println("[Power] WARNING: IWDG init failed");
+        #endif
+        return;
+    }
+
+    s_watchdogStarted = true;
+
+    #ifdef DEBUG_MODE
+    DEBUG_SERIAL.print("[Power] IWDG started (~");
+    DEBUG_SERIAL.print(WATCHDOG_TIMEOUT_MS / 1000);
+    DEBUG_SERIAL.println("s timeout)");
+    #endif
+}
+
+void powerWatchdogRefresh(void) {
+    if (!s_watchdogStarted) {
+        return;
+    }
+    HAL_IWDG_Refresh(&s_iwdg);
 }
 
 // =============================================================================

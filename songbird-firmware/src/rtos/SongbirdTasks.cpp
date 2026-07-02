@@ -422,6 +422,12 @@ void MainTask(void* pvParameters) {
     // Signal system ready
     g_systemReady = true;
 
+    // Start the independent watchdog now that initialization (which contains
+    // legitimately long blocking ops like notecardWaitConnection up to 30s) is
+    // complete. From here the MainTask loop must refresh it within
+    // WATCHDOG_TIMEOUT_MS or the MCU resets — recovering from a hung task.
+    powerWatchdogInit();
+
     #ifdef DEBUG_MODE
     DEBUG_SERIAL.println("[MainTask] Initialization complete");
     envLogConfig(&s_currentConfig);
@@ -429,6 +435,11 @@ void MainTask(void* pvParameters) {
 
     // Main loop
     for (;;) {
+        // Refresh the watchdog every loop iteration (~100ms). If MainTask ever
+        // stops looping — or blocks longer than WATCHDOG_TIMEOUT_MS on a hung
+        // Notecard/I2C operation — the IWDG resets the MCU.
+        powerWatchdogRefresh();
+
         // Check for PVD low-voltage shutdown request (highest priority)
         // Flag is set by PVD ISR in SongbirdPower.cpp — handle before anything else
         if (g_pvdShutdownRequested) {
