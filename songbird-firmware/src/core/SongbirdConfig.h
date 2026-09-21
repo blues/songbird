@@ -232,6 +232,16 @@ typedef enum {
 #define SENSOR_INTERVAL_STORAGE_MS      300000  // 5 minutes
 #define SENSOR_INTERVAL_SLEEP_MS        0       // Disabled (wake-on-motion)
 
+// Largest pressure change accepted between consecutive samples. Real
+// barometric or altitude change is well under 10 hPa/min (a fast elevator is
+// ~1 hPa per 8 m); a jump beyond this is a sensor fault (e.g. BME280 power-on
+// value after a supply dip) and the sample is discarded rather than alerted on.
+#define SENSOR_PRESSURE_JUMP_REJECT_HPA 50.0f
+// The gate is only applied when the previous accepted sample is this recent.
+// Beyond it (storage-mode 5 min interval x3, or a reboot) the baseline is
+// treated as stale and the first sample is accepted unconditionally.
+#define SENSOR_PRESSURE_GATE_MAX_GAP_MS (3 * SENSOR_INTERVAL_STORAGE_MS)
+
 // Command polling intervals per mode
 #define COMMAND_POLL_DEMO_MS            1000    // 1 second (responsive)
 #define COMMAND_POLL_TRANSIT_MS         30000   // 30 seconds
