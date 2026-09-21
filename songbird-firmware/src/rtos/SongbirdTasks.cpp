@@ -740,6 +740,13 @@ void SensorTask(void* pvParameters) {
     TickType_t lastWakeTime = xTaskGetTickCount();
     SensorData data;
 
+    // Tick of the last accepted sample. The pressure plausibility gate only
+    // applies when the baseline is fresh: lastPressure persists across reboots
+    // in saved state, and a device that was powered off and moved (e.g. flown)
+    // must not have every new sample rejected against a stale baseline.
+    TickType_t lastAcceptedTick = 0;
+    bool haveAcceptedSample = false;
+
     // Track USB power state to detect changes
     // Start with "unknown" state (-1) to force initial configuration
     static int8_t s_lastUsbPowered = -1;
@@ -794,6 +801,45 @@ void SensorTask(void* pvParameters) {
             syncReleaseI2C();
         }
 
+        // Plausibility gate: a pressure step larger than any physical process
+        // can produce in one interval means the sensor returned garbage (seen in
+        // the field as a per-device constant ~600-770 hPa after the BME280 was
+        // reset by a supply dip). Re-read once; if it is still implausible, drop
+        // the sample so it neither raises an alert nor becomes the new baseline.
+        if (readSuccess) {
+            float lastPressure = stateGetLastPressure();
+            bool baselineFresh = haveAcceptedSample &&
+                (xTaskGetTickCount() - lastAcceptedTick) <=
+                    pdMS_TO_TICKS(SENSOR_PRESSURE_GATE_MAX_GAP_MS);
+            if (baselineFresh && !isnan(lastPressure) && lastPressure > 0 &&
+                fabs(data.pressure - lastPressure) > SENSOR_PRESSURE_JUMP_REJECT_HPA) {
+                #ifdef DEBUG_MODE
+                DEBUG_SERIAL.print("[SensorTask] Implausible pressure step ");
+                DEBUG_SERIAL.print(lastPressure, 1);
+                DEBUG_SERIAL.print(" -> ");
+                DEBUG_SERIAL.print(data.pressure, 1);
+                DEBUG_SERIAL.println(" hPa - re-reading");
+                #endif
+                SensorData retry;
+                bool retryOk = false;
+                if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
+                    retryOk = sensorsRead(&retry);
+                    syncReleaseI2C();
+                }
+                if (retryOk && fabs(retry.pressure - lastPressure) <= SENSOR_PRESSURE_JUMP_REJECT_HPA) {
+                    // Keep voltage/motion gathered above, take the fresh readings
+                    data.temperature = retry.temperature;
+                    data.humidity = retry.humidity;
+                    data.pressure = retry.pressure;
+                } else {
+                    #ifdef DEBUG_MODE
+                    DEBUG_SERIAL.println("[SensorTask] Sample still implausible - discarding");
+                    #endif
+                    readSuccess = false;
+                }
+            }
+        }
+
         if (readSuccess) {
             // Check for alerts
             uint8_t currentAlerts = stateGetAlerts();
@@ -840,6 +886,8 @@ void SensorTask(void* pvParameters) {
 
             // Update state
             stateUpdateLastPressure(data.pressure);
+            lastAcceptedTick = xTaskGetTickCount();
+            haveAcceptedSample = true;
             if (data.motion) {
                 stateSetMotion(true);
             }

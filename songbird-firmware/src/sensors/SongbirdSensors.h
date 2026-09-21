@@ -86,6 +86,15 @@ uint32_t sensorsGetErrorCount(void);
  */
 void sensorsResetErrorCount(void);
 
+/**
+ * @brief Number of times the BME280 was found reset (config wiped or data
+ *        registers at their power-on value) since boot
+ *
+ * A non-zero count indicates supply dips reaching the sensor; useful for
+ * health reporting and for tracking down flaky USB or rail sag in transit.
+ */
+uint32_t sensorsGetResetCount(void);
+
 // =============================================================================
 // Alert Checking
 // =============================================================================
