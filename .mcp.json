@@ -5,6 +5,12 @@
       "args": [
         "mcp"
       ]
+    },
+    "graft": {
+      "command": "graft",
+      "args": [
+        "mcp"
+      ]
     }
   }
 }

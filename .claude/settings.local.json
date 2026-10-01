@@ -82,5 +82,10 @@
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "enabledMcpjsonServers": [
+    "lat",
+    "graft"
+  ],
+  "enableAllProjectMcpServers": true
 }
