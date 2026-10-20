@@ -81,8 +81,6 @@ describe('DeviceCard', () => {
 
   it('does not show alert badge when alertCount is 0', () => {
     renderCard({}, 0);
-    // The alert count text "0" should not be present
-    const badges = screen.queryByText('0');
     // 0% battery could show "0" so let's be more specific
     expect(screen.queryByText('0', { selector: '.gap-1' })).not.toBeInTheDocument();
   });
