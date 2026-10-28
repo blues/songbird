@@ -8,6 +8,15 @@ on:
       - 'songbird-dashboard/**'
   workflow_dispatch: # Allow manual trigger
 
+# Queue instead of cancel so an in-flight S3 sync always finishes; only the
+# newest pending run is kept, which is the build that should end up live.
+concurrency:
+  group: deploy-dashboard
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 env:
   AWS_REGION: us-east-1
   S3_BUCKET: songbird-dashboard-163050375163
@@ -15,19 +24,22 @@ env:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: songbird-dashboard
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: songbird-dashboard/package-lock.json
 
@@ -53,7 +65,7 @@ jobs:
           VITE_POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
