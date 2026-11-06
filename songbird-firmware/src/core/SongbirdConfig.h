@@ -242,6 +242,19 @@ typedef enum {
 // treated as stale and the first sample is accepted unconditionally.
 #define SENSOR_PRESSURE_GATE_MAX_GAP_MS (3 * SENSOR_INTERVAL_STORAGE_MS)
 
+// humidity_high already latches until the reading falls this far below
+// humidityAlertHigh. That latch does not survive a real sample in between:
+// songbird-14 (dev:868531061584319) interleaved a constant compensated
+// BME280 power-on humidity (~92.29% RH) with real ~37% readings, so each
+// bad sample was a new crossing and alert.qo got one humidity_high per
+// spike. One crossing may emit one note per quiet interval. The 80%
+// default threshold is unchanged. bmeRawIsResetValue still drops the raw
+// POR registers before they become a sample; this interval is what stops
+// a reading that gets through from re-firing after the next real sample
+// clears the latch. It does not reject a sustained high humidity.
+#define SENSOR_HUMIDITY_ALERT_COOLDOWN_MS (30UL * 60UL * 1000UL)
+#define SENSOR_HUMIDITY_ALERT_CLEAR_MARGIN_PCT 5.0f
+
 // Command polling intervals per mode
 #define COMMAND_POLL_DEMO_MS            1000    // 1 second (responsive)
 #define COMMAND_POLL_TRANSIT_MS         30000   // 30 seconds

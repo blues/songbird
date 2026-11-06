@@ -843,6 +843,15 @@ void SensorTask(void* pvParameters) {
     TickType_t lastAcceptedTick = 0;
     bool haveAcceptedSample = false;
 
+    // Quiet interval for humidity_high. The latch clears as soon as a sample
+    // falls below the threshold by SENSOR_HUMIDITY_ALERT_CLEAR_MARGIN_PCT, so
+    // a constant ~92% RH power-on sample interleaved with a real reading
+    // re-fired on every spike. Remember when this task last sent the note.
+    // Task-local: a reboot may emit one more note, the same as any other
+    // fresh baseline. Not persisted.
+    bool haveHumidityHighNote = false;
+    uint32_t humidityHighNoteMs = 0;
+
     // Track USB power state to detect changes
     // Start with "unknown" state (-1) to force initial configuration
     static int8_t s_lastUsbPowered = -1;
@@ -942,16 +951,30 @@ void SensorTask(void* pvParameters) {
         }
 
         if (readSuccess) {
-            // Check for alerts
+            // Check for alerts. humidity_high stays quiet for
+            // SENSOR_HUMIDITY_ALERT_COOLDOWN_MS after the last note, so a
+            // latch cleared by a real sample cannot re-arm on the next
+            // spike inside that interval.
+            uint32_t nowMs = millis();
             uint8_t currentAlerts = stateGetAlerts();
             uint8_t newAlerts = sensorsCheckAlerts(&data, &config,
                                                     stateGetLastPressure(),
-                                                    currentAlerts);
+                                                    currentAlerts,
+                                                    haveHumidityHighNote,
+                                                    nowMs,
+                                                    humidityHighNoteMs);
 
-            // Process new alerts
+            // Process new alerts. Start the humidity quiet interval before
+            // the clear check so a note we just queued is not eligible to
+            // fire again on the next sample.
             if (newAlerts != 0) {
                 for (uint8_t flag = 1; flag != 0; flag <<= 1) {
                     if (newAlerts & flag) {
+                        if (flag & ALERT_FLAG_HUMIDITY_HIGH) {
+                            haveHumidityHighNote = true;
+                            humidityHighNoteMs = nowMs;
+                        }
+
                         // Build alert
                         Alert alert;
                         sensorsBuildAlert(flag, &data, &config, &alert);

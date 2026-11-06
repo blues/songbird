@@ -14,6 +14,7 @@
 
 #include <Arduino.h>
 #include "SongbirdConfig.h"
+#include "SongbirdSensorAlerts.h"
 
 // =============================================================================
 // Sensor Module Interface
@@ -99,37 +100,8 @@ uint32_t sensorsGetResetCount(void);
 // Alert Checking
 // =============================================================================
 
-/**
- * @brief Check sensor data against alert thresholds
- *
- * Compares current sensor readings against configured thresholds.
- * Returns bitmask of triggered alerts.
- *
- * @param data Current sensor data
- * @param config Current configuration with thresholds
- * @param previousPressure Previous pressure reading (for delta check)
- * @param currentAlerts Current alert state (for deduplication)
- * @return Bitmask of newly triggered alerts (ALERT_FLAG_*)
- */
-uint8_t sensorsCheckAlerts(const SensorData* data,
-                           const SongbirdConfig* config,
-                           float previousPressure,
-                           uint8_t currentAlerts);
-
-/**
- * @brief Check which alerts have cleared
- *
- * Returns bitmask of alerts that were active but have now cleared
- * (values returned to normal range).
- *
- * @param data Current sensor data
- * @param config Current configuration with thresholds
- * @param currentAlerts Currently active alerts
- * @return Bitmask of cleared alerts
- */
-uint8_t sensorsCheckAlertsCleared(const SensorData* data,
-                                   const SongbirdConfig* config,
-                                   uint8_t currentAlerts);
+// sensorsCheckAlerts() and sensorsCheckAlertsCleared() live in
+// SongbirdSensorAlerts.h so the native tests compile the firmware logic.
 
 /**
  * @brief Build an Alert structure for a triggered alert
