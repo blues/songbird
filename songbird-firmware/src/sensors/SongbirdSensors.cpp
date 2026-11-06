@@ -333,9 +333,8 @@ uint32_t sensorsGetResetCount(void) {
 // =============================================================================
 // Alert Checking
 // =============================================================================
-
-// sensorsCheckAlerts() and sensorsCheckAlertsCleared() are inline in
-// SongbirdSensorAlerts.h.
+// Threshold checks are inline in SongbirdSensorAlerts.h (included via
+// SongbirdSensors.h) so native tests run the firmware implementation.
 
 void sensorsBuildAlert(uint8_t alertFlag,
                        const SensorData* data,

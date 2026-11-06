@@ -99,7 +99,6 @@ uint32_t sensorsGetResetCount(void);
 // =============================================================================
 // Alert Checking
 // =============================================================================
-
 // sensorsCheckAlerts() and sensorsCheckAlertsCleared() live in
 // SongbirdSensorAlerts.h so the native tests compile the firmware logic.
 
