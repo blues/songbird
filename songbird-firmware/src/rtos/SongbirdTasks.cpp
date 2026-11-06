@@ -843,6 +843,16 @@ void SensorTask(void* pvParameters) {
     TickType_t lastAcceptedTick = 0;
     bool haveAcceptedSample = false;
 
+    // Anchor for pressure_change. The flag used to clear on the next sample
+    // and the edge detector then compared against previousPressure, so a
+    // POR-band reading that slipped the plausibility gate (or oscillated
+    // inside it) re-fired every cycle with the same alert_value. The anchor
+    // is the sample we last reported; the cooldown is how long that report
+    // stays quiet. Task-local: a reboot may emit one more note, which is the
+    // same as any other fresh baseline. Not persisted.
+    float pressureAlertAnchorHpa = NAN;
+    uint32_t pressureAlertAtMs = 0;
+
     // Track USB power state to detect changes
     // Start with "unknown" state (-1) to force initial configuration
     static int8_t s_lastUsbPowered = -1;
@@ -942,16 +952,29 @@ void SensorTask(void* pvParameters) {
         }
 
         if (readSuccess) {
-            // Check for alerts
+            // Check for alerts. Pressure is anchored to the last reported
+            // sample and quiet for SENSOR_PRESSURE_ALERT_COOLDOWN_MS; pass
+            // that state in so a bounced previousPressure cannot re-arm it.
+            uint32_t nowMs = millis();
             uint8_t currentAlerts = stateGetAlerts();
             uint8_t newAlerts = sensorsCheckAlerts(&data, &config,
                                                     stateGetLastPressure(),
-                                                    currentAlerts);
+                                                    currentAlerts,
+                                                    pressureAlertAnchorHpa,
+                                                    nowMs,
+                                                    pressureAlertAtMs);
 
-            // Process new alerts
+            // Process new alerts. Move the pressure anchor before the clear
+            // check so a note we just queued starts a new quiet interval
+            // instead of being dropped as "settled" on this same sample.
             if (newAlerts != 0) {
                 for (uint8_t flag = 1; flag != 0; flag <<= 1) {
                     if (newAlerts & flag) {
+                        if (flag & ALERT_FLAG_PRESSURE_DELTA) {
+                            pressureAlertAnchorHpa = data.pressure;
+                            pressureAlertAtMs = nowMs;
+                        }
+
                         // Build alert
                         Alert alert;
                         sensorsBuildAlert(flag, &data, &config, &alert);
@@ -977,8 +1000,13 @@ void SensorTask(void* pvParameters) {
                 }
             }
 
-            // Check for cleared alerts
-            uint8_t clearedAlerts = sensorsCheckAlertsCleared(&data, &config, currentAlerts);
+            // Check for cleared alerts. Uses the pre-update mask so a flag
+            // set above is not cleared in this same pass.
+            uint8_t clearedAlerts = sensorsCheckAlertsCleared(&data, &config,
+                                                              currentAlerts,
+                                                              pressureAlertAnchorHpa,
+                                                              nowMs,
+                                                              pressureAlertAtMs);
             for (uint8_t flag = 1; flag != 0; flag <<= 1) {
                 if (clearedAlerts & flag) {
                     stateClearAlert(flag);

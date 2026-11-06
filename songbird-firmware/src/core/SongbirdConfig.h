@@ -242,6 +242,21 @@ typedef enum {
 // treated as stale and the first sample is accepted unconditionally.
 #define SENSOR_PRESSURE_GATE_MAX_GAP_MS (3 * SENSOR_INTERVAL_STORAGE_MS)
 
+// pressure_change used to clear on the sample after it was sent, so any
+// accepted reading more than DEFAULT_PRESSURE_ALERT_DELTA from the previous
+// one re-armed the edge detector. A BME280 POR-band value that slips the
+// 50 hPa gate (or a baseline oscillating inside that gate) then emits an
+// alert.qo row every reading or every other reading, often with a constant
+// alert_value. One physical event may produce at most one note per interval.
+// This does not change the 10 hPa trip point.
+#define SENSOR_PRESSURE_ALERT_COOLDOWN_MS (30UL * 60UL * 1000UL)
+
+// The latch is held until the reading is this close to the sample that
+// raised it and the cooldown above has elapsed. Kept below the 10 hPa trip
+// so releasing the latch cannot itself satisfy the comparison against that
+// same sample.
+#define SENSOR_PRESSURE_ALERT_HYSTERESIS_HPA 2.0f
+
 // Command polling intervals per mode
 #define COMMAND_POLL_DEMO_MS            1000    // 1 second (responsive)
 #define COMMAND_POLL_TRANSIT_MS         30000   // 30 seconds
