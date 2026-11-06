@@ -377,7 +377,8 @@ uint8_t sensorsCheckAlerts(const SensorData* data,
         }
     }
 
-    // Low battery
+    // Low battery. 0 V is a failed/stale sample, not a dead pack — same
+    // predicate as voltageIsLowBattery().
     if (!(currentAlerts & ALERT_FLAG_LOW_BATTERY) &&
         data->voltage > 0 && data->voltage < config->voltageAlertLow) {
         newAlerts |= ALERT_FLAG_LOW_BATTERY;

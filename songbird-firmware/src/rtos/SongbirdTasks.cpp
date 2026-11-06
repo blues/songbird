@@ -16,6 +16,7 @@
 #include "SongbirdCommands.h"
 #include "SongbirdState.h"
 #include "SongbirdPower.h"
+#include "SongbirdVoltage.h"
 
 // =============================================================================
 // Task Handles
@@ -52,6 +53,85 @@ static uint32_t s_firstClickTime = 0;       // Time of first click
 static const uint32_t TRIPLE_CLICK_TIMEOUT_MS = 1000; // Total window for triple-click
 
 // =============================================================================
+// Host voltage sample
+// =============================================================================
+
+// Flatness history for card.voltage vs the live power-log reading.
+// Only touched while the caller holds the I2C mutex, which serializes
+// MainTask and SensorTask.
+static VoltageSampleState s_voltageState;
+
+/**
+ * @brief Sample the pack voltage used for alerts and health notes
+ *
+ * Caller must hold the I2C mutex. Returns 0 when the only available reading
+ * is a failed or millivolt-flat stale sample.
+ *
+ * @param usbPowered Set when card.voltage succeeded (optional)
+ * @param usbKnown   True when usbPowered was written (optional)
+ */
+static float sampleHostVoltage(bool* usbPowered, bool* usbKnown) {
+    if (usbKnown) {
+        *usbKnown = false;
+    }
+
+    float cardVolts = 0.0f;
+    bool usb = false;
+    bool cardOk = notecardReadInstantVoltage(&cardVolts, &usb);
+    float powerLogVolts = notecardGetPowerLogVoltage();
+
+    if (cardOk) {
+        if (usbPowered) {
+            *usbPowered = usb;
+        }
+        if (usbKnown) {
+            *usbKnown = true;
+        }
+    }
+
+    VoltageObservation obs;
+    obs.cardVolts = cardOk ? cardVolts : 0.0f;
+    obs.cardInstant = cardOk;
+    obs.powerLogVolts = powerLogVolts;
+    obs.nowMs = millis();
+
+    VoltageDecision decision = voltageDecide(&s_voltageState, &obs);
+    return decision.volts;
+}
+
+/**
+ * @brief Queue a low_battery alert from a fresh voltage sample
+ *
+ * Used when the BME280 read failed but the pack sample is still valid.
+ * A supply dip that knocks out the sensor is exactly when the pack is low.
+ */
+static void queueLowBatteryAlert(const SongbirdConfig* config, float volts) {
+    if (config == NULL || !voltageIsLowBattery(volts, config->voltageAlertLow)) {
+        return;
+    }
+    if (stateGetAlerts() & ALERT_FLAG_LOW_BATTERY) {
+        return;
+    }
+
+    SensorData alertData;
+    memset(&alertData, 0, sizeof(alertData));
+    alertData.voltage = volts;
+    alertData.valid = true;
+
+    Alert alert;
+    sensorsBuildAlert(ALERT_FLAG_LOW_BATTERY, &alertData, config, &alert);
+
+    NoteQueueItem noteItem;
+    memset(&noteItem, 0, sizeof(noteItem));
+    noteItem.type = NOTE_TYPE_ALERT;
+    memcpy(&noteItem.data.alert, &alert, sizeof(Alert));
+    syncQueueNote(&noteItem);
+
+    audioQueueEvent(AUDIO_EVENT_LOW_BATTERY);
+    stateSetAlert(ALERT_FLAG_LOW_BATTERY);
+}
+
+// =============================================================================
 // Helper Functions
 // =============================================================================
 
@@ -69,9 +149,9 @@ static void queueImmediateTrackNote(OperatingMode mode) {
 
     // Read current sensor values
     if (sensorsRead(&data)) {
-        // Get battery voltage for alert checking (not sent in track.qo)
-        bool usbPowered = false;
-        data.voltage = notecardGetVoltage(&usbPowered);
+        // Fresh pack voltage (not sent in track.qo). 0 means the sample failed
+        // or was a millivolt-flat stale card.voltage.
+        data.voltage = sampleHostVoltage(NULL, NULL);
 
         // Add motion status
         data.motion = notecardGetMotion();
@@ -121,6 +201,23 @@ static void queueImmediateTrackNote(OperatingMode mode) {
 static void pvdSafeShutdown(void) {
     DEBUG_SERIAL.println("[Power] PVD fired! Safe shutdown starting...");
 
+    // Decide from a fresh pack sample and the live PVDO flag before playing
+    // a shutdown tone or cutting power. A recovered rail, or a pack still
+    // above 4 V, is not a ~2.9 V brownout — host 1.7.3 logged those trips
+    // with the stale card.voltage average (4.32–4.38 V).
+    float sampled = 0.0f;
+    if (syncAcquireI2C(400)) {
+        sampled = sampleHostVoltage(NULL, NULL);
+        syncReleaseI2C();
+    }
+    float reportVolts = 0.0f;
+    if (voltagePvdAction(sampled, powerIsVddBelowPvd(), &reportVolts) ==
+        PVD_ACTION_SUPPRESS) {
+        DEBUG_SERIAL.println("[Power] PVD trip suppressed; pack is not in the brownout band");
+        g_pvdShutdownRequested = false;
+        return;
+    }
+
     // Reserve the last 600ms strictly for stateSave() + notecardEnterSleep().
     // Note queue drain and shutdown note must finish before queueDrainDeadline.
     uint32_t deadline         = millis() + PVD_SHUTDOWN_NOTE_TIMEOUT_MS;
@@ -164,11 +261,10 @@ static void pvdSafeShutdown(void) {
         }
     }
 
-    // 3. Send shutdown health note with current voltage (if budget allows).
+    // 3. Send shutdown health note with the fresh voltage (if budget allows).
     if (millis() < queueDrainDeadline) {
         if (syncAcquireI2C(MIN(400, queueDrainDeadline - millis()))) {
-            float voltage = notecardGetVoltage(NULL);
-            notecardSendShutdownNote(voltage, "pvd_low_battery");
+            notecardSendShutdownNote(reportVolts, "pvd_low_battery");
             syncReleaseI2C();
         }
     }
@@ -381,7 +477,7 @@ void MainTask(void* pvParameters) {
         // If this was a brownout reset, log it to Notehub now that we're connected
         if (powerWasBrownoutReset()) {
             if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
-                float voltage = notecardGetVoltage(NULL);
+                float voltage = sampleHostVoltage(NULL, NULL);
                 notecardSendShutdownNote(voltage, "brownout_reset");
                 syncReleaseI2C();
             }
@@ -771,20 +867,25 @@ void SensorTask(void* pvParameters) {
             continue;
         }
 
-        // Read sensors
+        // Read sensors. Drop any previous voltage first so a missed I2C
+        // transaction cannot reuse a stale pack sample for low_battery.
         bool readSuccess = false;
+        data.voltage = 0.0f;
         if (syncAcquireI2C(I2C_MUTEX_TIMEOUT_MS)) {
             readSuccess = sensorsRead(&data);
 
-            // Get battery voltage for alert checking and USB power status
-            // Note: voltage is used for firmware alerts but not sent in track.qo
-            // Battery info is reported to cloud via _log.qo (Mojo) and _health.qo
+            // Instant card.voltage, or the live _log.qo sample when that
+            // average is millivolt-flat / divergent. 0 is an explicit failure:
+            // do not keep the previous reading.
+            data.voltage = 0.0f;
             bool usbPowered = false;
-            data.voltage = notecardGetVoltage(&usbPowered);
+            bool usbKnown = false;
+            data.voltage = sampleHostVoltage(&usbPowered, &usbKnown);
 
-            // Check for USB power state change and toggle Mojo monitoring
+            // Check for USB power state change and toggle Mojo monitoring.
+            // A failed card.voltage must not look like "switched to battery".
             int8_t currentUsbState = usbPowered ? 1 : 0;
-            if (currentUsbState != s_lastUsbPowered) {
+            if (usbKnown && currentUsbState != s_lastUsbPowered) {
                 #ifdef DEBUG_MODE
                 DEBUG_SERIAL.print("[SensorTask] USB power state changed: ");
                 DEBUG_SERIAL.println(usbPowered ? "USB powered" : "battery powered");
@@ -898,6 +999,10 @@ void SensorTask(void* pvParameters) {
             noteItem.forceSync = false;  // Regular sensor readings use mode-based sync
             memcpy(&noteItem.data.track, &data, sizeof(SensorData));
             syncQueueNote(&noteItem);
+        } else {
+            // BME280 reads fail when the rail sags. The pack sample is
+            // independent; still raise low_battery from it.
+            queueLowBatteryAlert(&config, data.voltage);
         }
 
         // Wait for next interval (interval guaranteed > 0 here due to check above)
