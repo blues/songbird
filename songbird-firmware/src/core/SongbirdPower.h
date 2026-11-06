@@ -89,4 +89,15 @@ bool powerWasBrownoutReset(void);
  */
 bool powerCheckAndHandleBootLoop(void);
 
+/**
+ * @brief True while VDD is still below the PVD threshold
+ *
+ * PVDO is level-sensitive. The falling-edge interrupt can latch after a
+ * glitch that has already recovered; callers must check this before
+ * treating the trip as a low-battery shutdown.
+ *
+ * Valid after powerInit().
+ */
+bool powerIsVddBelowPvd(void);
+
 #endif // SONGBIRD_POWER_H
