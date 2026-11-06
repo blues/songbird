@@ -843,6 +843,24 @@ void SensorTask(void* pvParameters) {
     TickType_t lastAcceptedTick = 0;
     bool haveAcceptedSample = false;
 
+    // Anchor for pressure_change. The flag used to clear on the next sample
+    // and the edge detector then compared against previousPressure, so a
+    // POR-band reading that slipped the plausibility gate (or oscillated
+    // inside it) re-fired every cycle with the same alert_value. The anchor
+    // is the sample we last reported; the cooldown is how long that report
+    // stays quiet. Task-local: a reboot may emit one more note, which is the
+    // same as any other fresh baseline. Not persisted.
+    float pressureAlertAnchorHpa = NAN;
+    uint32_t pressureAlertAtMs = 0;
+
+    // Quiet interval for humidity_high. The latch clears as soon as a sample
+    // falls below the threshold by SENSOR_HUMIDITY_ALERT_CLEAR_MARGIN_PCT, so
+    // a constant ~92% RH power-on sample interleaved with a real reading
+    // re-fired on every spike. Remember when this task last sent the note.
+    // Same lifetime as the pressure anchor: task-local, not persisted.
+    bool haveHumidityHighNote = false;
+    uint32_t humidityHighNoteMs = 0;
+
     // Track USB power state to detect changes
     // Start with "unknown" state (-1) to force initial configuration
     static int8_t s_lastUsbPowered = -1;
@@ -942,16 +960,36 @@ void SensorTask(void* pvParameters) {
         }
 
         if (readSuccess) {
-            // Check for alerts
+            // Check for alerts. Pressure is anchored to the last reported
+            // sample and quiet for SENSOR_PRESSURE_ALERT_COOLDOWN_MS.
+            // humidity_high stays quiet for SENSOR_HUMIDITY_ALERT_COOLDOWN_MS
+            // after its own note, so a latch cleared by a real sample cannot
+            // re-arm on the next spike inside that interval.
+            uint32_t nowMs = millis();
             uint8_t currentAlerts = stateGetAlerts();
             uint8_t newAlerts = sensorsCheckAlerts(&data, &config,
                                                     stateGetLastPressure(),
-                                                    currentAlerts);
+                                                    currentAlerts,
+                                                    pressureAlertAnchorHpa,
+                                                    nowMs,
+                                                    pressureAlertAtMs,
+                                                    haveHumidityHighNote,
+                                                    humidityHighNoteMs);
 
-            // Process new alerts
+            // Process new alerts. Record both anchors before the clear check
+            // so a note we just queued starts its quiet interval on this sample.
             if (newAlerts != 0) {
                 for (uint8_t flag = 1; flag != 0; flag <<= 1) {
                     if (newAlerts & flag) {
+                        if (flag & ALERT_FLAG_HUMIDITY_HIGH) {
+                            haveHumidityHighNote = true;
+                            humidityHighNoteMs = nowMs;
+                        }
+                        if (flag & ALERT_FLAG_PRESSURE_DELTA) {
+                            pressureAlertAnchorHpa = data.pressure;
+                            pressureAlertAtMs = nowMs;
+                        }
+
                         // Build alert
                         Alert alert;
                         sensorsBuildAlert(flag, &data, &config, &alert);
@@ -977,8 +1015,13 @@ void SensorTask(void* pvParameters) {
                 }
             }
 
-            // Check for cleared alerts
-            uint8_t clearedAlerts = sensorsCheckAlertsCleared(&data, &config, currentAlerts);
+            // Check for cleared alerts. Uses the pre-update mask so a flag
+            // set above is not cleared in this same pass.
+            uint8_t clearedAlerts = sensorsCheckAlertsCleared(&data, &config,
+                                                              currentAlerts,
+                                                              pressureAlertAnchorHpa,
+                                                              nowMs,
+                                                              pressureAlertAtMs);
             for (uint8_t flag = 1; flag != 0; flag <<= 1) {
                 if (clearedAlerts & flag) {
                     stateClearAlert(flag);
