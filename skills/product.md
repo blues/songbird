@@ -93,7 +93,7 @@ The threshold keys most useful in a sales demo are:
 
 Values are clamped by firmware; alert events are emitted on `alert.qo` and synced immediately. For a live demo, lowering `temp_alert_high_c` (or another threshold) is the documented no-firmware-flash story. `[documented:songbird-firmware/src/commands/SongbirdEnv.cpp:102-138; src/core/SongbirdConfig.h:174-180; sales-enablement/demo-script.md:227-254, reviewed 2026-10-01 conf:high]`
 
-**Source precedence note:** the firmware constants are authoritative for defaults. The firmware README table currently shows `temp_alert_low_c=5` and `audio_volume=50`, which disagree with `SongbirdConfig.h` (`0` and `80`); do not repeat those README values as firmware defaults. `[documented:songbird-firmware/README.md:421-437 vs src/core/SongbirdConfig.h:174-189, reviewed 2026-10-01 conf:high]`
+**Source precedence note:** the firmware constants are authoritative for defaults. The firmware README configuration table matches `SongbirdConfig.h`: `temp_alert_low_c` is `0` and `audio_volume` is `80`. `[documented:songbird-firmware/README.md:421-437; src/core/SongbirdConfig.h:174-189, reviewed 2026-11-06 conf:high]`
 
 
 

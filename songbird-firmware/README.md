@@ -428,9 +428,9 @@ Configuration is managed via Notehub environment variables:
 | `gps_interval_min` | number | 5 | GPS update interval (minutes) |
 | `sync_interval_min` | number | 15 | Cloud sync interval (minutes) |
 | `temp_alert_high_c` | number | 35 | High temperature alert threshold |
-| `temp_alert_low_c` | number | 5 | Low temperature alert threshold |
+| `temp_alert_low_c` | number | 0 | Low temperature alert threshold |
 | `audio_enabled` | boolean | true | Enable audio feedback |
-| `audio_volume` | number | 50 | Audio volume (0-100) |
+| `audio_volume` | number | 80 | Audio volume (0-100) |
 | `motion_sensitivity` | string | medium | Motion sensitivity (low/medium/high) |
 | `gps_power_save_enabled` | boolean | true | Enable GPS power management in transit mode |
 | `gps_signal_timeout_min` | number | 15 | Minutes to wait for GPS signal before disabling (10-30) |

@@ -323,7 +323,7 @@ Boolean parsing is literal: only the string `true` or `1` becomes true; any othe
 
 Locks override `mode` env. Companion dashboard fleet defaults may sync into Notehub environment at fleet scope, but configured ≠ applied until the device fetches the change. `[documented:songbird-firmware/src/commands/SongbirdEnv.cpp:66-79; sales-enablement/setup-guide.md:49-75, reviewed 2026-10-01 conf:high]`
 
-**Source precedence note:** `SongbirdConfig.h` is authoritative for firmware defaults. The firmware README configuration table currently lists `temp_alert_low_c=5` and `audio_volume=50`, while the compiled defaults are `0` and `80`; preserve this discrepancy as an open documentation gap rather than silently merging it. `[documented:songbird-firmware/README.md:421-437 vs src/core/SongbirdConfig.h:174-189, reviewed 2026-10-01 conf:high]`
+**Source precedence note:** `SongbirdConfig.h` is authoritative for firmware defaults. The firmware README configuration table matches those constants: `temp_alert_low_c` is `0` and `audio_volume` is `80`. `[documented:songbird-firmware/README.md:421-437; src/core/SongbirdConfig.h:174-189, reviewed 2026-11-06 conf:high]`
 
 ## Derivation notes
 

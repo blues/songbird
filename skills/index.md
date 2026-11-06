@@ -117,4 +117,4 @@ Internal requirements and any restricted enablement material remain **restricted
 
 **Solid also:** daily fleet activity digest recipe (`recipes.md`; weekday morning routine).
 
-**Open follow-up:** README vs firmware defaults for `temp_alert_low_c`/`audio_volume` — prefer firmware; `unlock` (not README `lock_override`) is authoritative.
+**Open follow-up:** `unlock` (not README `lock_override`) is authoritative. README defaults for `temp_alert_low_c` (`0`) and `audio_volume` (`80`) match `SongbirdConfig.h`.
