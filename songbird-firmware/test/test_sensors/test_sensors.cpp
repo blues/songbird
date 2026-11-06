@@ -395,6 +395,23 @@ void test_default_pressure_alert_delta_is_10_hpa(void) {
     TEST_ASSERT_TRUE(SENSOR_PRESSURE_JUMP_REJECT_HPA == 50.0f);
 }
 
+void test_pressure_alert_cooldown_survives_millis_wrap(void) {
+    // lastAlert was 1000 ms before the clock wrapped; now is 1000 ms after.
+    // Unsigned subtraction yields 2001 ms, still inside the quiet interval.
+    const float anchor = 605.46045f;
+    const uint32_t lastAlertMs = UINT32_MAX - 1000u;
+    const uint32_t nowMs = 1000u;
+    uint32_t elapsed = nowMs - lastAlertMs;
+
+    TEST_ASSERT_TRUE(elapsed == 2001u);
+    TEST_ASSERT_TRUE(elapsed < SENSOR_PRESSURE_ALERT_COOLDOWN_MS);
+    TEST_ASSERT_TRUE(pressureAlertCoolingDown(anchor, nowMs, lastAlertMs));
+
+    // Same wrap, once the quiet interval itself has elapsed.
+    uint32_t later = nowMs + SENSOR_PRESSURE_ALERT_COOLDOWN_MS;
+    TEST_ASSERT_FALSE(pressureAlertCoolingDown(anchor, later, lastAlertMs));
+}
+
 void test_pressure_step_of_exactly_10_hpa_does_not_alert(void) {
     float atThreshold = 1013.25f + DEFAULT_PRESSURE_ALERT_DELTA;
     int alerts = replay_pressure(&atThreshold, 1, SENSOR_INTERVAL_DEMO_MS, 1013.25f);
@@ -405,7 +422,7 @@ void test_pressure_step_of_exactly_10_hpa_does_not_alert(void) {
     TEST_ASSERT_EQUAL_INT(1, alerts);
 }
 
-void test_por_band_identical_values_alert_once_per_cooldown(void) {
+void test_por_band_identical_values_alert_once_across_three_windows(void) {
     // songbird-17's stuck alert_value and songbird-14's, replayed across
     // several quiet intervals at the demo sample period. A constant POR-band
     // reading is one event: one note total, not one per window.
@@ -548,7 +565,8 @@ int main(int argc, char **argv) {
     // pressure_change rate limit
     RUN_TEST(test_default_pressure_alert_delta_is_10_hpa);
     RUN_TEST(test_pressure_step_of_exactly_10_hpa_does_not_alert);
-    RUN_TEST(test_por_band_identical_values_alert_once_per_cooldown);
+    RUN_TEST(test_por_band_identical_values_alert_once_across_three_windows);
+    RUN_TEST(test_pressure_alert_cooldown_survives_millis_wrap);
     RUN_TEST(test_pressure_oscillation_is_rate_limited);
     RUN_TEST(test_genuine_pressure_step_alerts_once);
     RUN_TEST(test_second_pressure_step_waits_for_cooldown);
