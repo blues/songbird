@@ -21,7 +21,7 @@
 #endif
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "1.0.0"
+#define FIRMWARE_VERSION "1.7.5"
 #endif
 
 // Firmware metadata for Outboard DFU (ODFU)
