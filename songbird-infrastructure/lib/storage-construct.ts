@@ -80,6 +80,23 @@ export class StorageConstruct extends Construct {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
+    // GSI for querying devices assigned to a specific user (by email).
+    // Replaces a full-table Scan with FilterExpression on `assigned_to`,
+    // which is run on every user listing (once per user) and on each
+    // device (re)assignment.
+    this.devicesTable.addGlobalSecondaryIndex({
+      indexName: 'assigned-to-index',
+      partitionKey: {
+        name: 'assigned_to',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'last_seen',
+        type: dynamodb.AttributeType.NUMBER,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
     // ==========================================================================
     // DynamoDB Table for Telemetry Data
     // ==========================================================================

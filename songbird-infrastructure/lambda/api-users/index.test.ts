@@ -20,7 +20,7 @@ import {
   AdminConfirmSignUpCommand,
   ListGroupsCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
-import { DynamoDBDocumentClient, ScanCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 
 import { handler } from './index';
 
@@ -161,7 +161,7 @@ describe('API Users Lambda', () => {
         Groups: [{ GroupName: 'Sales' }],
       });
 
-      ddbMock.on(ScanCommand).resolves({
+      ddbMock.on(QueryCommand).resolves({
         Items: [{ device_uid: 'dev:abc123' }],
       });
 
@@ -328,8 +328,8 @@ describe('API Users Lambda', () => {
         User: { Username: 'alice@test.com', UserStatus: 'FORCE_CHANGE_PASSWORD' },
       });
       cognitoMock.on(AdminAddUserToGroupCommand).resolves({});
-      // ScanCommand for getDevicesAssignedToUser (no existing devices)
-      ddbMock.on(ScanCommand).resolves({ Items: [] });
+      // QueryCommand for getDevicesAssignedToUser (no existing devices)
+      ddbMock.on(QueryCommand).resolves({ Items: [] });
       ddbMock.on(UpdateCommand).resolves({});
 
       const event = makeEvent({
@@ -429,8 +429,8 @@ describe('API Users Lambda', () => {
           { Name: 'name', Value: 'Alice' },
         ],
       });
-      // ScanCommand for existing assigned devices (none)
-      ddbMock.on(ScanCommand).resolves({ Items: [] });
+      // QueryCommand for existing assigned devices (none)
+      ddbMock.on(QueryCommand).resolves({ Items: [] });
       ddbMock.on(UpdateCommand).resolves({});
 
       const event = makeEvent({
@@ -461,7 +461,7 @@ describe('API Users Lambda', () => {
           { Name: 'name', Value: 'Alice' },
         ],
       });
-      ddbMock.on(ScanCommand).resolves({
+      ddbMock.on(QueryCommand).resolves({
         Items: [{ device_uid: 'dev:old-device' }],
       });
       ddbMock.on(UpdateCommand).resolves({});
@@ -519,7 +519,7 @@ describe('API Users Lambda', () => {
       cognitoMock.on(AdminDeleteUserCommand).resolves({});
 
       // User has two assigned devices
-      ddbMock.on(ScanCommand).resolves({
+      ddbMock.on(QueryCommand).resolves({
         Items: [
           { device_uid: 'dev:device1' },
           { device_uid: 'dev:device2' },
@@ -556,7 +556,7 @@ describe('API Users Lambda', () => {
         ],
       });
       cognitoMock.on(AdminDeleteUserCommand).resolves({});
-      ddbMock.on(ScanCommand).resolves({ Items: [] });
+      ddbMock.on(QueryCommand).resolves({ Items: [] });
 
       const event = makeEvent({
         rawPath: '/v1/users/user-1',
