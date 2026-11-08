@@ -11,7 +11,7 @@ import { DynamoDBDocumentClient, PutCommand, UpdateCommand, QueryCommand, GetCom
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { handleDeviceAlias } from '../shared/device-lookup';
-import { ACKNOWLEDGED } from '../shared/constants';
+import { ACKNOWLEDGED, computeAckShard } from '../shared/constants';
 
 // Initialize clients
 const ddbClient = new DynamoDBClient({});
@@ -608,6 +608,7 @@ async function createLowBatteryAlert(event: SongbirdEvent): Promise<void> {
     created_at: now,
     event_timestamp: event.timestamp * 1000,
     acknowledged: ACKNOWLEDGED.FALSE,
+    ack_shard: computeAckShard(ACKNOWLEDGED.FALSE, alertId),
     ttl,
     location: event.location ? {
       lat: event.location.lat,
@@ -714,6 +715,7 @@ async function createGpsPowerSaveAlert(event: SongbirdEvent): Promise<void> {
     created_at: now,
     event_timestamp: event.timestamp * 1000,
     acknowledged: ACKNOWLEDGED.FALSE,
+    ack_shard: computeAckShard(ACKNOWLEDGED.FALSE, alertId),
     ttl,
     location: event.location ? {
       lat: event.location.lat,
@@ -817,6 +819,7 @@ async function createNoSatAlert(event: SongbirdEvent): Promise<void> {
     created_at: now,
     event_timestamp: event.timestamp * 1000,
     acknowledged: ACKNOWLEDGED.FALSE,
+    ack_shard: computeAckShard(ACKNOWLEDGED.FALSE, alertId),
     ttl,
     location: event.location ? {
       lat: event.location.lat,
@@ -1137,6 +1140,7 @@ async function storeAlert(event: SongbirdEvent): Promise<void> {
     created_at: now,
     event_timestamp: event.timestamp * 1000,
     acknowledged: ACKNOWLEDGED.FALSE, // String for GSI partition key
+    ack_shard: computeAckShard(ACKNOWLEDGED.FALSE, alertId),
     ttl,
     location: event.location ? {
       lat: event.location.lat,
