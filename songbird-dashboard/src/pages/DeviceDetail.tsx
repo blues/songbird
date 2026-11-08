@@ -72,9 +72,10 @@ const healthMethodLabels: Record<string, string> = {
 
 interface DeviceDetailProps {
   mapboxToken: string;
+  notehubProjectUID: string;
 }
 
-export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
+export function DeviceDetail({ mapboxToken, notehubProjectUID }: DeviceDetailProps) {
   const { serialNumber } = useParams<{ serialNumber: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { preferences } = usePreferences();
@@ -362,7 +363,7 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
             className="flex-shrink-0 flex-1 sm:flex-none"
           >
             <a
-              href={`https://notehub.io/project/app:b5b8fc4a-d8ca-4bd8-84ad-39563006635d/devices/${device.device_uid}`}
+              href={`https://notehub.io/project/${notehubProjectUID}/devices/${device.device_uid}`}
               target="_blank"
               rel="noopener noreferrer"
             >
