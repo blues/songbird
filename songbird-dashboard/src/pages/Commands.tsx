@@ -36,6 +36,7 @@ import { useAllCommands, useSendPing, useSendLocate, useSendPlayMelody, useDelet
 import { useDevices } from '@/hooks/useDevices';
 import { useCanSendCommands } from '@/hooks/useAuth';
 import { formatRelativeTime } from '@/utils/formatters';
+import { sendToDevicesResilient } from './sendToDevices';
 import type { Command, CommandStatus, CommandType, Device } from '@/types';
 
 const commandTypeLabels: Record<CommandType, string> = {
@@ -174,6 +175,7 @@ export function Commands() {
   const [commandType, setCommandType] = useState<CommandType>('ping');
   const [selectedMelody, setSelectedMelody] = useState('connected');
   const [targetDevice, setTargetDevice] = useState<string>('');
+  const [sendResult, setSendResult] = useState<{ succeeded: number; failed: number } | null>(null);
 
   const { canSend: canSendCommands } = useCanSendCommands();
   const { data: devicesData } = useDevices();
@@ -216,21 +218,21 @@ export function Commands() {
   const isSending = pingMutation.isPending || locateMutation.isPending || melodyMutation.isPending;
 
   const handleSendCommand = async () => {
-    if (!targetDevice || targetDevice === 'all') {
-      // Send to all devices
-      for (const device of devices) {
-        await sendToDevice(device.device_uid);
-      }
-    } else {
-      await sendToDevice(targetDevice);
-    }
+    setSendResult(null);
+    const targets =
+      !targetDevice || targetDevice === 'all'
+        ? devices.map((d) => d.device_uid)
+        : [targetDevice];
+
+    // Send to each device independently: one failure must not abort the rest.
+    const summary = await sendToDevicesResilient(targets, (uid) => sendToDevice(uid));
+    setSendResult({ succeeded: summary.succeeded, failed: summary.failed });
   };
 
   const sendToDevice = async (deviceUid: string) => {
     const serialNumber = deviceSerialMap.get(deviceUid);
     if (!serialNumber) {
-      console.error('No serial number found for device:', deviceUid);
-      return;
+      throw new Error(`No serial number found for device: ${deviceUid}`);
     }
     switch (commandType) {
       case 'ping':
@@ -384,6 +386,17 @@ export function Commands() {
                 )}
               </Button>
             </div>
+            {sendResult && (
+              <p
+                className={`mt-3 text-sm ${
+                  sendResult.failed > 0 ? 'text-destructive' : 'text-green-600'
+                }`}
+              >
+                {sendResult.failed === 0
+                  ? `Command sent to ${sendResult.succeeded} device(s).`
+                  : `Command sent to ${sendResult.succeeded} device(s); ${sendResult.failed} failed.`}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
