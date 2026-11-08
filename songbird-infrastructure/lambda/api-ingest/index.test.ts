@@ -430,6 +430,90 @@ describe('handler - _health.qo events', () => {
   });
 });
 
+describe('handler - app health.qo events (firmware-emitted)', () => {
+  it('persists a firmware health note (not dropped)', async () => {
+    const notehubEvent = makeNotehubEvent({
+      file: 'health.qo',
+      body: {
+        firmware: '1.2.3',
+        uptime_sec: 3600,
+        boot_count: 5,
+        last_gps_fix_sec: 120,
+        sensor_errors: 0,
+        notecard_errors: 1,
+      },
+    });
+
+    const result = await handler(makeEvent(notehubEvent));
+    expect(result.statusCode).toBe(200);
+
+    const putCalls = ddbMock.commandCalls(PutCommand);
+    const rec = putCalls.find(
+      c => c.args[0].input.Item?.data_type === 'app_health'
+    );
+    expect(rec).toBeDefined();
+    expect(rec!.args[0].input.Item?.firmware).toBe('1.2.3');
+    expect(rec!.args[0].input.Item?.boot_count).toBe(5);
+    expect(rec!.args[0].input.Item?.notecard_errors).toBe(1);
+    // A plain health note must not be recorded as a shutdown
+    expect(rec!.args[0].input.Item?.shutdown_reason).toBeUndefined();
+  });
+
+  it('persists a shutdown note distinctly from firmware health', async () => {
+    ddbMock.on(GetCommand).resolves({ Item: undefined });
+    ddbMock.on(QueryCommand).resolves({ Items: [] });
+
+    const notehubEvent = makeNotehubEvent({
+      file: 'health.qo',
+      body: { shutdown: 'pvd_brownout', voltage: 2.85, uptime_sec: 42 },
+    });
+
+    const result = await handler(makeEvent(notehubEvent));
+    expect(result.statusCode).toBe(200);
+
+    const putCalls = ddbMock.commandCalls(PutCommand);
+    const rec = putCalls.find(
+      c => c.args[0].input.Item?.data_type === 'shutdown'
+    );
+    expect(rec).toBeDefined();
+    expect(rec!.args[0].input.Item?.shutdown_reason).toBe('pvd_brownout');
+    expect(rec!.args[0].input.Item?.voltage).toBe(2.85);
+  });
+
+  it('raises a low battery alert on a brownout shutdown note', async () => {
+    ddbMock.on(GetCommand).resolves({ Item: undefined });
+    ddbMock.on(QueryCommand).resolves({ Items: [] });
+
+    const notehubEvent = makeNotehubEvent({
+      file: 'health.qo',
+      body: { shutdown: 'pvd_brownout', voltage: 2.85 },
+    });
+
+    await handler(makeEvent(notehubEvent));
+
+    const putCalls = ddbMock.commandCalls(PutCommand);
+    const alert = putCalls.find(
+      c => c.args[0].input.Item?.type === 'low_battery'
+    );
+    expect(alert).toBeDefined();
+  });
+
+  it('does NOT raise a low battery alert for a firmware health note', async () => {
+    const notehubEvent = makeNotehubEvent({
+      file: 'health.qo',
+      body: { firmware: '1.2.3', boot_count: 5 },
+    });
+
+    await handler(makeEvent(notehubEvent));
+
+    const putCalls = ddbMock.commandCalls(PutCommand);
+    const alert = putCalls.find(
+      c => c.args[0].input.Item?.type === 'low_battery'
+    );
+    expect(alert).toBeUndefined();
+  });
+});
+
 describe('handler - _geolocate.qo events', () => {
   it('writes location event for triangulation results', async () => {
     const notehubEvent = makeNotehubEvent({
