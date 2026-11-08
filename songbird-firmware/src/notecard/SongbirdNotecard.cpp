@@ -209,6 +209,10 @@ bool notecardSetupTemplates(void) {
         JAddStringToObject(body, "mode", "xxxxxxxxxxxx");  // 12 char max
         JAddBoolToObject(body, "transit_locked", TBOOL);
         JAddBoolToObject(body, "demo_locked", TBOOL);
+        // gps_power_saving is emitted by notecardSendTrackNote(); it must be in
+        // the compact template or the Notecard drops it and ingest never sees
+        // body.gps_power_saving (firmware<->cloud contract H7).
+        JAddBoolToObject(body, "gps_power_saving", TBOOL);
         JAddItemToObject(req, "body", body);
 
         J* rsp = s_notecard.requestAndResponse(req);
@@ -239,7 +243,6 @@ bool notecardSetupTemplates(void) {
         JAddStringToObject(body, "type", "xxxxxxxxxxxxxxxx");  // 16 char max
         JAddNumberToObject(body, "value", TFLOAT32);
         JAddNumberToObject(body, "threshold", TFLOAT32);
-        JAddNumberToObject(body, "_time", TINT32);
         // 64 char placeholder for message
         JAddStringToObject(body, "message", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
         JAddItemToObject(req, "body", body);
@@ -275,13 +278,53 @@ bool notecardSetupTemplates(void) {
         // 64 char placeholder for message
         JAddStringToObject(body, "message", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
         JAddNumberToObject(body, "executed_at", TUINT32);
-        JAddNumberToObject(body, "_time", TINT32);
         JAddItemToObject(req, "body", body);
 
         J* rsp = s_notecard.requestAndResponse(req);
         if (rsp == NULL || s_notecard.responseError(rsp)) {
             #ifdef DEBUG_MODE
             DEBUG_SERIAL.print("[Notecard] command_ack.qo template failed: ");
+            if (rsp) {
+                const char* err = JGetString(rsp, "err");
+                DEBUG_SERIAL.println(err ? err : "unknown error");
+            } else {
+                DEBUG_SERIAL.println("no response");
+            }
+            #endif
+            success = false;
+            NC_ERROR();
+        }
+        if (rsp) s_notecard.deleteResponse(rsp);
+    }
+
+    // Template for health.qo
+    // health.qo carries two body shapes on one notefile: periodic health
+    // (firmware/uptime_sec/boot_count/...) and shutdown (shutdown/voltage/
+    // uptime_sec). Register the union of both so neither shape is dropped by
+    // the compact encoder and ingest can branch on which keys are present (M1).
+    {
+        J* req = s_notecard.newRequest("note.template");
+        JAddStringToObject(req, "file", NOTEFILE_HEALTH);
+        JAddStringToObject(req, "format", "compact");
+        JAddNumberToObject(req, "port", 13);
+
+        J* body = JCreateObject();
+        // Periodic health fields
+        JAddStringToObject(body, "firmware", "xxxxxxxxxxxxxxx");  // 15 char max
+        JAddNumberToObject(body, "uptime_sec", TUINT32);
+        JAddNumberToObject(body, "boot_count", TUINT32);
+        JAddNumberToObject(body, "last_gps_fix_sec", TUINT32);
+        JAddNumberToObject(body, "sensor_errors", TUINT16);
+        JAddNumberToObject(body, "notecard_errors", TUINT16);
+        // Shutdown fields
+        JAddStringToObject(body, "shutdown", "xxxxxxxxxxxxxxxx");  // 16 char max
+        JAddNumberToObject(body, "voltage", TFLOAT32);
+        JAddItemToObject(req, "body", body);
+
+        J* rsp = s_notecard.requestAndResponse(req);
+        if (rsp == NULL || s_notecard.responseError(rsp)) {
+            #ifdef DEBUG_MODE
+            DEBUG_SERIAL.print("[Notecard] health.qo template failed: ");
             if (rsp) {
                 const char* err = JGetString(rsp, "err");
                 DEBUG_SERIAL.println(err ? err : "unknown error");
@@ -404,15 +447,14 @@ bool notecardSendTrackNote(const SensorData* data, OperatingMode mode, bool forc
         case MODE_SLEEP: modeStr = "sleep"; break;
     }
     JAddStringToObject(body, "mode", modeStr);
-    if (stateIsTransitLocked()) {
-        JAddBoolToObject(body, "transit_locked", true);
-    }
-    if (stateIsDemoLocked()) {
-        JAddBoolToObject(body, "demo_locked", true);
-    }
-    if (stateIsGpsPowerSaving()) {
-        JAddBoolToObject(body, "gps_power_saving", true);
-    }
+    // Always send all three booleans so the compact encoding is deterministic
+    // and ingest can rely on their presence (H7 / M2 contract).
+    JAddBoolToObject(body, "transit_locked", stateIsTransitLocked());
+    JAddBoolToObject(body, "demo_locked", stateIsDemoLocked());
+    JAddBoolToObject(body, "gps_power_saving", stateIsGpsPowerSaving());
+    // Populate _time from the sensor sample timestamp so device time is
+    // transmitted rather than left unset (M2).
+    JAddNumberToObject(body, "_time", data->timestamp);
     JAddItemToObject(req, "body", body);
 
     J* rsp = s_notecard.requestAndResponse(req);
