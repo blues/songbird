@@ -53,17 +53,18 @@ songbird-dashboard/dist/
 songbird-dashboard/.cache/
 songbird-dashboard/*.local
 
-# Runtime config (contains secrets)
+# Runtime config (contains secrets) — keep the .example template tracked
 songbird-dashboard/public/config.json
+!songbird-dashboard/public/config.json.example
 
 # =============================================================================
 # Environment and Secrets
 # =============================================================================
+# Catch-all for env files; keep the tracked .example templates.
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
+!*/.env.example
 *.pem
 *.key
 credentials.json
