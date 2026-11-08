@@ -154,6 +154,28 @@ bool tasksSleepRequested(void);
 void tasksGetConfig(SongbirdConfig* config);
 
 /**
+ * @brief Get the count of I2C bus acquire failures in the sensor path.
+ *
+ * Incremented whenever SensorTask cannot acquire g_i2cMutex within the timeout.
+ * Exposed so a wedged/contended bus is reported via health.qo sensor_errors
+ * rather than being silently swallowed (review finding M4). Saturates at 255.
+ *
+ * @return Sensor-path I2C acquire failures since boot (clamped to 255).
+ */
+uint8_t tasksGetSensorErrorCount(void);
+
+/**
+ * @brief Get the count of I2C bus acquire failures in the Notecard path.
+ *
+ * Incremented whenever the command or env poll cannot acquire g_i2cMutex within
+ * the timeout. Exposed so a wedged/contended bus is reported via health.qo
+ * notecard_errors rather than being silently swallowed (M4). Saturates at 255.
+ *
+ * @return Notecard-path I2C acquire failures since boot (clamped to 255).
+ */
+uint8_t tasksGetNotecardErrorCount(void);
+
+/**
  * @brief Log task stack high water marks (debug)
  *
  * Prints stack usage for all tasks to DEBUG_SERIAL.
