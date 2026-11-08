@@ -332,11 +332,22 @@ uint32_t stateGetGpsActiveStartTime(void);
 void stateSetShutdownReason(const char* reason);
 
 /**
- * @brief Get the last shutdown reason string
+ * @brief Copy the last shutdown reason string into caller buffer
  *
- * @return Pointer to reason string
+ * Thread-safe: the copy is performed inside a critical section so composite
+ * reads of the multi-byte reason buffer cannot race the setter.
+ *
+ * @param out Destination buffer
+ * @param outSize Size of destination buffer
  */
-const char* stateGetShutdownReason(void);
+void stateGetShutdownReason(char* out, size_t outSize);
+
+/**
+ * @brief Get the current operating mode (thread-safe)
+ *
+ * @return Current OperatingMode
+ */
+OperatingMode stateGetMode(void);
 
 /**
  * @brief Increment the consecutive brownout counter

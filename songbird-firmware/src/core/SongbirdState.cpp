@@ -264,16 +264,21 @@ bool stateGetAndClearMotion(void) {
 }
 
 void statePrepareForSleep(void) {
+    taskENTER_CRITICAL();
     // Calculate uptime for this wake cycle
     uint32_t currentUptime = (millis() - s_bootStartTime) / 1000;
     s_state.uptimeAtSleep = millis();
     s_state.totalUptimeSec += currentUptime;
+    taskEXIT_CRITICAL();
 }
 
 uint32_t stateGetTotalUptimeSec(void) {
+    taskENTER_CRITICAL();
     // Current session uptime + accumulated from previous sessions
     uint32_t currentSession = (millis() - s_bootStartTime) / 1000;
-    return s_state.totalUptimeSec + currentSession;
+    uint32_t total = s_state.totalUptimeSec + currentSession;
+    taskEXIT_CRITICAL();
+    return total;
 }
 
 uint32_t stateGetBootCount(void) {
@@ -441,32 +446,57 @@ bool stateValidateChecksum(const SongbirdState* state) {
 
 void stateSetShutdownReason(const char* reason) {
     if (reason == NULL) return;
+    taskENTER_CRITICAL();
     strncpy(s_state.lastShutdownReason, reason, sizeof(s_state.lastShutdownReason) - 1);
     s_state.lastShutdownReason[sizeof(s_state.lastShutdownReason) - 1] = '\0';
+    taskEXIT_CRITICAL();
 }
 
-const char* stateGetShutdownReason(void) {
-    return s_state.lastShutdownReason;
+void stateGetShutdownReason(char* out, size_t outSize) {
+    if (out == NULL || outSize == 0) return;
+    taskENTER_CRITICAL();
+    strncpy(out, s_state.lastShutdownReason, outSize - 1);
+    out[outSize - 1] = '\0';
+    taskEXIT_CRITICAL();
 }
 
 void stateIncrementConsecutiveBrownouts(void) {
+    taskENTER_CRITICAL();
     if (s_state.consecutiveBrownouts < 255) {
         s_state.consecutiveBrownouts++;
     }
+    taskEXIT_CRITICAL();
 }
 
 void stateResetConsecutiveBrownouts(void) {
+    taskENTER_CRITICAL();
     s_state.consecutiveBrownouts = 0;
+    taskEXIT_CRITICAL();
 }
 
 uint8_t stateGetConsecutiveBrownouts(void) {
-    return s_state.consecutiveBrownouts;
+    taskENTER_CRITICAL();
+    uint8_t count = s_state.consecutiveBrownouts;
+    taskEXIT_CRITICAL();
+    return count;
 }
 
 void stateRecordBootTimestamp(void) {
+    taskENTER_CRITICAL();
     s_state.lastBootTimestamp = millis();
+    taskEXIT_CRITICAL();
 }
 
 uint32_t stateGetBootTimestamp(void) {
-    return s_state.lastBootTimestamp;
+    taskENTER_CRITICAL();
+    uint32_t ts = s_state.lastBootTimestamp;
+    taskEXIT_CRITICAL();
+    return ts;
+}
+
+OperatingMode stateGetMode(void) {
+    taskENTER_CRITICAL();
+    OperatingMode mode = s_state.currentMode;
+    taskEXIT_CRITICAL();
+    return mode;
 }
