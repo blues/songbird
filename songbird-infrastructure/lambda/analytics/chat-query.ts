@@ -108,28 +108,103 @@ interface QueryResult {
   insights: string;
 }
 
-function validateSQL(sql: string): void {
-  const lowerSQL = sql.toLowerCase();
+// Allow-list of tables the analytics chat is permitted to read. These are the
+// only base tables that exist in (or should be reachable through) the
+// `analytics` schema. Anything else — other schemas, system catalogs, or
+// invented tables — is rejected.
+const ALLOWED_TABLES = new Set(['devices', 'telemetry', 'locations', 'alerts', 'journeys']);
 
-  // Only allow SELECT statements
-  if (!lowerSQL.trim().startsWith('select') && !lowerSQL.trim().startsWith('with')) {
-    throw new Error('Only SELECT queries are allowed');
+// Dangerous keywords that must never appear in a read-only analytics query.
+// This is defense-in-depth on top of the SELECT/WITH + table allow-list; it is
+// intentionally broad (DDL, DML, procedural, and maintenance verbs).
+const DANGEROUS_KEYWORDS = [
+  'insert', 'update', 'delete', 'drop', 'truncate', 'alter',
+  'create', 'grant', 'revoke', 'exec', 'execute', 'merge',
+  'call', 'copy', 'vacuum', 'analyze', 'reindex', 'cluster',
+  'comment', 'lock', 'set', 'reset', 'do', 'listen', 'notify',
+];
+
+/**
+ * Structural safety checks that must hold for BOTH the model-generated SQL and
+ * the rewritten SQL that is actually sent to the database. These guard against
+ * statement stacking and comment-based obfuscation regardless of the source of
+ * the text, so we run them again after string rewriting in executeQuery().
+ */
+function assertSafeStatement(sql: string): void {
+  const trimmed = sql.trim();
+  const lowerSQL = trimmed.toLowerCase();
+
+  // 1. Single statement only. A single trailing semicolon is tolerated; any
+  //    other semicolon indicates stacked/injected statements
+  //    (e.g. "...; DROP TABLE ...").
+  const withoutTrailingSemicolon = trimmed.replace(/;+\s*$/, '');
+  if (withoutTrailingSemicolon.includes(';')) {
+    throw new Error('Only a single SQL statement is allowed');
   }
 
-  // Block dangerous keywords
-  const dangerousKeywords = [
-    'insert', 'update', 'delete', 'drop', 'truncate', 'alter',
-    'create', 'grant', 'revoke', 'exec', 'execute'
-  ];
+  // 2. Reject SQL comments — a common vector for smuggling payloads past
+  //    keyword/allow-list checks (line comments "--", "#" and block comments).
+  if (/--|\/\*|\*\/|#/.test(sql)) {
+    throw new Error('SQL comments are not allowed');
+  }
 
-  for (const keyword of dangerousKeywords) {
+  // 3. Block dangerous keywords (defense in depth).
+  for (const keyword of DANGEROUS_KEYWORDS) {
     if (new RegExp(`\\b${keyword}\\b`).test(lowerSQL)) {
       throw new Error(`Keyword '${keyword}' is not allowed`);
     }
   }
 
+  // 4. Block access to system catalogs / metadata schemas. Only the analytics
+  //    schema is ever a legitimate target.
+  if (/\b(information_schema|pg_catalog|pg_[a-z_]+)\b/.test(lowerSQL)) {
+    throw new Error('Access to system catalogs is not allowed');
+  }
+}
+
+function validateSQL(sql: string): void {
+  const trimmed = sql.trim();
+  const lowerSQL = trimmed.toLowerCase();
+
+  // Structural guards (single statement, no comments, no dangerous verbs,
+  // no system catalogs).
+  assertSafeStatement(sql);
+
+  // Allow-listed leading keyword only.
+  if (!lowerSQL.startsWith('select') && !lowerSQL.startsWith('with')) {
+    throw new Error('Only SELECT queries are allowed');
+  }
+
+  // Table allow-list. Every table referenced after FROM/JOIN must be one of the
+  // known analytics tables (with or without the analytics. prefix, since the
+  // schema prefix is applied at execution time) or a CTE defined in this query.
+  // Collect CTE names first so WITH ... AS (...) queries are not rejected.
+  const cteNames = new Set<string>();
+  for (const m of lowerSQL.matchAll(/\b([a-z_][a-z0-9_]*)\s+as\s*\(/g)) {
+    cteNames.add(m[1]);
+  }
+
+  for (const match of lowerSQL.matchAll(/\b(?:from|join)\s+("?[a-z_][a-z0-9_."]*"?)/g)) {
+    const raw = match[1].replace(/"/g, '');
+    const parts = raw.split('.');
+    const table = parts[parts.length - 1];
+    const schema = parts.length > 1 ? parts[parts.length - 2] : 'analytics';
+
+    // CTE references are unqualified and were defined above.
+    if (parts.length === 1 && cteNames.has(table)) {
+      continue;
+    }
+
+    if (schema !== 'analytics') {
+      throw new Error(`Table schema '${schema}' is not allowed`);
+    }
+    if (!ALLOWED_TABLES.has(table)) {
+      throw new Error(`Table '${table}' is not in the allow-list`);
+    }
+  }
+
   // Must include device filter — either the :deviceFilter placeholder or a
-  // literal serial_number filter (used when the model scopes to "my device")
+  // literal serial_number filter (used when the model scopes to "my device").
   const hasDeviceFilter = sql.includes(':deviceFilter') || /serial_number\s*=\s*'[^']+'/.test(sql);
   if (!hasDeviceFilter) {
     throw new Error('Query must include device filter (:deviceFilter)');
@@ -296,6 +371,13 @@ async function generateSQL(question: string, assignedDevice?: string): Promise<{
 }
 
 async function executeQuery(sql: string, deviceSerialNumbers: string[]): Promise<any[]> {
+  // Defense in depth: the device scope must never be empty at execution time,
+  // otherwise the :deviceFilter placeholder would expand to an empty IN () list
+  // and silently widen access.
+  if (!deviceSerialNumbers.length) {
+    throw new Error('Device scope is required to execute a query');
+  }
+
   // Replace device filter placeholder
   const deviceList = deviceSerialNumbers.map(sn => `'${sn.replace(/'/g, "''")}'`).join(', ');
   let finalSQL = sql.replaceAll(':deviceFilter', deviceList);
@@ -315,6 +397,13 @@ async function executeQuery(sql: string, deviceSerialNumbers: string[]): Promise
       'analytics.$1'
     );
   }
+
+  // Re-assert structural safety on the *rewritten* SQL. The device-list
+  // expansion and schema-prefix rewriting above operate on model-controlled
+  // text; running the structural guards again ensures no injected statement,
+  // comment, or dangerous verb slipped in via a malicious serial number or an
+  // unexpected rewrite. This is the last check before the string reaches the DB.
+  assertSafeStatement(finalSQL);
 
   console.log('Executing SQL:', finalSQL);
 
@@ -604,3 +693,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     };
   }
 };
+
+// Exported for unit testing of the SQL safety guards (M16 hardening).
+export { validateSQL, assertSafeStatement, ALLOWED_TABLES, DANGEROUS_KEYWORDS };
