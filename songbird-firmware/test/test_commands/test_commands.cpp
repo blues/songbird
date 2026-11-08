@@ -184,6 +184,51 @@ void test_melody_nonexistent_returns_error(void) {
 }
 
 // =============================================================================
+// Command struct init / bounded-copy tests (H6)
+//
+// Mirrors the exact fill semantics of notecardGetCommand(): the struct is
+// zero-initialized up front, and a cloud-supplied melody name is copied with a
+// bounded, always-null-terminated strncpy. notecardGetCommand() itself pulls in
+// the Notecard hardware library, so we exercise the pure parse contract here.
+// =============================================================================
+
+// Replicates the fixed play_melody fill path.
+static void fill_command_from_melody(Command* cmd, const char* melody) {
+    memset(cmd, 0, sizeof(*cmd));
+    cmd->type = CMD_PLAY_MELODY;
+    if (melody) {
+        strncpy(cmd->params.playMelody.melodyName, melody,
+                sizeof(cmd->params.playMelody.melodyName) - 1);
+        cmd->params.playMelody.melodyName[
+            sizeof(cmd->params.playMelody.melodyName) - 1] = '\0';
+    }
+}
+
+void test_command_zero_init_no_melody_key(void) {
+    // play_melody with no "melody" key -> melodyName must be empty, not garbage.
+    Command cmd;
+    memset(&cmd, 0xAA, sizeof(cmd));  // poison the stack slot first
+    fill_command_from_melody(&cmd, NULL);
+    TEST_ASSERT_EQUAL_CHAR('\0', cmd.params.playMelody.melodyName[0]);
+}
+
+void test_command_melody_null_terminated_when_oversized(void) {
+    // A >15-char cloud melody name must be truncated AND null-terminated so a
+    // downstream strcmp cannot over-read past the buffer.
+    Command cmd;
+    fill_command_from_melody(&cmd, "this_is_a_very_long_melody_name");
+    size_t cap = sizeof(cmd.params.playMelody.melodyName);
+    TEST_ASSERT_EQUAL_CHAR('\0', cmd.params.playMelody.melodyName[cap - 1]);
+    TEST_ASSERT_EQUAL_UINT(cap - 1, strlen(cmd.params.playMelody.melodyName));
+}
+
+void test_command_melody_short_name_copied(void) {
+    Command cmd;
+    fill_command_from_melody(&cmd, "ping");
+    TEST_ASSERT_EQUAL_STRING("ping", cmd.params.playMelody.melodyName);
+}
+
+// =============================================================================
 // Main
 // =============================================================================
 
@@ -217,6 +262,11 @@ int main(int argc, char **argv) {
     RUN_TEST(test_melody_sleep);
     RUN_TEST(test_melody_null_returns_error);
     RUN_TEST(test_melody_nonexistent_returns_error);
+
+    // Command struct init / bounded-copy (H6)
+    RUN_TEST(test_command_zero_init_no_melody_key);
+    RUN_TEST(test_command_melody_null_terminated_when_oversized);
+    RUN_TEST(test_command_melody_short_name_copied);
 
     return UNITY_END();
 }
