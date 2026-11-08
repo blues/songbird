@@ -10,6 +10,7 @@ process.env.COMMANDS_TABLE = 'test-commands';
 process.env.JOURNEYS_TABLE = 'test-journeys';
 process.env.LOCATIONS_TABLE = 'test-locations';
 process.env.DEVICE_ALIASES_TABLE = 'test-device-aliases';
+process.env.IDEMPOTENCY_TABLE = 'test-idempotency';
 process.env.ACTIVITY_TABLE = 'test-activity';
 process.env.ALERT_TOPIC_ARN = 'arn:aws:sns:us-east-1:123456789:test-alerts';
 process.env.NOTEHUB_PROJECT_UID = 'app:test-project';

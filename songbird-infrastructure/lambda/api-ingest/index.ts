@@ -30,6 +30,7 @@ const ALERTS_TABLE = process.env.ALERTS_TABLE!;
 const ALERT_TOPIC_ARN = process.env.ALERT_TOPIC_ARN!;
 const JOURNEYS_TABLE = process.env.JOURNEYS_TABLE!;
 const LOCATIONS_TABLE = process.env.LOCATIONS_TABLE!;
+const IDEMPOTENCY_TABLE = process.env.IDEMPOTENCY_TABLE!;
 
 // TTL: 90 days in seconds
 const TTL_DAYS = 90;
@@ -132,7 +133,19 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    const notehubEvent: NotehubEvent = JSON.parse(event.body);
+    let notehubEvent: NotehubEvent;
+    try {
+      notehubEvent = JSON.parse(event.body);
+    } catch (parseError) {
+      // Permanently-malformed input: acknowledge with 200 so Notehub does not
+      // retry a payload that can never succeed.
+      console.error('Rejecting event - body is not valid JSON', parseError);
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ status: 'ignored', reason: 'invalid JSON body' }),
+      };
+    }
     console.log('Processing Notehub event:', JSON.stringify(notehubEvent));
 
     // Reject events without serial number
@@ -143,6 +156,21 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         headers,
         body: JSON.stringify({ error: 'Serial number (sn) is required. Configure the device serial number in Notehub.' }),
       };
+    }
+
+    // Idempotency: use the Notehub event id as the key. If we have already
+    // processed this exact event id, acknowledge without re-processing so a
+    // duplicate delivery (Notehub retry) does not double-write.
+    if (notehubEvent.event) {
+      const claimed = await claimEventId(notehubEvent.event);
+      if (!claimed) {
+        console.log(`Duplicate event ${notehubEvent.event} - already processed, skipping`);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ status: 'duplicate', event: notehubEvent.event }),
+        };
+      }
     }
 
     // Handle device alias (create if new, detect Notecard swaps)
@@ -286,6 +314,37 @@ interface SessionInfo {
   notecard_version?: string;
   notecard_sku?: string;
   usb_powered?: boolean;
+}
+
+/**
+ * Atomically claim a Notehub event id for processing.
+ *
+ * Writes the event id with a conditional `attribute_not_exists(event_id)`.
+ * Returns true if this call won the claim (first time we've seen the id),
+ * false if the id was already recorded (duplicate delivery). This makes the
+ * ingest pipeline idempotent per Notehub event id.
+ */
+async function claimEventId(eventId: string): Promise<boolean> {
+  const ttl = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60; // 7 days
+  try {
+    await docClient.send(new PutCommand({
+      TableName: IDEMPOTENCY_TABLE,
+      Item: {
+        event_id: eventId,
+        processed_at: Date.now(),
+        ttl,
+      },
+      ConditionExpression: 'attribute_not_exists(event_id)',
+    }));
+    return true;
+  } catch (error: any) {
+    if (error?.name === 'ConditionalCheckFailedException') {
+      return false;
+    }
+    // Any other error (e.g. table unavailable) should not silently drop the
+    // event — surface it so the outer handler returns 500 and Notehub retries.
+    throw error;
+  }
 }
 
 /**
