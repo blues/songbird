@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Settings, Thermometer, Droplets, Gauge, Battery, BatteryFull, BatteryCharging, Zap, AlertTriangle, Check, CheckCheck, Clock, Activity, MapPin, Satellite, Lock, Route, Navigation, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -212,39 +212,53 @@ export function DeviceDetail({ mapboxToken }: DeviceDetailProps) {
   // Determine if we're viewing a journey (for filtering and UI)
   const isViewingJourney = locationTab === 'journeys' && selectedJourney;
 
-  // Filter data to journey timeframe when a journey is selected
-  const filteredTelemetry = isViewingJourney && selectedJourney
-    ? telemetry.filter(t => {
-        const time = new Date(t.time).getTime();
-        const startTime = new Date(selectedJourney.start_time).getTime();
-        const endTime = selectedJourney.end_time
-          ? new Date(selectedJourney.end_time).getTime()
-          : Date.now();
-        return time >= startTime && time <= endTime;
-      })
-    : telemetry;
+  // Filter data to journey timeframe when a journey is selected.
+  // Memoized so these array scans only re-run when their inputs change,
+  // not on every unrelated re-render of this large component.
+  const filteredTelemetry = useMemo(
+    () =>
+      isViewingJourney && selectedJourney
+        ? telemetry.filter(t => {
+            const time = new Date(t.time).getTime();
+            const startTime = new Date(selectedJourney.start_time).getTime();
+            const endTime = selectedJourney.end_time
+              ? new Date(selectedJourney.end_time).getTime()
+              : Date.now();
+            return time >= startTime && time <= endTime;
+          })
+        : telemetry,
+    [telemetry, isViewingJourney, selectedJourney]
+  );
 
-  const filteredPower = isViewingJourney && selectedJourney
-    ? power.filter(p => {
-        const time = new Date(p.time).getTime();
-        const startTime = new Date(selectedJourney.start_time).getTime();
-        const endTime = selectedJourney.end_time
-          ? new Date(selectedJourney.end_time).getTime()
-          : Date.now();
-        return time >= startTime && time <= endTime;
-      })
-    : power;
+  const filteredPower = useMemo(
+    () =>
+      isViewingJourney && selectedJourney
+        ? power.filter(p => {
+            const time = new Date(p.time).getTime();
+            const startTime = new Date(selectedJourney.start_time).getTime();
+            const endTime = selectedJourney.end_time
+              ? new Date(selectedJourney.end_time).getTime()
+              : Date.now();
+            return time >= startTime && time <= endTime;
+          })
+        : power,
+    [power, isViewingJourney, selectedJourney]
+  );
 
-  const filteredHealth = isViewingJourney && selectedJourney
-    ? health.filter(h => {
-        const time = new Date(h.time).getTime();
-        const startTime = new Date(selectedJourney.start_time).getTime();
-        const endTime = selectedJourney.end_time
-          ? new Date(selectedJourney.end_time).getTime()
-          : Date.now();
-        return time >= startTime && time <= endTime;
-      })
-    : health;
+  const filteredHealth = useMemo(
+    () =>
+      isViewingJourney && selectedJourney
+        ? health.filter(h => {
+            const time = new Date(h.time).getTime();
+            const startTime = new Date(selectedJourney.start_time).getTime();
+            const endTime = selectedJourney.end_time
+              ? new Date(selectedJourney.end_time).getTime()
+              : Date.now();
+            return time >= startTime && time <= endTime;
+          })
+        : health,
+    [health, isViewingJourney, selectedJourney]
+  );
 
   // Get latest values and sparkline data
   // Find first telemetry record with actual sensor data (not just location-only events)
