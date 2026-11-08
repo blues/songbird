@@ -166,14 +166,28 @@ export async function createAlias(serialNumber: string, deviceUid: string): Prom
 
 /**
  * Update alias when a Notecard is swapped
- * Moves the old device_uid to previous_device_uids and sets the new one
+ * Moves the old device_uid into previous_device_uids and sets the new one.
+ *
+ * The write is guarded by a ConditionExpression asserting device_uid still
+ * equals the value the caller read (expectedOldDeviceUid). This closes the
+ * read-modify-write TOCTOU window: a concurrent swap that already moved
+ * device_uid causes a ConditionalCheckFailedException instead of silently
+ * clobbering the newer mapping. previous_device_uids is rebuilt as a
+ * de-duplicated set rather than blindly appended.
  */
 export async function updateAliasOnSwap(
   serialNumber: string,
   newDeviceUid: string,
-  oldDeviceUid: string
+  oldDeviceUid: string,
+  previousDeviceUids: string[] = []
 ): Promise<void> {
   const now = Date.now();
+
+  // De-dup history: existing previous uids + the old uid, minus the incoming
+  // new uid (which is now the current device_uid).
+  const dedupedPrevious = Array.from(
+    new Set([...previousDeviceUids, oldDeviceUid])
+  ).filter((uid) => uid !== newDeviceUid);
 
   const command = new UpdateCommand({
     TableName: DEVICE_ALIASES_TABLE,
@@ -181,13 +195,15 @@ export async function updateAliasOnSwap(
     UpdateExpression: `
       SET device_uid = :new_uid,
           updated_at = :now,
-          previous_device_uids = list_append(if_not_exists(previous_device_uids, :empty_list), :old_uid_list)
+          previous_device_uids = :previous
     `,
+    // Only apply if device_uid is still what we read (no concurrent swap).
+    ConditionExpression: 'device_uid = :expected_old',
     ExpressionAttributeValues: {
       ':new_uid': newDeviceUid,
       ':now': now,
-      ':old_uid_list': [oldDeviceUid],
-      ':empty_list': [],
+      ':previous': dedupedPrevious,
+      ':expected_old': oldDeviceUid,
     },
   });
 
@@ -199,26 +215,53 @@ export async function updateAliasOnSwap(
  * Handle device alias for incoming event
  * Creates alias if new, updates if Notecard was swapped
  * Returns true if a swap was detected
+ *
+ * Swap updates use a conditional write and retry on contention so two events
+ * for the same serial cannot race and lose an update (TOCTOU-safe).
  */
 export async function handleDeviceAlias(
   serialNumber: string,
   deviceUid: string
 ): Promise<{ isNewDevice: boolean; isSwap: boolean; oldDeviceUid?: string }> {
-  const existingAlias = await getAliasBySerial(serialNumber);
+  const MAX_ATTEMPTS = 3;
 
-  if (!existingAlias) {
-    // New device - create alias
-    await createAlias(serialNumber, deviceUid);
-    return { isNewDevice: true, isSwap: false };
-  }
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const existingAlias = await getAliasBySerial(serialNumber);
 
-  if (existingAlias.device_uid !== deviceUid) {
-    // Notecard swap detected!
+    if (!existingAlias) {
+      // New device - create alias. createAlias is conditional on
+      // attribute_not_exists, so a racing create is handled there.
+      await createAlias(serialNumber, deviceUid);
+      return { isNewDevice: true, isSwap: false };
+    }
+
+    if (existingAlias.device_uid === deviceUid) {
+      // Same device, no changes needed
+      return { isNewDevice: false, isSwap: false };
+    }
+
+    // Notecard swap detected - apply a conditional write guarded on the
+    // device_uid we just read.
     const oldDeviceUid = existingAlias.device_uid;
-    await updateAliasOnSwap(serialNumber, deviceUid, oldDeviceUid);
-    return { isNewDevice: false, isSwap: true, oldDeviceUid };
+    try {
+      await updateAliasOnSwap(
+        serialNumber,
+        deviceUid,
+        oldDeviceUid,
+        existingAlias.previous_device_uids ?? []
+      );
+      return { isNewDevice: false, isSwap: true, oldDeviceUid };
+    } catch (error: any) {
+      if (error.name === 'ConditionalCheckFailedException' && attempt < MAX_ATTEMPTS) {
+        // Lost the race with a concurrent swap - re-read and retry. If the
+        // other writer already set our device_uid, the next loop returns
+        // no-op via the equality check above.
+        console.log(`Alias swap for ${serialNumber} lost a race, retrying (attempt ${attempt})`);
+        continue;
+      }
+      throw error;
+    }
   }
 
-  // Same device, no changes needed
-  return { isNewDevice: false, isSwap: false };
+  throw new Error(`handleDeviceAlias: exceeded retries resolving swap for ${serialNumber}`);
 }
