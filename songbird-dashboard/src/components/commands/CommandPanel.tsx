@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useSendPing, useSendLocate, useSendPlayMelody, useSendUnlock } from '@/hooks/useCommands';
 import { useCanUnlockDevice } from '@/hooks/useAuth';
+import { useToast } from '@/components/ui/use-toast';
 import { formatRelativeTime } from '@/utils/formatters';
 import type { Command } from '@/types';
 import type { UnlockType } from '@/api/commands';
@@ -56,6 +57,8 @@ export function CommandPanel({
   const [locateDuration, setLocateDuration] = useState(30);
   const [unlockType, setUnlockType] = useState<UnlockType>('all');
 
+  const { toast } = useToast();
+
   const pingMutation = useSendPing();
   const locateMutation = useSendLocate();
   const melodyMutation = useSendPlayMelody();
@@ -70,20 +73,39 @@ export function CommandPanel({
     melodyMutation.isPending ||
     unlockMutation.isPending;
 
+  const commandErrorToast = (command: string) => (error: unknown) => {
+    toast({
+      variant: 'destructive',
+      title: `Failed to send ${command} command`,
+      description: error instanceof Error ? error.message : 'Please try again.',
+    });
+  };
+
   const handlePing = () => {
-    pingMutation.mutate(serialNumber);
+    pingMutation.mutate(serialNumber, {
+      onError: commandErrorToast('ping'),
+    });
   };
 
   const handleLocate = () => {
-    locateMutation.mutate({ serialNumber, durationSec: locateDuration });
+    locateMutation.mutate(
+      { serialNumber, durationSec: locateDuration },
+      { onError: commandErrorToast('locate') }
+    );
   };
 
   const handlePlayMelody = () => {
-    melodyMutation.mutate({ serialNumber, melody: selectedMelody });
+    melodyMutation.mutate(
+      { serialNumber, melody: selectedMelody },
+      { onError: commandErrorToast('melody') }
+    );
   };
 
   const handleUnlock = () => {
-    unlockMutation.mutate({ serialNumber, lockType: unlockType });
+    unlockMutation.mutate(
+      { serialNumber, lockType: unlockType },
+      { onError: commandErrorToast('unlock') }
+    );
   };
 
   return (

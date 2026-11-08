@@ -23,6 +23,11 @@ vi.mock('@/utils/formatters', () => ({
   formatRelativeTime: vi.fn(() => '2 minutes ago'),
 }));
 
+const mockToast = vi.fn();
+vi.mock('@/components/ui/use-toast', () => ({
+  useToast: () => ({ toast: mockToast }),
+}));
+
 // Radix UI Slider uses ResizeObserver which is not available in jsdom
 globalThis.ResizeObserver = class ResizeObserver {
   observe() {}
@@ -35,6 +40,7 @@ beforeEach(() => {
   mockLocateMutate.mockClear();
   mockMelodyMutate.mockClear();
   mockUnlockMutate.mockClear();
+  mockToast.mockClear();
 });
 
 describe('CommandPanel', () => {
@@ -53,7 +59,28 @@ describe('CommandPanel', () => {
 
     const pingButton = screen.getByRole('button', { name: /ping/i });
     fireEvent.click(pingButton);
-    expect(mockPingMutate).toHaveBeenCalledWith('songbird01-bds');
+    expect(mockPingMutate).toHaveBeenCalledWith(
+      'songbird01-bds',
+      expect.objectContaining({ onError: expect.any(Function) })
+    );
+  });
+
+  it('shows a destructive toast when a command mutation fails', () => {
+    // Drive the onError callback the component passes to mutate.
+    mockPingMutate.mockImplementation((_vars, opts) => {
+      opts?.onError?.(new Error('network down'));
+    });
+
+    render(<CommandPanel {...defaultProps} />);
+    fireEvent.click(screen.getByRole('button', { name: /ping/i }));
+
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: expect.stringContaining('ping'),
+        description: 'network down',
+      })
+    );
   });
 
   it('ping button is disabled when audioEnabled is false', () => {

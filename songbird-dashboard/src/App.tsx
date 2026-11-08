@@ -8,6 +8,7 @@ import '@aws-amplify/ui-react/styles.css';
 import { usePostHog } from 'posthog-js/react';
 
 import { Layout } from '@/components/layout/Layout';
+import { Toaster } from '@/components/ui/toaster';
 import { Dashboard } from '@/pages/Dashboard';
 import { Devices } from '@/pages/Devices';
 import { DeviceDetail } from '@/pages/DeviceDetail';
@@ -208,6 +209,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <PageViewTracker />
+        <Toaster />
         <Routes>
           {/* Public routes - no authentication required */}
           <Route
