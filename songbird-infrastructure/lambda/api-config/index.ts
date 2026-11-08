@@ -59,6 +59,66 @@ async function getNotehubToken(): Promise<string> {
   return cachedToken;
 }
 
+/**
+ * Check if the user is an admin (in 'Admin' Cognito group).
+ * Mirrors the authorization model used by the Commands API (api-commands).
+ */
+function isAdmin(event: APIGatewayProxyEvent): boolean {
+  try {
+    const claims = (event.requestContext as any)?.authorizer?.jwt?.claims;
+    if (!claims) return false;
+
+    const groups = claims['cognito:groups'];
+    if (Array.isArray(groups)) {
+      return groups.includes('Admin');
+    }
+    if (typeof groups === 'string') {
+      return groups === 'Admin' || groups.includes('Admin');
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get the user's email from the JWT claims.
+ */
+function getUserEmail(event: APIGatewayProxyEvent): string | undefined {
+  try {
+    const claims = (event.requestContext as any)?.authorizer?.jwt?.claims;
+    return claims?.email;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Check if the user owns the device (is assigned to it).
+ */
+async function isDeviceOwner(deviceUid: string, userEmail: string): Promise<boolean> {
+  const result = await docClient.send(new GetCommand({
+    TableName: DEVICES_TABLE,
+    Key: { device_uid: deviceUid },
+    ProjectionExpression: 'assigned_to',
+  }));
+  return result.Item?.assigned_to === userEmail;
+}
+
+/**
+ * Authorize a device-level mutation: allowed for admins or the device owner.
+ */
+async function isAdminOrDeviceOwner(
+  event: APIGatewayProxyEvent,
+  deviceUid: string
+): Promise<boolean> {
+  if (isAdmin(event)) {
+    return true;
+  }
+  const userEmail = getUserEmail(event);
+  return userEmail ? await isDeviceOwner(deviceUid, userEmail) : false;
+}
+
 // Valid configuration keys and their types
 const CONFIG_SCHEMA: Record<string, { type: string; min?: number; max?: number; values?: string[] }> = {
   mode: { type: 'string', values: ['demo', 'transit', 'storage', 'sleep'] },
@@ -121,6 +181,21 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         };
       }
 
+      // Authorization: mutating a device's config or Wi-Fi credentials is
+      // restricted to admins and the device owner (mirrors api-commands).
+      if (method === 'PUT') {
+        const authorized = await isAdminOrDeviceOwner(event, deviceUid);
+        if (!authorized) {
+          return {
+            statusCode: 403,
+            headers: corsHeaders,
+            body: JSON.stringify({
+              error: 'Unauthorized: Only admins and device owners can modify device configuration',
+            }),
+          };
+        }
+      }
+
       if (method === 'GET') {
         return await getDeviceConfig(deviceUid, serialNumber, corsHeaders);
       } else if (method === 'PUT' && isWifiEndpoint) {
@@ -131,6 +206,16 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     if (method === 'PUT' && fleetUid) {
+      // Authorization: fleet-wide config changes are admin-only.
+      if (!isAdmin(event)) {
+        return {
+          statusCode: 403,
+          headers: corsHeaders,
+          body: JSON.stringify({
+            error: 'Unauthorized: Only admins can modify fleet configuration',
+          }),
+        };
+      }
       return await updateFleetConfig(fleetUid, event.body, corsHeaders);
     }
 

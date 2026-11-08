@@ -36,6 +36,13 @@ beforeEach(() => {
 });
 
 function makeEvent(overrides: Partial<APIGatewayProxyEvent> = {}): APIGatewayProxyEvent {
+  const { requestContext: rcOverride, ...rest } = overrides;
+  // Default to an Admin caller so existing behavioral tests exercise the
+  // happy path; individual tests override the authorizer to assert 403s.
+  const baseHttp = (rcOverride as any)?.http ?? { method: 'GET', path: '/devices/songbird01-bds/config' };
+  const authorizer = (rcOverride as any)?.authorizer ?? {
+    jwt: { claims: { 'cognito:groups': 'Admin', email: 'admin@test.com' } },
+  };
   return {
     body: null,
     headers: {},
@@ -48,10 +55,11 @@ function makeEvent(overrides: Partial<APIGatewayProxyEvent> = {}): APIGatewayPro
     multiValueQueryStringParameters: null,
     stageVariables: null,
     requestContext: {
-      http: { method: 'GET', path: '/devices/songbird01-bds/config' },
+      http: baseHttp,
+      authorizer,
     } as any,
     resource: '',
-    ...overrides,
+    ...rest,
   };
 }
 
@@ -359,6 +367,123 @@ describe('Config API Lambda', () => {
       expect(result.statusCode).toBe(400);
       const body = JSON.parse(result.body);
       expect(body.errors).toContain('mode must be one of: demo, transit, storage, sleep');
+    });
+  });
+
+  describe('authorization (C1)', () => {
+    it('rejects device config PUT for a non-admin non-owner (403)', async () => {
+      mockDeviceAlias('songbird01-bds', 'dev:1234');
+      // Device is assigned to someone else
+      ddbMock.on(GetCommand, {
+        TableName: 'test-devices',
+        Key: { device_uid: 'dev:1234' },
+      }).resolves({
+        Item: { device_uid: 'dev:1234', assigned_to: 'other@test.com' },
+      });
+
+      const event = makeEvent({
+        httpMethod: 'PUT',
+        requestContext: {
+          http: { method: 'PUT', path: '/devices/songbird01-bds/config' },
+          authorizer: { jwt: { claims: { 'cognito:groups': 'Viewer', email: 'attacker@test.com' } } },
+        } as any,
+        body: JSON.stringify({ mode: 'demo' }),
+      });
+
+      const result = await handler(event);
+
+      expect(result.statusCode).toBe(403);
+      expect(JSON.parse(result.body).error).toMatch(/Unauthorized/);
+      // The update must never reach Notehub.
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('rejects Wi-Fi provisioning for a non-admin non-owner (403)', async () => {
+      mockDeviceAlias('songbird01-bds', 'dev:1234');
+      ddbMock.on(GetCommand, {
+        TableName: 'test-devices',
+        Key: { device_uid: 'dev:1234' },
+      }).resolves({
+        Item: { device_uid: 'dev:1234', assigned_to: 'other@test.com' },
+      });
+
+      const event = makeEvent({
+        httpMethod: 'PUT',
+        path: '/devices/songbird01-bds/wifi',
+        requestContext: {
+          http: { method: 'PUT', path: '/devices/songbird01-bds/wifi' },
+          authorizer: { jwt: { claims: { 'cognito:groups': 'Viewer', email: 'attacker@test.com' } } },
+        } as any,
+        body: JSON.stringify({ ssid: 'Evil', password: 'pw' }),
+      });
+
+      const result = await handler(event);
+
+      expect(result.statusCode).toBe(403);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('allows device config PUT for the device owner (200)', async () => {
+      mockDeviceAlias('songbird01-bds', 'dev:1234');
+      ddbMock.on(GetCommand, {
+        TableName: 'test-devices',
+        Key: { device_uid: 'dev:1234' },
+      }).resolves({
+        Item: { device_uid: 'dev:1234', assigned_to: 'owner@test.com' },
+      });
+      mockNotehubPutEnvVars(200);
+
+      const event = makeEvent({
+        httpMethod: 'PUT',
+        requestContext: {
+          http: { method: 'PUT', path: '/devices/songbird01-bds/config' },
+          authorizer: { jwt: { claims: { 'cognito:groups': 'Sales', email: 'owner@test.com' } } },
+        } as any,
+        body: JSON.stringify({ mode: 'demo' }),
+      });
+
+      const result = await handler(event);
+
+      expect(result.statusCode).toBe(200);
+    });
+
+    it('rejects fleet config PUT for a non-admin (403)', async () => {
+      const event = makeEvent({
+        httpMethod: 'PUT',
+        path: '/fleets/fleet:1234/config',
+        pathParameters: { fleet_uid: 'fleet:1234' },
+        requestContext: {
+          http: { method: 'PUT', path: '/fleets/fleet:1234/config' },
+          authorizer: { jwt: { claims: { 'cognito:groups': 'Sales', email: 'user@test.com' } } },
+        } as any,
+        body: JSON.stringify({ mode: 'storage' }),
+      });
+      event.pathParameters = { fleet_uid: 'fleet:1234' };
+
+      const result = await handler(event);
+
+      expect(result.statusCode).toBe(403);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('allows fleet config PUT for an admin (200)', async () => {
+      mockNotehubPutEnvVars(200);
+
+      const event = makeEvent({
+        httpMethod: 'PUT',
+        path: '/fleets/fleet:1234/config',
+        pathParameters: { fleet_uid: 'fleet:1234' },
+        requestContext: {
+          http: { method: 'PUT', path: '/fleets/fleet:1234/config' },
+          authorizer: { jwt: { claims: { 'cognito:groups': 'Admin', email: 'admin@test.com' } } },
+        } as any,
+        body: JSON.stringify({ mode: 'storage' }),
+      });
+      event.pathParameters = { fleet_uid: 'fleet:1234' };
+
+      const result = await handler(event);
+
+      expect(result.statusCode).toBe(200);
     });
   });
 });
