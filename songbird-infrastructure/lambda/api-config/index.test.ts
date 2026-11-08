@@ -312,6 +312,61 @@ describe('Config API Lambda', () => {
         })
       );
     });
+
+    it('escapes quotes/backslashes in SSID and password instead of breaking out of the array', async () => {
+      mockDeviceAlias('songbird01-bds', 'dev:1234');
+      mockNotehubPutEnvVars(200);
+
+      const ssid = 'My"Net\\work';
+      const password = 'p"ass\\word';
+
+      const event = makeEvent({
+        httpMethod: 'PUT',
+        path: '/devices/songbird01-bds/wifi',
+        requestContext: { http: { method: 'PUT', path: '/devices/songbird01-bds/wifi' } } as any,
+        body: JSON.stringify({ ssid, password }),
+      });
+
+      const result = await handler(event);
+
+      expect(result.statusCode).toBe(200);
+
+      // The _wifi value must be valid JSON that round-trips to the exact inputs.
+      const call = mockFetch.mock.calls.find((c: any[]) =>
+        String(c[0]).includes('/environment_variables')
+      );
+      const sentBody = JSON.parse((call![1] as any).body);
+      const wifiValue = sentBody.environment_variables._wifi;
+      expect(JSON.parse(wifiValue)).toEqual([ssid, password]);
+    });
+
+    it('rejects control characters in SSID', async () => {
+      mockDeviceAlias('songbird01-bds', 'dev:1234');
+
+      const event = makeEvent({
+        httpMethod: 'PUT',
+        path: '/devices/songbird01-bds/wifi',
+        requestContext: { http: { method: 'PUT', path: '/devices/songbird01-bds/wifi' } } as any,
+        body: JSON.stringify({ ssid: 'bad\nssid', password: 'secret123' }),
+      });
+
+      const result = await handler(event);
+      expect(result.statusCode).toBe(400);
+    });
+
+    it('rejects an over-length password', async () => {
+      mockDeviceAlias('songbird01-bds', 'dev:1234');
+
+      const event = makeEvent({
+        httpMethod: 'PUT',
+        path: '/devices/songbird01-bds/wifi',
+        requestContext: { http: { method: 'PUT', path: '/devices/songbird01-bds/wifi' } } as any,
+        body: JSON.stringify({ ssid: 'MyNetwork', password: 'x'.repeat(64) }),
+      });
+
+      const result = await handler(event);
+      expect(result.statusCode).toBe(400);
+    });
   });
 
   describe('PUT /fleets/{fleet_uid}/config', () => {
