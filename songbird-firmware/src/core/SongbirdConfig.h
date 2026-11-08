@@ -427,7 +427,6 @@ typedef struct {
     CommandType type;
     CommandStatus status;
     char message[64];
-    uint32_t executedAt;
 } CommandAck;
 
 // =============================================================================

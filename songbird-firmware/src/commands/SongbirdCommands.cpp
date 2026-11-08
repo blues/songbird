@@ -59,7 +59,9 @@ bool commandsExecute(const Command* cmd, const SongbirdConfig* config, CommandAc
     memset(ack, 0, sizeof(CommandAck));
     strncpy(ack->commandId, cmd->commandId, sizeof(ack->commandId) - 1);
     ack->type = cmd->type;
-    ack->executedAt = millis() / 1000;  // Would use RTC in production
+    // No executed_at timestamp: the host has no reliable epoch clock here
+    // (millis()/1000 is uptime, not wall time). Notehub stamps every ack event
+    // with an authoritative `when` on ingest, which is what consumers use (M8).
 
     #ifdef DEBUG_MODE
     DEBUG_SERIAL.print("[Commands] Executing: ");
