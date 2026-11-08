@@ -20,6 +20,7 @@ import { Analytics } from '@/pages/Analytics';
 import { PreferencesProvider } from '@/contexts/PreferencesContext';
 import { initializeApi } from '@/api/client';
 import { useActiveAlerts } from '@/hooks/useAlerts';
+import { useNotehubFleets } from '@/hooks/useSettings';
 import { usePostHogIdentify } from '@/hooks/useAuth';
 
 // Create a client
@@ -120,6 +121,15 @@ function AppLayout({ user, signOut, selectedFleet, onFleetChange }: AppLayoutPro
   const { data: alertsData } = useActiveAlerts();
   const alertCount = alertsData?.active_count || 0;
 
+  // Fleet list for the header selector. Sourced from the same Notehub hook the
+  // Map page uses, so the app-level selectedFleet and the map share one source
+  // of truth instead of the header always receiving an empty list.
+  const { data: notehubFleets } = useNotehubFleets();
+  const fleets = (notehubFleets || []).map((f) => ({
+    fleet_uid: f.uid,
+    name: f.name,
+  }));
+
   // Identify user to PostHog on login
   usePostHogIdentify();
 
@@ -128,7 +138,7 @@ function AppLayout({ user, signOut, selectedFleet, onFleetChange }: AppLayoutPro
       user={user}
       alertCount={alertCount}
       selectedFleet={selectedFleet}
-      fleets={[]}
+      fleets={fleets}
       onFleetChange={onFleetChange}
       onSignOut={signOut}
     />
