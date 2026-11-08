@@ -24,6 +24,8 @@ import { ObservabilityConstruct } from './observability-construct';
 
 export interface SongbirdStackProps extends cdk.StackProps {
   notehubProjectUid: string;
+  /** Origins allowed for API CORS. Defaults to the dashboard domains. */
+  corsAllowedOrigins?: string[];
 }
 
 export class SongbirdStack extends cdk.Stack {
@@ -104,6 +106,7 @@ export class SongbirdStack extends cdk.Stack {
       userPool: auth.userPool,
       userPoolClient: auth.userPoolClient,
       notehubProjectUid: props.notehubProjectUid,
+      corsAllowedOrigins: props.corsAllowedOrigins,
       alertTopic,
     });
 

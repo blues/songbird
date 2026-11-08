@@ -20,10 +20,17 @@ const env = {
 // Notehub configuration
 const notehubProjectUid = app.node.tryGetContext('notehubProjectUid') || 'com.blues.songbird';
 
+// CORS allowed origins (comma-separated context override, else default in stack)
+const corsContext = app.node.tryGetContext('corsAllowedOrigins');
+const corsAllowedOrigins = corsContext
+  ? String(corsContext).split(',').map((o) => o.trim()).filter(Boolean)
+  : undefined;
+
 new SongbirdStack(app, 'SongbirdStack', {
   env,
   description: 'Songbird Demo Platform - AWS Infrastructure',
   notehubProjectUid,
+  corsAllowedOrigins,
 
   // Tag all resources
   tags: {
