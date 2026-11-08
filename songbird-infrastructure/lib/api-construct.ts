@@ -305,6 +305,22 @@ export class ApiConstruct extends Construct {
     notehubSecret.grantRead(firmwareFunction);
 
     // Event Ingest API (for Notehub HTTP route - no authentication)
+    // Event ingest endpoint (no Cognito authorizer - called by Notehub HTTP
+    // routes, which cannot present a JWT). Authentication is enforced in the
+    // handler via a pre-shared secret sourced from Secrets Manager.
+    const ingestSecret = new secretsmanager.Secret(this, 'IngestSharedSecret', {
+      secretName: 'songbird/ingest-shared-secret',
+      description:
+        'Shared secret verified by the ingest Lambda. Configure Notehub HTTP ' +
+        'routes to send this value in the x-songbird-ingest-secret header.',
+      generateSecretString: {
+        // Generate a raw high-entropy token (no JSON template) so Notehub can
+        // send the secret value verbatim in the header.
+        excludePunctuation: true,
+        passwordLength: 48,
+      },
+    });
+
     const ingestFunction = new NodejsFunction(this, 'IngestFunction', {
       functionName: 'songbird-api-ingest',
       description: 'Songbird Event Ingest API for Notehub HTTP routes',
@@ -322,6 +338,8 @@ export class ApiConstruct extends Construct {
         JOURNEYS_TABLE: props.journeysTable.tableName,
         LOCATIONS_TABLE: props.locationsTable.tableName,
         DEVICE_ALIASES_TABLE: props.deviceAliasesTable.tableName,
+        INGEST_SECRET_ARN: ingestSecret.secretArn,
+        INGEST_SECRET_HEADER: 'x-songbird-ingest-secret',
       },
       bundling: { minify: true, sourceMap: true },
       logRetention: logs.RetentionDays.TWO_WEEKS,
@@ -334,6 +352,7 @@ export class ApiConstruct extends Construct {
     props.journeysTable.grantReadWriteData(ingestFunction);
     props.locationsTable.grantReadWriteData(ingestFunction);
     props.deviceAliasesTable.grantReadWriteData(ingestFunction);
+    ingestSecret.grantRead(ingestFunction);
 
     // Mapbox API Token Secret (for map matching)
     const mapboxSecret = new secretsmanager.Secret(this, 'MapboxApiToken', {

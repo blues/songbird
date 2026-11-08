@@ -6,9 +6,11 @@
  */
 
 import { randomUUID } from 'crypto';
+import { timingSafeEqual } from 'crypto';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, UpdateCommand, QueryCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { handleDeviceAlias } from '../shared/device-lookup';
 import { ACKNOWLEDGED } from '../shared/constants';
@@ -21,6 +23,7 @@ const docClient = DynamoDBDocumentClient.from(ddbClient, {
   },
 });
 const snsClient = new SNSClient({});
+const secretsClient = new SecretsManagerClient({});
 
 // Environment variables
 const TELEMETRY_TABLE = process.env.TELEMETRY_TABLE!;
@@ -30,6 +33,94 @@ const ALERTS_TABLE = process.env.ALERTS_TABLE!;
 const ALERT_TOPIC_ARN = process.env.ALERT_TOPIC_ARN!;
 const JOURNEYS_TABLE = process.env.JOURNEYS_TABLE!;
 const LOCATIONS_TABLE = process.env.LOCATIONS_TABLE!;
+
+// Shared-secret authentication for the ingest endpoint.
+// Notehub HTTP routes cannot present a Cognito JWT, so we require a
+// pre-shared secret sent in a custom header. The secret is stored in Secrets
+// Manager (never a plaintext env var); INGEST_SECRET_ARN points at it.
+// Notehub is configured to send the secret in the INGEST_SECRET_HEADER
+// header on every HTTP route request (see the "Additional Headers" section
+// of the Notehub route configuration).
+const INGEST_SECRET_ARN = process.env.INGEST_SECRET_ARN;
+const INGEST_SECRET_HEADER = (process.env.INGEST_SECRET_HEADER || 'x-songbird-ingest-secret').toLowerCase();
+
+// Cache the expected secret to avoid a Secrets Manager call on every request.
+let cachedIngestSecret: string | null = null;
+
+async function getExpectedIngestSecret(): Promise<string | null> {
+  if (cachedIngestSecret !== null) {
+    return cachedIngestSecret;
+  }
+  if (!INGEST_SECRET_ARN) {
+    // No secret configured — treat as misconfiguration and fail closed.
+    return null;
+  }
+  const response = await secretsClient.send(
+    new GetSecretValueCommand({ SecretId: INGEST_SECRET_ARN })
+  );
+  if (!response.SecretString) {
+    return null;
+  }
+  // Support either a raw string secret or a JSON object with a `secret` field.
+  let value = response.SecretString;
+  try {
+    const parsed = JSON.parse(response.SecretString);
+    if (parsed && typeof parsed.secret === 'string') {
+      value = parsed.secret;
+    }
+  } catch {
+    // Not JSON — use the raw string.
+  }
+  cachedIngestSecret = value;
+  return cachedIngestSecret;
+}
+
+/**
+ * Constant-time comparison of two strings, safe against timing attacks and
+ * length mismatches.
+ */
+function constantTimeEquals(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) {
+    // Still compare against a same-length buffer to avoid leaking length via timing.
+    timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return timingSafeEqual(bufA, bufB);
+}
+
+/**
+ * Look up a header case-insensitively (API Gateway header casing varies).
+ */
+function getHeader(event: APIGatewayProxyEvent, name: string): string | undefined {
+  const target = name.toLowerCase();
+  const headers = event.headers || {};
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === target) {
+      return headers[key] ?? undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Verify the shared secret. Returns true only if the configured secret is
+ * present and matches the header (constant-time). Fails closed on any
+ * misconfiguration.
+ */
+export async function verifyIngestSecret(event: APIGatewayProxyEvent): Promise<boolean> {
+  const expected = await getExpectedIngestSecret();
+  if (!expected) {
+    console.error('Ingest secret is not configured; rejecting request');
+    return false;
+  }
+  const provided = getHeader(event, INGEST_SECRET_HEADER);
+  if (!provided) {
+    return false;
+  }
+  return constantTimeEquals(provided, expected);
+}
 
 // TTL: 90 days in seconds
 const TTL_DAYS = 90;
@@ -124,6 +215,18 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   };
 
   try {
+    // Authenticate the caller via the Notehub-configured shared secret BEFORE
+    // any parsing or writes. Reject unsigned/forged requests with 401.
+    const authorized = await verifyIngestSecret(event);
+    if (!authorized) {
+      console.error('Rejecting ingest request - missing or invalid shared secret');
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Unauthorized' }),
+      };
+    }
+
     if (!event.body) {
       return {
         statusCode: 400,
