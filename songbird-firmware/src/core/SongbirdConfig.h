@@ -88,7 +88,13 @@ extern HardwareSerial serialDebug;
 // Task Stack Sizes (in words, not bytes - multiply by 4 for bytes)
 #define STACK_MAIN          512     // 2KB
 #define STACK_SENSOR        512     // 2KB
-#define STACK_AUDIO         256     // 1KB
+// AudioTask drives the Qwiic buzzer over I2C (Wire TX/RX buffers) and walks the
+// melody tables via audioPlayEvent()/audioPlayTone(); 256 words (1KB) left very
+// little headroom for that call chain plus any DEBUG_SERIAL printing. Bump to
+// 384 words (1.5KB) to add margin without materially costing RAM. The stack
+// high-water-mark check in tasksLogStackUsage() is DEBUG_MODE-only, so tight
+// margins were not observable in production builds (M6).
+#define STACK_AUDIO         384     // 1.5KB
 #define STACK_COMMAND       512     // 2KB
 #define STACK_NOTECARD      1024    // 4KB (Notecard library needs more)
 #define STACK_ENV           512     // 2KB
