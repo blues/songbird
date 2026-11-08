@@ -21,6 +21,7 @@ import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-sec
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { randomUUID } from 'crypto';
 import { resolveDevice } from '../shared/device-lookup';
+import { safeStringify } from '../shared/utils';
 
 const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient);
@@ -114,7 +115,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   const method = (event.requestContext as any)?.http?.method || event.httpMethod;
   const path = (event.requestContext as any)?.http?.path || event.path;
 
-  console.log('Request:', JSON.stringify(event));
+  console.log('Request:', safeStringify(event));
 
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',

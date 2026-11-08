@@ -12,6 +12,7 @@ import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { handleDeviceAlias } from '../shared/device-lookup';
 import { ACKNOWLEDGED } from '../shared/constants';
+import { safeStringify } from '../shared/utils';
 
 // Initialize clients
 const ddbClient = new DynamoDBClient({});
@@ -117,7 +118,7 @@ interface NotehubEvent {
 }
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  console.log('Ingest request:', JSON.stringify(event));
+  console.log('Ingest request:', safeStringify(event));
 
   const headers = {
     'Content-Type': 'application/json',
@@ -133,7 +134,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     const notehubEvent: NotehubEvent = JSON.parse(event.body);
-    console.log('Processing Notehub event:', JSON.stringify(notehubEvent));
+    console.log('Processing Notehub event:', safeStringify(notehubEvent));
 
     // Reject events without serial number
     if (!notehubEvent.sn || notehubEvent.sn.trim() === '') {
