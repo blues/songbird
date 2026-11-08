@@ -453,7 +453,24 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   try {
     const request: ChatRequest = JSON.parse(event.body || '{}');
 
-    if (!request.question || !request.sessionId || !request.userEmail) {
+    // Identity is derived from the verified JWT — never trust a client-supplied
+    // userEmail or deviceSerialNumbers. The API Gateway JWT authorizer places
+    // the verified claims here; the `email` claim is the authenticated user.
+    const claims = (event.requestContext as any)?.authorizer?.jwt?.claims || {};
+    const userEmail: string | undefined = claims.email;
+
+    if (!userEmail) {
+      return {
+        statusCode: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+        body: JSON.stringify({ error: 'Unauthorized: missing email claim' }),
+      };
+    }
+
+    if (!request.question || !request.sessionId) {
       return {
         statusCode: 400,
         headers: {
@@ -464,42 +481,48 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    // Get user's accessible devices — must be supplied by the caller.
-    // Falling back to all devices would grant unrestricted data access.
-    const deviceSerialNumbers: string[] = request.deviceSerialNumbers?.length
-      ? request.deviceSerialNumbers
-      : [];
-
-    if (deviceSerialNumbers.length === 0) {
-      return {
-        statusCode: 403,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-        body: JSON.stringify({ error: 'deviceSerialNumbers is required' }),
-      };
-    }
-
-    // Look up the user's assigned device from DynamoDB devices table
-    let assignedDevice: string | undefined;
+    // Resolve the user's accessible devices SERVER-SIDE from the verified email.
+    // Any deviceSerialNumbers in the request body are ignored — a caller cannot
+    // widen their access by supplying serials they are not assigned.
+    let deviceSerialNumbers: string[] = [];
     try {
       // Try exact match first, then case-insensitive
       const assignedResult = await ddb.send(new ScanCommand({
         TableName: DEVICES_TABLE,
         FilterExpression: 'assigned_to = :email OR assigned_to = :emailLower OR assigned_to = :emailUpper',
         ExpressionAttributeValues: {
-          ':email': request.userEmail,
-          ':emailLower': request.userEmail.toLowerCase(),
-          ':emailUpper': request.userEmail.toUpperCase(),
+          ':email': userEmail,
+          ':emailLower': userEmail.toLowerCase(),
+          ':emailUpper': userEmail.toUpperCase(),
         },
         ProjectionExpression: 'serial_number',
       }));
-      assignedDevice = assignedResult.Items?.[0]?.serial_number as string | undefined;
-      console.log('Assigned device lookup result:', assignedDevice, 'for email:', request.userEmail);
+      deviceSerialNumbers = (assignedResult.Items || [])
+        .map((item) => item.serial_number as string | undefined)
+        .filter((s): s is string => typeof s === 'string' && s.length > 0);
     } catch (error: any) {
-      console.warn('Could not look up assigned device:', error.message);
+      console.warn('Could not look up assigned devices:', error.message);
     }
+
+    if (deviceSerialNumbers.length === 0) {
+      // The authenticated user has no devices assigned — deny rather than
+      // falling back to all devices (which would grant unrestricted access).
+      return {
+        statusCode: 403,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+        body: JSON.stringify({ error: 'No devices are assigned to this user' }),
+      };
+    }
+
+    // First assigned serial is used for "my device" scoping in the prompt.
+    const assignedDevice: string | undefined = deviceSerialNumbers[0];
+
+    // Overwrite any client-supplied value with the verified identity so all
+    // downstream persistence (chat history) and tracing use the trusted email.
+    request.userEmail = userEmail;
 
     console.log('Processing question:', request.question);
     console.log('Device filter:', deviceSerialNumbers);
