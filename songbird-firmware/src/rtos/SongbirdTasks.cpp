@@ -489,7 +489,11 @@ void MainTask(void* pvParameters) {
         // External panel-mount button only in release builds. BUTTON_PIN_ALT is the
         // Cygnet onboard USER_BTN on PC13, which is noise-prone and has long-wire
         // susceptibility to cellular RF — included only in debug builds.
-        #ifdef DEBUG_MODE
+        #if defined(SONGBIRD_REVA)
+        // Rev A: one on-board button with a hardware RC filter. The stability
+        // filter below stays as a second layer until bring-up shows it is not needed.
+        bool rawButtonState = digitalRead(BUTTON_PIN);
+        #elif defined(DEBUG_MODE)
         bool rawButtonState = digitalRead(BUTTON_PIN) && digitalRead(BUTTON_PIN_ALT);
         #else
         bool rawButtonState = digitalRead(BUTTON_PIN);

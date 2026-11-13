@@ -38,18 +38,49 @@
 #define BUILD_TIMESTAMP     __DATE__ " " __TIME__
 #endif
 
-// DFU target architecture for STM32L433 (Cygnet) and ODFU Mode
+// DFU target architecture and ODFU mode. Both boards are STM32 hosts updated
+// through the Notecard's ALT_DFU pins (Notecarrier CX, and the Rev A carrier).
 #define DFU_TARGET          "stm32"
 #define DFU_MODE            "altdfu" // Use ALT_DFU pins (for Notecarrier CX)
 
 // =============================================================================
-// Pin Definitions (Blues Cygnet - STM32L433)
+// Pin Definitions
 // =============================================================================
+//
+// Two hardware targets share this firmware:
+//   - Blues Cygnet / Notecarrier CX (STM32L433), the original Songbird build.
+//   - Songbird Rev A carrier (STM32U575), selected by -DSONGBIRD_REVA, which
+//     boards/songbird_reva.json sets. Pins come from SongbirdBoardRevA.h.
+//
+// LED_ON_LEVEL / LED_OFF_LEVEL and the LOCK_LED_* macros hide the polarity:
+// the Cygnet LEDs are active high, every LED on Rev A is active low.
+
+#ifdef SONGBIRD_REVA
+
+#include "SongbirdBoardRevA.h"
+
+#define BUTTON_PIN          BOARD_BUTTON_PIN
+#define LED_PIN             BOARD_LED_RED_PIN       // LD1 red channel as the status LED
+#define LED_ON_LEVEL        BOARD_LED_ON
+#define LED_OFF_LEVEL       BOARD_LED_OFF
+#define DEBUG_SERIAL_RX_PIN BOARD_CONSOLE_RX_PIN
+#define DEBUG_SERIAL_TX_PIN BOARD_CONSOLE_TX_PIN
+
+// Audio backend: timer PWM into the on-board transducer (no Qwiic buzzer).
+#define SONGBIRD_AUDIO_PWM  1
+
+#else // Blues Cygnet - STM32L433
 
 #define BUTTON_PIN      PB9         // External panel mount button (D6)
 #define BUTTON_PIN_ALT  USER_BTN    // Internal Cygnet button (PC13) as backup
 #define LOCK_LED_PIN    PB13        // Panel mount button LED (D10)
 #define LED_PIN         LED_BUILTIN // Built-in LED on Cygnet
+#define LED_ON_LEVEL        HIGH
+#define LED_OFF_LEVEL       LOW
+#define DEBUG_SERIAL_RX_PIN PIN_VCP_RX
+#define DEBUG_SERIAL_TX_PIN PIN_VCP_TX
+
+#endif // SONGBIRD_REVA
 
 // =============================================================================
 // Debug Serial Configuration (STLink VCP)
@@ -208,8 +239,8 @@ typedef enum {
 // =============================================================================
 
 // PVD threshold for safe shutdown early warning
-// PWR_PVDLEVEL_6 = ~2.9V on STM32L4 (confirmed, highest fixed threshold)
-// Must include stm32l4xx_hal_pwr.h (via Arduino STM32 framework) to use this constant
+// PWR_PVDLEVEL_6 = ~2.9V on both the STM32L4 and the STM32U5 (highest fixed threshold).
+// The constant comes from the HAL power header, pulled in by Arduino.h.
 #define PVD_SHUTDOWN_LEVEL          PWR_PVDLEVEL_6
 
 // Boot-loop prevention: if BORRSTF resets occur this many times within the window,

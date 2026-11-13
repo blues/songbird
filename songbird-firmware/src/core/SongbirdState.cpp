@@ -338,10 +338,24 @@ OperatingMode stateGetPreDemoMode(void) {
 
 void stateUpdateLockLED(void) {
     taskENTER_CRITICAL();
-    bool lockActive = s_state.transitLocked || s_state.demoLocked;
+    bool transitLocked = s_state.transitLocked;
+    bool demoLocked = s_state.demoLocked;
     taskEXIT_CRITICAL();
+    bool lockActive = transitLocked || demoLocked;
+    (void)lockActive;   // only read in some build configurations
+
+    #ifdef SONGBIRD_REVA
+    // The button has a red and a green LED under one diffusing cap, and shows
+    // the dashboard's badge colours: Transit Lock amber (red + green), Demo
+    // Lock green. Transit wins if both are set. Outputs are active low.
+    bool red = transitLocked;
+    bool green = transitLocked || demoLocked;
+    digitalWrite(BOARD_BTN_LED_RED_PIN, red ? BOARD_LED_ON : BOARD_LED_OFF);
+    digitalWrite(BOARD_BTN_LED_GREEN_PIN, green ? BOARD_LED_ON : BOARD_LED_OFF);
+    #else
     // Note: LED is active-high (GPIO HIGH = LED on)
     digitalWrite(LOCK_LED_PIN, lockActive ? HIGH : LOW);
+    #endif
 
     #ifdef DEBUG_MODE
     DEBUG_SERIAL.print("[State] Lock LED: ");
