@@ -38,6 +38,36 @@ static SongbirdConfig s_currentConfig;
 // Button State (for mute toggle, transit lock, and demo lock)
 // =============================================================================
 
+#ifdef SONGBIRD_REVA
+// Rev A: the button has a hardware RC filter (10k / 100nF) and is read by an
+// edge interrupt, so quick double and triple clicks register. The polled
+// filter used on Cygnet needs each press and each release held for 200-300ms,
+// which a fast double-tap never satisfies.
+//
+// A click is counted on RELEASE, and only if the button was held for at least
+// BUTTON_MIN_PRESS_MS. RF-coupled transients from the modem are microseconds
+// long, so they are rejected by the minimum; a stuck or leaned-on button is
+// rejected by the maximum.
+static const uint32_t BUTTON_MIN_PRESS_MS = 20;
+static const uint32_t BUTTON_MAX_PRESS_MS = 3000;
+static volatile uint32_t s_btnDownMs = 0;       // millis() at the falling edge
+static volatile bool     s_btnDown = false;     // falling edge seen, waiting for release
+static volatile uint8_t  s_btnPendingClicks = 0; // clicks not yet consumed by MainTask
+
+static void buttonEdgeIsr(void) {
+    uint32_t nowMs = millis();
+    if (digitalRead(BUTTON_PIN) == LOW) {
+        s_btnDownMs = nowMs;
+        s_btnDown = true;
+    } else if (s_btnDown) {
+        s_btnDown = false;
+        uint32_t heldMs = nowMs - s_btnDownMs;
+        if (heldMs >= BUTTON_MIN_PRESS_MS && heldMs <= BUTTON_MAX_PRESS_MS && s_btnPendingClicks < 10) {
+            s_btnPendingClicks++;
+        }
+    }
+}
+#else
 static bool s_lastButtonState = HIGH;       // Button is active-low with pull-up
 static uint8_t s_stableCount = 0;           // Consecutive samples matching candidate state
 // Require N consecutive matching samples before accepting a state change. At the
@@ -45,6 +75,7 @@ static uint8_t s_stableCount = 0;           // Consecutive samples matching cand
 // sustained state, which rejects RF-coupled transients (microseconds) from the
 // cellular modem while staying well below a real finger press.
 static const uint8_t BUTTON_STABLE_SAMPLES = 3;
+#endif
 
 // Multi-click detection: 1=transit lock, 2=demo lock, 3=mute
 static uint8_t s_clickCount = 0;            // Number of clicks in current window
@@ -338,6 +369,11 @@ void MainTask(void* pvParameters) {
     // Initialize default configuration
     envInitDefaults(&s_currentConfig);
 
+    #ifdef SONGBIRD_REVA
+    // Button edges are counted by interrupt from here on.
+    attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), buttonEdgeIsr, CHANGE);
+    #endif
+
     // Play power-on melody directly (not queued) to avoid mutex contention
     // during startup when we hold I2C for extended Notecard operations
     audioPlayEvent(AUDIO_EVENT_POWER_ON, s_currentConfig.audioVolume);
@@ -489,11 +525,28 @@ void MainTask(void* pvParameters) {
         // External panel-mount button only in release builds. BUTTON_PIN_ALT is the
         // Cygnet onboard USER_BTN on PC13, which is noise-prone and has long-wire
         // susceptibility to cellular RF — included only in debug builds.
-        #if defined(SONGBIRD_REVA)
-        // Rev A: one on-board button with a hardware RC filter. The stability
-        // filter below stays as a second layer until bring-up shows it is not needed.
-        bool rawButtonState = digitalRead(BUTTON_PIN);
-        #elif defined(DEBUG_MODE)
+        #ifdef SONGBIRD_REVA
+        // Rev A: collect the clicks the edge interrupt has counted since the
+        // last pass (see buttonEdgeIsr above).
+        uint32_t now = millis();
+        uint8_t newClicks = 0;
+        taskENTER_CRITICAL();
+        newClicks = s_btnPendingClicks;
+        s_btnPendingClicks = 0;
+        taskEXIT_CRITICAL();
+        if (newClicks > 0) {
+            if (s_clickCount == 0) {
+                s_firstClickTime = now;
+            }
+            s_clickCount += newClicks;
+
+            #ifdef DEBUG_MODE
+            DEBUG_SERIAL.print("[MainTask] Click count: ");
+            DEBUG_SERIAL.println(s_clickCount);
+            #endif
+        }
+        #else
+        #ifdef DEBUG_MODE
         bool rawButtonState = digitalRead(BUTTON_PIN) && digitalRead(BUTTON_PIN_ALT);
         #else
         bool rawButtonState = digitalRead(BUTTON_PIN);
@@ -523,6 +576,7 @@ void MainTask(void* pvParameters) {
         } else {
             s_stableCount = 0;
         }
+        #endif // SONGBIRD_REVA
 
         // Process click actions after timing window
         if (s_clickCount > 0) {

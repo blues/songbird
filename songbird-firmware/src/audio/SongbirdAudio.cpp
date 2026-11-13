@@ -201,7 +201,16 @@ void audioPlayTone(uint16_t frequency, uint16_t durationMs, uint8_t volume) {
 
     #ifdef SONGBIRD_AUDIO_PWM
     // No bus involved: start the PWM, wait out the note, then silence.
-    s_pwmTimer->setPWM(1, BOARD_BUZZER_PIN, frequency, volumeToDuty(volume));
+    //
+    // The channel is configured explicitly on every note rather than through
+    // setPWM(). setPWM() only attaches the pin to the timer when the channel
+    // was not already in PWM mode, and pwmSilence() hands the pin back to GPIO
+    // after each note, so from the second note on setPWM() would drive a
+    // timer whose output is no longer connected to the pin.
+    s_pwmTimer->setMode(1, TIMER_OUTPUT_COMPARE_PWM1, BOARD_BUZZER_PIN);
+    s_pwmTimer->setOverflow(frequency, HERTZ_FORMAT);
+    s_pwmTimer->setCaptureCompare(1, volumeToDuty(volume), PERCENT_COMPARE_FORMAT);
+    s_pwmTimer->resume();
     if (useRtos) {
         vTaskDelay(pdMS_TO_TICKS(durationMs));
     } else {
