@@ -16,6 +16,10 @@
 #include "SongbirdCommands.h"
 #include "SongbirdState.h"
 #include "SongbirdPower.h"
+#ifdef SONGBIRD_REVA
+#include "SongbirdCharger.h"
+#endif
+#include "SongbirdLowPower.h"
 
 // =============================================================================
 // Task Handles
@@ -738,6 +742,7 @@ void MainTask(void* pvParameters) {
 
             #ifdef DEBUG_MODE
             tasksLogStackUsage();
+            lowPowerLogStats();
             #endif
         }
 
@@ -839,6 +844,31 @@ void SensorTask(void* pvParameters) {
             // Battery info is reported to cloud via _log.qo (Mojo) and _health.qo
             bool usbPowered = false;
             data.voltage = notecardGetVoltage(&usbPowered);
+
+            #ifdef SONGBIRD_REVA
+            // Rev A: the Notecard is fed from the charger's system rail and
+            // never sees VBUS, so USB presence comes from the BQ25628E.
+            ChargerStatus chg;
+            if (chargerRead(&chg)) {
+                usbPowered = chg.vbusPresent;
+
+                #ifdef DEBUG_MODE
+                // One line per sensor read: enough to draw the cell's
+                // discharge curve under the real load from a console log.
+                DEBUG_SERIAL.print("[Charger] ");
+                DEBUG_SERIAL.print(chg.vbusPresent ? "USB, " : "battery, ");
+                DEBUG_SERIAL.print(chargerStateName(chg.chargeState));
+                DEBUG_SERIAL.print(", VBAT ");
+                DEBUG_SERIAL.print(chargerReadBatteryMv());
+                DEBUG_SERIAL.print(" mV, card.voltage ");
+                DEBUG_SERIAL.print(data.voltage, 3);
+                DEBUG_SERIAL.print(" V, status 0x");
+                DEBUG_SERIAL.print(chg.status0, HEX);
+                DEBUG_SERIAL.print(", fault 0x");
+                DEBUG_SERIAL.println(chg.fault, HEX);
+                #endif
+            }
+            #endif
 
             // Check for USB power state change and toggle Mojo monitoring
             int8_t currentUsbState = usbPowered ? 1 : 0;

@@ -78,6 +78,20 @@ static inline void boardRevAConsoleSwap(void) {
 // STAT is open drain: low while charging, high-Z when done or disabled.
 #define BOARD_CHG_STAT_PIN      PB8
 
+// --- Battery (Adafruit 1781, ICR18650 2200 mAh, protected) -------------------
+// card.voltage thresholds. The Notecard has no preset for cylindrical Li-Ion
+// and its "lipo" preset first reports "low" at 3.2 V, which on this cell is
+// about 5% remaining. These boundaries come from the fleet's brown-out data
+// by voltage band (songbird-pcb design journal, Entry 22): the reset rate
+// climbs steeply below 3.7 V, and below 3.4 V the cell is treated as empty.
+// They are inferred from field incidence, not from a discharge curve measured
+// on this board, and are due for checking against one (open question Q17).
+//
+// The "usb" threshold stays in the string because the syntax expects it, but
+// on Rev A the Notecard's supply is the charger's system rail, which does not
+// rise to 4.6 V. USB presence is read from the charger (SongbirdCharger.h).
+#define BOARD_VOLTAGE_MODE      "usb:4.6;high:4.0;normal:3.7;low:3.4;dead:0"
+
 // --- SysTick priority before the scheduler starts ---------------------------
 // The STM32U5 HAL defaults the SysTick interrupt to the LOWEST priority (the
 // L4 HAL used on Cygnet defaults it to the highest). Any FreeRTOS critical

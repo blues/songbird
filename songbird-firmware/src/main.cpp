@@ -40,6 +40,10 @@
 // Songbird modules
 #include "SongbirdConfig.h"
 #include "SongbirdPower.h"
+#ifdef SONGBIRD_REVA
+#include "SongbirdCharger.h"
+#endif
+#include "SongbirdLowPower.h"
 
 // =============================================================================
 // Serial Configuration (STLink VCP)
@@ -135,6 +139,15 @@ void setup() {
     }
     DEBUG_SERIAL.println("[Init] Sensors initialized");
 
+    #ifdef SONGBIRD_REVA
+    // Charger status reader (BQ25628E). Charging itself needs no firmware.
+    if (chargerInit()) {
+        DEBUG_SERIAL.println("[Init] Charger found (BQ25628E)");
+    } else {
+        DEBUG_SERIAL.println("[Init] WARNING: charger not answering at 0x6A");
+    }
+    #endif
+
     // Switch to fast mode now that peripherals are initialized
     Wire.setClock(400000);  // 400kHz for normal operation
     DEBUG_SERIAL.println("[Init] I2C switched to 400kHz");
@@ -185,6 +198,9 @@ void setup() {
             delay(200);
         }
     }
+
+    // Stop 2 in the idle task (Rev A with SONGBIRD_IDLE_STOP2; otherwise a no-op)
+    lowPowerInit();
 
     // Initialize synchronization primitives
     if (!syncInit()) {

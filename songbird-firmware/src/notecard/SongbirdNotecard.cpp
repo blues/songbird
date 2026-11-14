@@ -722,9 +722,15 @@ bool notecardConfigureVoltage(void) {
     // See: https://dev.blues.io/api-reference/notecard-api/card-requests/#card-voltage
     J* req = s_notecard.newRequest("card.voltage");
 
+    #ifdef SONGBIRD_REVA
+    // Rev A carries an 18650 Li-Ion cell, for which the Notecard has no
+    // preset. Thresholds are set explicitly; see BOARD_VOLTAGE_MODE.
+    JAddStringToObject(req, "mode", BOARD_VOLTAGE_MODE);
+    #else
     // Set mode to "lipo" for accurate LiPo battery discharge curve
     // This enables voltage-variable behaviors based on battery state
     JAddStringToObject(req, "mode", "lipo");
+    #endif
 
     // Enable USB power detection
     JAddBoolToObject(req, "usb", true);
@@ -750,13 +756,24 @@ bool notecardConfigureVoltage(void) {
     s_notecard.deleteResponse(rsp);
 
     #ifdef DEBUG_MODE
+    #ifdef SONGBIRD_REVA
+    DEBUG_SERIAL.println("[Notecard] Voltage monitoring configured (" BOARD_VOLTAGE_MODE ", alerts enabled)");
+    #else
     DEBUG_SERIAL.println("[Notecard] Voltage monitoring configured (lipo mode, alerts enabled)");
+    #endif
     #endif
 
     return true;
 }
 
 bool notecardConfigureMojo(bool enabled, OperatingMode mode) {
+    #ifdef SONGBIRD_REVA
+    // Rev A has no Mojo fitted, and card.power fails without one. Callers
+    // treat the monitor as optional, so report success and send nothing.
+    (void)enabled;
+    (void)mode;
+    return true;
+    #else
     if (!s_initialized) {
         return false;
     }
@@ -800,6 +817,7 @@ bool notecardConfigureMojo(bool enabled, OperatingMode mode) {
 
     s_notecard.deleteResponse(rsp);
     return true;
+    #endif // SONGBIRD_REVA
 }
 
 bool notecardGetMotion(void) {
