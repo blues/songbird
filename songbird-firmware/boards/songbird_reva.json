@@ -1,0 +1,40 @@
+{
+  "build": {
+    "arduino": {
+      "board": "GENERIC_U575CGTX",
+      "variant_h": "variant_generic.h"
+    },
+    "core": "stm32",
+    "cpu": "cortex-m33",
+    "extra_flags": "-DSTM32U5 -DSTM32U5xx -DSTM32U575xx -DSONGBIRD_REVA",
+    "f_cpu": "160000000L",
+    "mcu": "stm32u575cgt6",
+    "product_line": "STM32U575xx",
+    "variant": "STM32U5xx/U575C(G-I)(T-U)_U585CI(T-U)"
+  },
+  "debug": {
+    "default_tools": [
+      "stlink"
+    ],
+    "jlink_device": "STM32U575CG",
+    "openocd_target": "stm32u5x",
+    "svd_path": "STM32U575.svd"
+  },
+  "frameworks": [
+    "arduino"
+  ],
+  "name": "Songbird Rev A (STM32U575CGT6)",
+  "upload": {
+    "maximum_ram_size": 786432,
+    "maximum_size": 1048576,
+    "protocol": "stlink",
+    "protocols": [
+      "stlink",
+      "jlink",
+      "cmsis-dap",
+      "blackmagic"
+    ]
+  },
+  "url": "https://github.com/blues/songbird",
+  "vendor": "Blues"
+}

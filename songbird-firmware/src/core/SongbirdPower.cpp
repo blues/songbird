@@ -9,8 +9,7 @@
 #include "SongbirdPower.h"
 #include "SongbirdState.h"
 
-#include <Arduino.h>
-#include <stm32l4xx_hal.h>
+#include <Arduino.h>   // pulls in the HAL for the selected MCU family (L4 or U5)
 
 // =============================================================================
 // Module State
@@ -179,11 +178,11 @@ bool powerCheckAndHandleBootLoop(void) {
     while (millis() - start < holdMs) {
         // Blink built-in LED slowly to indicate hold
         ledState = !ledState;
-        digitalWrite(LED_PIN, ledState ? HIGH : LOW);
+        digitalWrite(LED_PIN, ledState ? LED_ON_LEVEL : LED_OFF_LEVEL);
         delay(500);
     }
 
-    digitalWrite(LED_PIN, LOW);
+    digitalWrite(LED_PIN, LED_OFF_LEVEL);
 
     DEBUG_SERIAL.println("[Power] Boot-loop hold complete. Resuming boot.");
     return true;
@@ -213,6 +212,13 @@ extern "C" void HAL_PWR_PVDCallback(void) {
 }
 
 bool powerIsVddBelowPvd(void) {
-    // PWR_SR2.PVDO is 1 when VDD is below the selected PVD level (~2.9 V).
+    // PVDO is 1 when VDD is below the selected PVD level (~2.9 V).
+    #if defined(PWR_SVMSR_PVDO)
+    // STM32U5 (Rev A): the flag lives in the supply voltage monitoring
+    // status register.
+    return (PWR->SVMSR & PWR_SVMSR_PVDO) != 0U;
+    #else
+    // STM32L4 (Cygnet): PWR_SR2.
     return (PWR->SR2 & PWR_SR2_PVDO) != 0U;
+    #endif
 }

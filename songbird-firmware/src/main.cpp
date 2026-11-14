@@ -13,12 +13,16 @@
  * - Cloud-to-device command handling
  * - Low-power operation with ATTN-based sleep
  *
- * Hardware:
+ * Hardware (default build):
  * - Blues Cygnet (STM32L433)
  * - Notecarrier-F with ATTN→EN connection
  * - Notecard Cell+WiFi (NBGL)
  * - BME280 Qwiic breakout
- * - Passive piezo buzzer on PA8
+ * - SparkFun Qwiic Buzzer
+ *
+ * Hardware (-DSONGBIRD_REVA, env songbird_reva):
+ * - Songbird Rev A carrier: STM32U575, socketed Notecard, on-board BME280,
+ *   magnetic transducer on PA8, illuminated button, RGB status LED
  *
  * Architecture:
  * - FreeRTOS with 6 tasks
@@ -36,12 +40,16 @@
 // Songbird modules
 #include "SongbirdConfig.h"
 #include "SongbirdPower.h"
+#ifdef SONGBIRD_REVA
+#include "SongbirdCharger.h"
+#endif
+#include "SongbirdLowPower.h"
 
 // =============================================================================
 // Serial Configuration (STLink VCP)
 // =============================================================================
 
-HardwareSerial serialDebug(PIN_VCP_RX, PIN_VCP_TX);
+HardwareSerial serialDebug(DEBUG_SERIAL_RX_PIN, DEBUG_SERIAL_TX_PIN);
 
 #define SERIAL_BAUD 115200
 #define DEBUG_SERIAL serialDebug
@@ -61,6 +69,9 @@ HardwareSerial serialDebug(PIN_VCP_RX, PIN_VCP_TX);
 void setup() {
     // Initialize serial for debugging via STLink VCP
     DEBUG_SERIAL.begin(SERIAL_BAUD);
+    #ifdef SONGBIRD_REVA
+    boardRevAConsoleSwap();     // Rev A erratum E4: console TX and RX are crossed at J5
+    #endif
 
     // Wait for serial in debug mode (with timeout)
     #ifdef DEBUG_MODE
@@ -81,18 +92,26 @@ void setup() {
     DEBUG_SERIAL.println();
 
     // Initialize GPIO
+    #ifdef SONGBIRD_REVA
+    boardRevAInitPins();          // buzzer gate low, all LEDs off, charger pins
+    #endif
     pinMode(LED_PIN, OUTPUT);
-    digitalWrite(LED_PIN, HIGH);  // LED on during init
+    digitalWrite(LED_PIN, LED_ON_LEVEL);  // LED on during init
 
     // Initialize power monitoring FIRST:
     //   - Reads and clears RCC->CSR reset flags (must happen before anything else clears them)
     //   - Enables PVD early-warning interrupt (~2.9V threshold)
     powerInit();
 
+    #ifdef SONGBIRD_REVA
+    pinMode(BUTTON_PIN, INPUT);             // On-board button; external pull-up and RC filter
+    // Button LEDs were set off by boardRevAInitPins().
+    #else
     pinMode(BUTTON_PIN, INPUT_PULLUP);      // External panel mount button
     pinMode(BUTTON_PIN_ALT, INPUT_PULLUP);  // Internal Cygnet button (backup)
     pinMode(LOCK_LED_PIN, OUTPUT);
     digitalWrite(LOCK_LED_PIN, LOW);        // Lock LED off initially
+    #endif
 
     // Initialize I2C at standard speed for reliable startup
     // (Fast mode can be unreliable at lower battery voltages)
@@ -119,6 +138,15 @@ void setup() {
         sensorsInit();  // Second attempt
     }
     DEBUG_SERIAL.println("[Init] Sensors initialized");
+
+    #ifdef SONGBIRD_REVA
+    // Charger status reader (BQ25628E). Charging itself needs no firmware.
+    if (chargerInit()) {
+        DEBUG_SERIAL.println("[Init] Charger found (BQ25628E)");
+    } else {
+        DEBUG_SERIAL.println("[Init] WARNING: charger not answering at 0x6A");
+    }
+    #endif
 
     // Switch to fast mode now that peripherals are initialized
     Wire.setClock(400000);  // 400kHz for normal operation
@@ -171,6 +199,9 @@ void setup() {
         }
     }
 
+    // Stop 2 in the idle task (Rev A with SONGBIRD_IDLE_STOP2; otherwise a no-op)
+    lowPowerInit();
+
     // Initialize synchronization primitives
     if (!syncInit()) {
         DEBUG_SERIAL.println("[Init] ERROR: Sync init failed!");
@@ -195,7 +226,7 @@ void setup() {
     DEBUG_SERIAL.println("[Init] Tasks created");
 
     // Turn off LED - tasks will control it
-    digitalWrite(LED_PIN, LOW);
+    digitalWrite(LED_PIN, LED_OFF_LEVEL);
 
     DEBUG_SERIAL.println("[Init] Starting FreeRTOS scheduler...");
     DEBUG_SERIAL.println();

@@ -1,22 +1,34 @@
 /**
  * @file SongbirdAudio.cpp
- * @brief Audio/buzzer implementation for Songbird using SparkFun Qwiic Buzzer
+ * @brief Audio/buzzer implementation for Songbird
  *
- * Uses the SparkFun Qwiic Buzzer (I2C) for audio feedback.
- * I2C access is protected by mutex for thread safety.
+ * Two backends, chosen at build time:
+ *   - SparkFun Qwiic Buzzer over I2C (Cygnet build). I2C access is protected
+ *     by mutex for thread safety.
+ *   - Timer PWM into the on-board magnetic transducer (Rev A carrier,
+ *     SONGBIRD_AUDIO_PWM). TIM1 channel 1 on PA8 drives a low-side MOSFET.
  *
  * Songbird - Blues Sales Demo Device
  * Copyright (c) 2025 Blues Inc.
  */
 
 #include "SongbirdAudio.h"
+#ifdef SONGBIRD_AUDIO_PWM
+#include <HardwareTimer.h>
+#include "SongbirdLowPower.h"
+#else
 #include "SparkFun_Qwiic_Buzzer_Arduino_Library.h"
+#endif
 
 // =============================================================================
 // Module State
 // =============================================================================
 
+#ifdef SONGBIRD_AUDIO_PWM
+static HardwareTimer* s_pwmTimer = NULL;
+#else
 static QwiicBuzzer s_buzzer;
+#endif
 static bool s_audioEnabled = DEFAULT_AUDIO_ENABLED;
 static uint8_t s_audioVolume = DEFAULT_AUDIO_VOLUME;
 static bool s_alertsOnly = DEFAULT_AUDIO_ALERTS_ONLY;
@@ -49,6 +61,40 @@ static const char* const EVENT_NAMES[] = {
 // Volume Conversion
 // =============================================================================
 
+#ifdef SONGBIRD_AUDIO_PWM
+
+/**
+ * @brief Convert 0-100 volume to a PWM duty cycle in percent
+ *
+ * The transducer is loudest near 50% duty. Loudness falls off roughly with
+ * the square of duty below that, so the mapping is linear from 2% to 50%.
+ */
+static uint32_t volumeToDuty(uint8_t volume) {
+    if (volume == 0) {
+        return 0;
+    }
+    uint32_t duty = 2 + ((uint32_t)volume * 48U) / 100U;
+    return duty > 50 ? 50 : duty;
+}
+
+/**
+ * @brief Stop the PWM output and force the MOSFET gate low
+ *
+ * Pausing the timer can leave the pin at whichever level it was in. A high
+ * level would hold the MOSFET on and pass continuous current through the
+ * transducer, so the pin is returned to a GPIO output driven low.
+ */
+static void pwmSilence(void) {
+    if (s_pwmTimer != NULL) {
+        s_pwmTimer->pause();
+    }
+    pinMode(BOARD_BUZZER_PIN, OUTPUT);
+    digitalWrite(BOARD_BUZZER_PIN, LOW);
+    lowPowerSetAudioActive(false);          // Stop 2 allowed again
+}
+
+#else // Qwiic Buzzer backend
+
 /**
  * @brief Convert 0-100 volume to Qwiic Buzzer volume constant
  *
@@ -73,6 +119,8 @@ static uint8_t volumeToQwiic(uint8_t volume) {
     }
 }
 
+#endif // SONGBIRD_AUDIO_PWM
+
 /**
  * @brief Check if we need to use RTOS primitives
  *
@@ -94,6 +142,20 @@ static inline bool useRtosPrimitives(void) {
 
 bool audioInit(void) {
     // Note: Called during setup() before FreeRTOS starts, so no mutex needed.
+
+    #ifdef SONGBIRD_AUDIO_PWM
+    // TIM1 channel 1 on PA8. The timer object is created once and reused.
+    if (s_pwmTimer == NULL) {
+        s_pwmTimer = new HardwareTimer(TIM1);
+    }
+    pwmSilence();
+    s_initialized = (s_pwmTimer != NULL);
+    #ifdef DEBUG_MODE
+    DEBUG_SERIAL.println(s_initialized ? "[Audio] PWM transducer initialized"
+                                       : "[Audio] PWM timer allocation failed!");
+    #endif
+    return s_initialized;
+    #else
     // I2C bus is already initialized by main.cpp before this is called.
 
     // Initialize Qwiic Buzzer at default address
@@ -110,6 +172,7 @@ bool audioInit(void) {
         #endif
         return false;
     }
+    #endif // SONGBIRD_AUDIO_PWM
 }
 
 // =============================================================================
@@ -137,6 +200,28 @@ void audioPlayTone(uint16_t frequency, uint16_t durationMs, uint8_t volume) {
 
     // Clamp volume to valid range
     volume = CLAMP(volume, 0, 100);
+
+    #ifdef SONGBIRD_AUDIO_PWM
+    // No bus involved: start the PWM, wait out the note, then silence.
+    //
+    // The channel is configured explicitly on every note rather than through
+    // setPWM(). setPWM() only attaches the pin to the timer when the channel
+    // was not already in PWM mode, and pwmSilence() hands the pin back to GPIO
+    // after each note, so from the second note on setPWM() would drive a
+    // timer whose output is no longer connected to the pin.
+    lowPowerSetAudioActive(true);           // TIM1 has no clock in Stop 2
+    s_pwmTimer->setMode(1, TIMER_OUTPUT_COMPARE_PWM1, BOARD_BUZZER_PIN);
+    s_pwmTimer->setOverflow(frequency, HERTZ_FORMAT);
+    s_pwmTimer->setCaptureCompare(1, volumeToDuty(volume), PERCENT_COMPARE_FORMAT);
+    s_pwmTimer->resume();
+    if (useRtos) {
+        vTaskDelay(pdMS_TO_TICKS(durationMs));
+    } else {
+        delay(durationMs);
+    }
+    pwmSilence();
+    return;
+    #else
     uint8_t qwiicVolume = volumeToQwiic(volume);
 
     // Take I2C mutex only if scheduler is running
@@ -160,6 +245,7 @@ void audioPlayTone(uint16_t frequency, uint16_t durationMs, uint8_t volume) {
         // Pre-scheduler: use blocking delay
         delay(durationMs);
     }
+    #endif // SONGBIRD_AUDIO_PWM
 }
 
 void audioStop(void) {
@@ -167,6 +253,9 @@ void audioStop(void) {
         return;
     }
 
+    #ifdef SONGBIRD_AUDIO_PWM
+    pwmSilence();
+    #else
     bool useRtos = useRtosPrimitives();
 
     if (useRtos) {
@@ -180,6 +269,7 @@ void audioStop(void) {
     if (useRtos) {
         syncReleaseI2C();
     }
+    #endif // SONGBIRD_AUDIO_PWM
 }
 
 // =============================================================================
