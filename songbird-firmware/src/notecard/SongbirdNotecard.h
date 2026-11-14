@@ -185,7 +185,11 @@ bool notecardGetCommand(Command* cmd);
 // =============================================================================
 
 /**
- * @brief Get battery voltage and USB power status
+ * @brief Get an instantaneous battery voltage and USB power status
+ *
+ * Requests card.voltage with now:true. Without that flag the Notecard
+ * returns a trailing 15-minute average that can stay millivolt-flat while
+ * the pack (and _log.qo) keeps moving.
  *
  * Caller must hold I2C mutex.
  *
@@ -193,6 +197,27 @@ bool notecardGetCommand(Command* cmd);
  * @return Battery voltage in volts, or 0 on error
  */
 float notecardGetVoltage(bool* usbPowered);
+
+/**
+ * @brief Read instantaneous card.voltage, distinguishing failure from 0 V
+ *
+ * Caller must hold I2C mutex. On failure `volts` is 0 and the call returns
+ * false so the caller does not treat a missed read as "on battery".
+ *
+ * @param volts Output voltage in volts (0 on failure)
+ * @param usbPowered Output USB power state; only written on success
+ * @return true when `value` was present and greater than 0
+ */
+bool notecardReadInstantVoltage(float* volts, bool* usbPowered);
+
+/**
+ * @brief Read the live Mojo / power-log voltage (card.power)
+ *
+ * This is the sample written to _log.qo. Returns 0 when Mojo is absent or
+ * the request fails. Does not count as a Notecard error: power logging is
+ * optional. Caller must hold I2C mutex.
+ */
+float notecardGetPowerLogVoltage(void);
 
 /**
  * @brief Configure voltage monitoring for LiPo battery

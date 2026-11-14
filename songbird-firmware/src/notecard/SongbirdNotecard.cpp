@@ -685,20 +685,29 @@ bool notecardGetCommand(Command* cmd) {
 // Device Information
 // =============================================================================
 
-float notecardGetVoltage(bool* usbPowered) {
+bool notecardReadInstantVoltage(float* volts, bool* usbPowered) {
+    if (volts) {
+        *volts = 0.0f;
+    }
     if (!s_initialized) {
         if (usbPowered) *usbPowered = false;
-        return 0.0f;
+        return false;
     }
 
+    // now:true skips the trailing 15-minute average. Host 1.7.3 read that
+    // average for alerts and shutdown notes; the same value stayed
+    // millivolt-flat on _session.qo while _log.qo kept falling. Polling the
+    // instantaneous reading is the host's contribution to the voltage the
+    // Notecard snapshots onto the next session.
     J* req = s_notecard.newRequest("card.voltage");
+    JAddBoolToObject(req, "now", true);
 
     J* rsp = s_notecard.requestAndResponse(req);
     if (rsp == NULL || s_notecard.responseError(rsp)) {
         if (rsp) s_notecard.deleteResponse(rsp);
         if (usbPowered) *usbPowered = false;
         NC_ERROR();
-        return 0.0f;
+        return false;
     }
 
     float voltage = JGetNumber(rsp, "value");
@@ -710,7 +719,44 @@ float notecardGetVoltage(bool* usbPowered) {
 
     s_notecard.deleteResponse(rsp);
 
+    if (volts) {
+        *volts = voltage;
+    }
+    return voltage > 0.0f;
+}
+
+float notecardGetVoltage(bool* usbPowered) {
+    float voltage = 0.0f;
+    if (!notecardReadInstantVoltage(&voltage, usbPowered)) {
+        return 0.0f;
+    }
     return voltage;
+}
+
+float notecardGetPowerLogVoltage(void) {
+    #ifdef SONGBIRD_REVA
+    // Rev A has no Mojo, so card.power has nothing to report. Returning 0
+    // ("no sample") leaves voltageDecide() with the instant card.voltage
+    // reading alone and saves a failing request on every sensor read.
+    return 0.0f;
+    #else
+    if (!s_initialized) {
+        return 0.0f;
+    }
+
+    // Bare card.power returns the current Mojo reading (the _log.qo voltage),
+    // not the card.voltage average. A missing Mojo is normal.
+    J* req = s_notecard.newRequest("card.power");
+    J* rsp = s_notecard.requestAndResponse(req);
+    if (rsp == NULL || s_notecard.responseError(rsp)) {
+        if (rsp) s_notecard.deleteResponse(rsp);
+        return 0.0f;
+    }
+
+    float voltage = JGetNumber(rsp, "voltage");
+    s_notecard.deleteResponse(rsp);
+    return voltage;
+    #endif // SONGBIRD_REVA
 }
 
 bool notecardConfigureVoltage(void) {

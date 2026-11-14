@@ -210,3 +210,15 @@ extern "C" void PVD_PVM_IRQHandler(void) {
 extern "C" void HAL_PWR_PVDCallback(void) {
     g_pvdShutdownRequested = true;
 }
+
+bool powerIsVddBelowPvd(void) {
+    // PVDO is 1 when VDD is below the selected PVD level (~2.9 V).
+    #if defined(PWR_SVMSR_PVDO)
+    // STM32U5 (Rev A): the flag lives in the supply voltage monitoring
+    // status register.
+    return (PWR->SVMSR & PWR_SVMSR_PVDO) != 0U;
+    #else
+    // STM32L4 (Cygnet): PWR_SR2.
+    return (PWR->SR2 & PWR_SR2_PVDO) != 0U;
+    #endif
+}
